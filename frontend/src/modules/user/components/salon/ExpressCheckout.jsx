@@ -1,0 +1,345 @@
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Trash2, ShoppingCart, ArrowRight, Minus, Plus, Info, MapPin, Calendar, Clock, ChevronRight, ShieldCheck, CreditCard } from "lucide-react";
+import { useCart } from "@/modules/user/contexts/CartContext";
+import { useAuth } from "@/modules/user/contexts/AuthContext";
+import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
+import { Button } from "@/modules/user/components/ui/button";
+import AddressModal from "./AddressModal";
+import SlotSelectionModal from "./SlotSelectionModal";
+import { useNavigate } from "react-router-dom";
+
+const ExpressCheckout = () => {
+    const { cartItems, updateQuantity, clearCart, clearGroup, totalPrice, totalSavings, isCartOpen, setIsCartOpen, selectedSlot, getGroupedItems } = useCart();
+    const { isLoggedIn, hasAddress, setIsLoginModalOpen, user } = useAuth();
+    const { gender } = useGenderTheme();
+    const navigate = useNavigate();
+    const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+    const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
+
+    const isHighValue = cartItems.some(item =>
+        item.name.toLowerCase().includes("bridal") ||
+        item.name.toLowerCase().includes("party makeup") ||
+        item.price >= 3000
+    );
+
+    const advancePercentage = 30; // 30% advance
+    const advanceAmount = isHighValue ? Math.round((totalPrice * advancePercentage) / 100) : 0;
+    const remainingAmount = totalPrice - advanceAmount;
+
+    if (!isCartOpen) return null;
+
+    const handleCheckout = (typeId = null) => {
+        if (!isLoggedIn) {
+            setIsLoginModalOpen(true);
+            return;
+        }
+
+        if (!hasAddress) {
+            setIsAddressModalOpen(true);
+            return;
+        }
+
+        if (!selectedSlot) {
+            setIsSlotModalOpen(true);
+            return;
+        }
+
+        setIsCartOpen(false);
+        if (typeId && typeof typeId === 'string') {
+            navigate(`/booking/summary?type=${typeId}`);
+        } else {
+            navigate("/booking/summary");
+        }
+    };
+
+    const getFormattedDate = (dateStr) => {
+        if (!dateStr) return "";
+        if (dateStr === "Today") return "Today";
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
+    };
+
+    return (
+        <>
+            <AnimatePresence>
+                <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setIsCartOpen(false)}
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                    />
+
+                    <motion.div
+                        initial={{ y: "100%" }}
+                        animate={{ y: 0 }}
+                        exit={{ y: "100%" }}
+                        className="relative w-full max-w-lg bg-background rounded-t-[32px] sm:rounded-[32px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+                    >
+                        {/* Header */}
+                        <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-background/80 backdrop-blur-md sticky top-0 z-10">
+                            <div>
+                                <h2 className="text-xl font-bold font-display">Express Checkout</h2>
+                                <p className="text-[10px] text-muted-foreground font-bold tracking-widest uppercase mt-0.5">
+                                    Complete your booking
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button onClick={clearCart} className="text-[10px] font-bold text-destructive hover:underline uppercase tracking-tight">
+                                    Clear All
+                                </button>
+                                <button onClick={() => setIsCartOpen(false)} className="p-2 rounded-full hover:bg-accent transition-colors">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto hide-scrollbar p-4 space-y-4">
+
+                            {/* Requirements Checker */}
+                            <div className="space-y-3">
+                                {/* Login Requirement */}
+                                {!isLoggedIn && (
+                                    <motion.div
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl flex items-center justify-between"
+                                    >
+                                        <div>
+                                            <p className="text-sm font-bold text-amber-900">1. Required: Login</p>
+                                            <p className="text-[10px] text-amber-800/80">Login to save your cart and book</p>
+                                        </div>
+                                        <Button variant="outline" size="sm" onClick={() => setIsLoginModalOpen(true)} className="h-8 text-xs font-bold border-amber-500/30 text-amber-900 bg-white/50">SIGN IN</Button>
+                                    </motion.div>
+                                )}
+
+                                {/* Address Requirement */}
+                                {isLoggedIn && (
+                                    <motion.button
+                                        onClick={() => setIsAddressModalOpen(true)}
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className={`w-full text-left p-4 rounded-2xl flex items-center justify-between border-2 transition-all ${hasAddress ? "bg-green-500/5 border-green-500/20" : "bg-blue-500/5 border-blue-500/20"
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${hasAddress ? "bg-green-500/20" : "bg-blue-500/20"}`}>
+                                                <MapPin className={`w-5 h-5 ${hasAddress ? "text-green-600" : "text-blue-600"}`} />
+                                            </div>
+                                            <div>
+                                                <p className={`text-sm font-bold ${hasAddress ? "text-green-900" : "text-blue-900"}`}>2. Service Address</p>
+                                                <p className={`text-[10px] ${hasAddress ? "text-green-700" : "text-blue-700"}`}>
+                                                    {hasAddress ? `${user.address.houseNo}, ${user.address.area}` : "Tap to add your location"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight className={`w-4 h-4 ${hasAddress ? "text-green-600" : "text-blue-600"}`} />
+                                    </motion.button>
+                                )}
+
+                                {/* Slot Requirement */}
+                                {isLoggedIn && (
+                                    <motion.button
+                                        onClick={() => setIsSlotModalOpen(true)}
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className={`w-full text-left p-4 rounded-2xl flex items-center justify-between border-2 transition-all ${selectedSlot ? "bg-green-500/5 border-green-500/20" : "bg-purple-500/5 border-purple-500/20"
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedSlot ? "bg-green-500/20" : "bg-purple-500/20"}`}>
+                                                <Calendar className={`w-5 h-5 ${selectedSlot ? "text-green-600" : "text-purple-600"}`} />
+                                            </div>
+                                            <div>
+                                                <p className={`text-sm font-bold ${selectedSlot ? "text-green-900" : "text-purple-900"}`}>3. Booking Slot</p>
+                                                <p className={`text-[10px] ${selectedSlot ? "text-green-700" : "text-purple-700"}`}>
+                                                    {selectedSlot
+                                                        ? `${getFormattedDate(selectedSlot.date)} at ${selectedSlot.time} (${selectedSlot.provider?.name || 'Trained Professional'})`
+                                                        : "Pick a date & time"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight className={`w-4 h-4 ${selectedSlot ? "text-green-600" : "text-purple-600"}`} />
+                                    </motion.button>
+                                )}
+                            </div>
+
+                            {/* Savings Banner */}
+                            {totalSavings > 0 && (
+                                <div className="bg-green-600 rounded-2xl p-4 flex items-center gap-4 shadow-lg shadow-green-500/20 text-white">
+                                    <span className="text-2xl">⚡</span>
+                                    <p className="text-sm font-bold uppercase tracking-wide">
+                                        You are saving ₹{totalSavings} today!
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Advance Payment Info */}
+                            {isHighValue && (
+                                <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-3">
+                                    <div className="flex items-center gap-2 text-primary">
+                                        <ShieldCheck className="w-5 h-5" />
+                                        <h4 className="font-bold text-sm">Advance Payment Mandatory</h4>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                        For Bridal & High-Value services, a {advancePercentage}% advance is required to confirm your booking.
+                                        Remaining ₹{remainingAmount.toLocaleString()} is payable after service.
+                                    </p>
+                                    <div className="flex justify-between items-center pt-2 border-t border-primary/10">
+                                        <span className="text-[10px] font-bold uppercase text-muted-foreground">Due Now</span>
+                                        <span className="text-lg font-black text-primary">₹{advanceAmount.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Grouped Items Section */}
+                            <div className="space-y-6 pb-4">
+                                {Object.entries(getGroupedItems()).map(([type, group]) => (
+                                    <motion.div
+                                        key={type}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="bg-white rounded-[28px] border border-border/50 overflow-hidden shadow-sm flex flex-col"
+                                    >
+                                        {/* Group Header */}
+                                        <div className="relative h-24 sm:h-28 overflow-hidden">
+                                            <img src={group.image} className="w-full h-full object-cover" alt="" />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end p-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h3 className="text-sm font-black text-white">{group.label}</h3>
+                                                        <p className="text-[10px] font-bold text-white/70 uppercase">{group.items.length} {group.items.length === 1 ? 'Service' : 'Services'}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => clearGroup(type)}
+                                                        className="w-8 h-8 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white/80 hover:text-white hover:bg-black/40 transition-all"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Items List */}
+                                        <div className="p-1 space-y-1 bg-accent/5">
+                                            {group.items.map((item) => (
+                                                <div key={item.id} className="bg-white p-3 rounded-2xl flex gap-3 items-center">
+                                                    <div className="w-12 h-12 rounded-xl bg-accent overflow-hidden flex-shrink-0">
+                                                        <img src={item.image} alt="" className="w-full h-full object-cover" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h4 className="text-[13px] font-bold text-foreground leading-tight truncate">{item.name}</h4>
+                                                        <p className="text-[10px] font-bold text-primary mt-0.5">₹{item.price.toLocaleString()}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 bg-accent/60 rounded-xl p-0.5">
+                                                        <button
+                                                            onClick={() => updateQuantity(item.id, -1, type)}
+                                                            className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-sm active:scale-90 transition-transform"
+                                                        >
+                                                            <Minus className="w-3 h-3" />
+                                                        </button>
+                                                        <span className="text-xs font-black min-w-4 text-center">{item.quantity}</span>
+                                                        <button
+                                                            onClick={() => updateQuantity(item.id, 1, type)}
+                                                            className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-sm active:scale-90 transition-transform"
+                                                        >
+                                                            <Plus className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Group Footer */}
+                                        <div className="p-4 bg-white border-t border-border/30 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Type Subtotal</p>
+                                                <p className="text-lg font-black text-foreground">₹{group.subtotal.toLocaleString()}</p>
+                                            </div>
+                                            <Button
+                                                onClick={() => handleCheckout(type)}
+                                                className="h-11 px-6 rounded-2xl font-bold bg-primary hover:bg-primary/90 text-sm gap-2 shadow-lg shadow-primary/20"
+                                            >
+                                                Checkout <ChevronRight className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Final Footer */}
+                        <div className="p-4 bg-background border-t border-border shadow-2xl relative z-20">
+                            {isHighValue ? (
+                                <div className="space-y-3 mb-4">
+                                    <div className="flex items-center justify-between text-muted-foreground">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider">Total Service Value</span>
+                                        <span className="text-sm font-bold">₹{totalPrice.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Advance to Pay Now</p>
+                                            <p className="text-2xl font-black text-primary">₹{advanceAmount.toLocaleString()}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Remaining Balance</p>
+                                            <p className="text-sm font-bold text-foreground">₹{remainingAmount.toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-between mb-4">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Payable Amount</p>
+                                        <p className="text-2xl font-black text-primary">₹{totalPrice.toLocaleString()}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-bold text-green-600 uppercase">You Save</p>
+                                        <p className="text-sm font-bold text-green-700">₹{totalSavings}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <Button
+                                onClick={handleCheckout}
+                                className={`w-full h-15 rounded-2xl text-lg font-bold shadow-xl transition-all duration-300 gap-3 group border-none ${isLoggedIn && hasAddress && selectedSlot
+                                    ? "bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 shadow-green-500/20"
+                                    : "bg-primary shadow-primary/20"
+                                    }`}
+                            >
+                                {/* Dynamic Button Text */}
+                                {!isLoggedIn && "Sign in to Proceed"}
+                                {isLoggedIn && !hasAddress && "Add Service Address"}
+                                {isLoggedIn && hasAddress && !selectedSlot && "Pick Booking Slot"}
+                                {isLoggedIn && hasAddress && selectedSlot && (
+                                    isHighValue ? "PAY ADVANCE & BOOK" : "BOOK SERVICES NOW"
+                                )}
+
+                                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform">
+                                    {isHighValue ? <CreditCard className="w-4 h-4 text-white" /> : <ArrowRight className="w-5 h-5 text-white" />}
+                                </div>
+                            </Button>
+                        </div>
+                    </motion.div>
+                </div>
+            </AnimatePresence>
+
+            <AddressModal
+                isOpen={isAddressModalOpen}
+                onClose={() => setIsAddressModalOpen(false)}
+            />
+
+            <SlotSelectionModal
+                isOpen={isSlotModalOpen}
+                onClose={() => setIsSlotModalOpen(false)}
+            />
+        </>
+    );
+};
+
+export default ExpressCheckout;
+
