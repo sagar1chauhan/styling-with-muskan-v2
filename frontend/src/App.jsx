@@ -2,7 +2,7 @@ import { Toaster } from "@/modules/user/components/ui/toaster";
 import { Toaster as Sonner } from "@/modules/user/components/ui/sonner";
 import { TooltipProvider } from "@/modules/user/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { GenderThemeProvider } from "@/modules/user/contexts/GenderThemeContext";
 import { CartProvider } from "@/modules/user/contexts/CartContext";
 import { AuthProvider } from "@/modules/user/contexts/AuthContext";
@@ -62,83 +62,91 @@ import ProviderRegisterPage from "@/modules/serviceprovider/pages/auth/ProviderR
 import ProviderStatusPage from "@/modules/serviceprovider/pages/auth/ProviderStatusPage";
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AuthProvider>
-        <BookingProvider>
-          <GenderThemeProvider>
-            <CartProvider>
-              <WishlistProvider>
-                <BeauticianAuthProvider>
-                  <BeauticianBookingProvider>
-                    <BeauticianAvailabilityProvider>
-                      <Toaster />
-                      <Sonner />
-                      <BrowserRouter>
-                        <Routes>
-                          {/* User Routes */}
-                          <Route path="/" element={<SplashScreen />} />
-                          <Route path="/select-gender" element={<GenderSelect />} />
-                          <Route path="/home" element={<HomePage />} />
-                          <Route path="/explore/:categoryId" element={<ExplorePage />} />
-                          <Route path="/bookings" element={<BookingsPage />} />
-                          <Route path="/service/:id" element={<ServiceDetail />} />
-                          <Route path="/booking/:id" element={<BookingSummary />} />
-                          <Route path="/wishlist" element={<WishlistPage />} />
-                          <Route path="/payment" element={<PaymentPage />} />
-                          <Route path="/profile" element={<ProfilePage />} />
-                          <Route path="/edit-profile" element={<EditProfilePage />} />
-                          <Route path="/wallet" element={<WalletPage />} />
-                          <Route path="/addresses" element={<AddressesPage />} />
-                          <Route path="/referral" element={<ReferralPage />} />
-                          <Route path="/coupons" element={<CouponsPage />} />
-                          <Route path="/support" element={<SupportPage />} />
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <GenderThemeProvider>
+              <CartProvider>
+                <WishlistProvider>
+                  <BookingProvider>
+                    <BeauticianAuthProvider>
+                      <BeauticianBookingProvider>
+                        <BeauticianAvailabilityProvider>
+                          <Toaster />
+                          <Sonner />
+                          <Routes>
+                            {/* User Routes */}
+                            <Route path="/" element={<SplashScreen />} />
+                            <Route path="/select-gender" element={<GenderSelect />} />
+                            <Route path="/home" element={<HomePage />} />
+                            <Route path="/explore" element={<ExplorePage />} />
+                            <Route path="/explore/:categoryId" element={<ExplorePage />} />
+                            <Route path="/bookings" element={<BookingsPage />} />
+                            <Route path="/service/:id" element={<ServiceDetail />} />
+                            <Route path="/booking/:id" element={<BookingSummary />} />
+                            <Route path="/payment" element={<PaymentPage />} />
+                            <Route path="/profile" element={<ProfilePage />} />
+                            <Route path="/edit-profile" element={<EditProfilePage />} />
+                            <Route path="/wallet" element={<WalletPage />} />
+                            <Route path="/addresses" element={<AddressesPage />} />
+                            <Route path="/referral" element={<ReferralPage />} />
+                            <Route path="/coupons" element={<CouponsPage />} />
+                            <Route path="/support" element={<SupportPage />} />
+                            <Route path="/wishlist" element={<WishlistPage />} />
 
-                          {/* Beautician Routes */}
-                          <Route path="/beautician/login" element={<BeauticianLoginPage />} />
-                          <Route path="/beautician/register" element={<BeauticianRegisterPage />} />
-                          <Route path="/beautician/pending" element={<PendingApprovalPage />} />
-                          <Route path="/beautician" element={<BeauticianLayout />}>
-                            <Route path="dashboard" element={<BeauticianDashboard />} />
-                            <Route path="bookings" element={<BeauticianBookingsPage />} />
-                            <Route path="booking/:id" element={<BookingDetailPage />} />
-                            <Route path="availability" element={<AvailabilityPage />} />
-                            <Route path="earnings" element={<EarningsPage />} />
-                            <Route path="profile" element={<BeauticianProfilePage />} />
-                            <Route path="history" element={<BookingHistoryPage />} />
-                          </Route>
+                            {/* Beautician Module */}
+                            <Route path="/beautician/login" element={<BeauticianLoginPage />} />
+                            <Route path="/beautician/register" element={<BeauticianRegisterPage />} />
+                            <Route path="/beautician/pending" element={<PendingApprovalPage />} />
+                            <Route path="/beautician" element={<BeauticianLayout />}>
+                              <Route index element={<Navigate to="/beautician/dashboard" replace />} />
+                              <Route path="dashboard" element={<BeauticianDashboard />} />
+                              <Route path="bookings" element={<BeauticianBookingsPage />} />
+                              <Route path="booking/:id" element={<BookingDetailPage />} />
+                              <Route path="availability" element={<AvailabilityPage />} />
+                              <Route path="earnings" element={<EarningsPage />} />
+                              <Route path="profile" element={<BeauticianProfilePage />} />
+                              <Route path="history" element={<BookingHistoryPage />} />
+                            </Route>
 
-                          {/* Service Provider Routes */}
-                          <Route path="/provider/login" element={<ProviderLoginPage />} />
-                          <Route path="/provider/register" element={<ProviderRegisterPage />} />
-                          <Route path="/provider/status" element={<ProviderStatusPage />} />
+                            {/* Service Provider Module */}
+                            <Route path="/provider/login" element={<ProviderLoginPage />} />
+                            <Route path="/provider/register" element={<ProviderRegisterPage />} />
+                            <Route path="/provider/status" element={<ProviderStatusPage />} />
+                            <Route path="/provider" element={<ProviderLayout />}>
+                              <Route index element={<Navigate to="/provider/dashboard" replace />} />
+                              <Route path="dashboard" element={<ProviderDashboard />} />
+                              <Route path="credits" element={<LeadCreditManager />} />
+                              <Route path="availability" element={<AvailabilityCalendar />} />
+                              <Route path="performance" element={<PerformanceDashboard />} />
+                              <Route path="profile" element={<ProviderProfile />} />
+                              <Route path="admin" element={<AdminFinanceSuite />} />
+                              <Route path="history" element={<JobHistory />} />
+                              <Route path="training" element={<TrainingHub />} />
+                            </Route>
 
-                          <Route path="/provider" element={<ProviderLayout />}>
-                            <Route path="dashboard" element={<ProviderDashboard />} />
-                            <Route path="credits" element={<LeadCreditManager />} />
-                            <Route path="availability" element={<AvailabilityCalendar />} />
-                            <Route path="performance" element={<PerformanceDashboard />} />
-                            <Route path="profile" element={<ProviderProfile />} />
-                            <Route path="admin" element={<AdminFinanceSuite />} />
-                            <Route path="history" element={<JobHistory />} />
-                            <Route path="training" element={<TrainingHub />} />
-                          </Route>
+                            {/* Common Typos / Legacy Redirects */}
+                            <Route path="/home/beautician/*" element={<Navigate to="/beautician" replace />} />
+                            <Route path="/home/provider/*" element={<Navigate to="/provider" replace />} />
 
-                          <Route path="*" element={<NotFound />} />
-                        </Routes>
-                        <LoginModal />
-                      </BrowserRouter>
-                    </BeauticianAvailabilityProvider>
-                  </BeauticianBookingProvider>
-                </BeauticianAuthProvider>
-              </WishlistProvider>
-            </CartProvider>
-          </GenderThemeProvider>
-        </BookingProvider>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
-
+                            {/* Fallback */}
+                            <Route path="*" element={<NotFound />} />
+                          </Routes>
+                          <LoginModal />
+                        </BeauticianAvailabilityProvider>
+                      </BeauticianBookingProvider>
+                    </BeauticianAuthProvider>
+                  </BookingProvider>
+                </WishlistProvider>
+              </CartProvider>
+            </GenderThemeProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 export default App;
