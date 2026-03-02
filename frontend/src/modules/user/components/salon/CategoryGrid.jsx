@@ -3,13 +3,14 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
-import { categories, SERVICE_TYPES } from "@/modules/user/data/services";
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 import CustomizeBookingForm from "./CustomizeBookingForm";
 
 const CategoryGrid = () => {
   const { gender } = useGenderTheme();
   const navigate = useNavigate();
   const { setBookingType } = useCart();
+  const { categories, serviceTypes: SERVICE_TYPES } = useUserModuleData();
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
 
 

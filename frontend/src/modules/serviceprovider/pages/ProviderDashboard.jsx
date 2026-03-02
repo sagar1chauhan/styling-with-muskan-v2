@@ -17,73 +17,100 @@ import {
     UserCheck,
     Star,
     Clock,
-    Wallet
+    Wallet,
+    CalendarDays,
+    IndianRupee,
+    Briefcase,
+    Award
 } from "lucide-react";
 
 const ProviderDashboard = () => {
     return (
         <div className="flex flex-1 w-full flex-col gap-4 md:gap-8 pt-4 md:pt-0">
-            <div className="flex items-center gap-4">
-                <h1 className="text-2xl font-bold tracking-tight">Dashboard Overview</h1>
-                <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
-                    <span className="flex h-2 w-2 rounded-full bg-green-500 mr-2"></span>
-                    Active
-                </Badge>
+            {/* Calendar Bar */}
+            <div className="bg-white rounded-[20px] p-4 shadow-sm shadow-violet-100 flex items-center justify-between border border-violet-50 mx-1 md:mx-0">
+                <div className="flex gap-8">
+                    <div>
+                        <p className="font-extrabold text-[13px] sm:text-sm text-gray-900 tracking-tight">Sat, Feb 28</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                            <div className="h-1 w-1 bg-green-500 rounded-full"></div>
+                            <span className="text-[9px] font-black tracking-widest text-green-600 uppercase">Available</span>
+                        </div>
+                    </div>
+                    <div>
+                        <p className="font-extrabold text-[13px] sm:text-sm text-gray-900 tracking-tight">Sun, Mar 01</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                            <div className="h-1 w-1 bg-green-500 rounded-full"></div>
+                            <span className="text-[9px] font-black tracking-widest text-green-600 uppercase">Available</span>
+                        </div>
+                    </div>
+                </div>
+                <Link to="/provider/availability" className="h-10 w-10 flex items-center justify-center bg-gray-50 text-gray-600 rounded-[12px] hover:bg-violet-50 hover:text-violet-600 transition-colors">
+                    <CalendarDays className="h-5 w-5" />
+                </Link>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card x-chunk="dashboard-01-chunk-0">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Available Credits
-                        </CardTitle>
-                        <CreditCard className="h-4 w-4 text-purple-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">1,250</div>
-                        <p className="text-xs text-muted-foreground">
-                            +150 since last week
-                        </p>
+            <div className="flex items-center gap-4 px-1">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900">Dashboard Overview</h1>
+            </div>
+
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 px-1 md:px-0">
+                <Card x-chunk="dashboard-01-chunk-0" className="rounded-[24px] border-none shadow-sm shadow-violet-100/50 bg-gradient-to-br from-white to-purple-50/30">
+                    <CardContent className="p-4 sm:p-6">
+                        <div className="flex flex-col gap-3">
+                            <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                                <IndianRupee className="h-5 w-5 text-purple-600" />
+                            </div>
+                            <div>
+                                <div className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">₹4,250</div>
+                                <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Revenue</p>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
-                <Card x-chunk="dashboard-01-chunk-1">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Rating
-                        </CardTitle>
-                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">4.8</div>
-                        <p className="text-xs text-muted-foreground">
-                            Based on 124 reviews
-                        </p>
+
+                <Card x-chunk="dashboard-01-chunk-1" className="rounded-[24px] border-none shadow-sm shadow-violet-100/50 bg-gradient-to-br from-white to-blue-50/30">
+                    <CardContent className="p-4 sm:p-6">
+                        <div className="flex flex-col gap-3">
+                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                <Briefcase className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div>
+                                <div className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">12</div>
+                                <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Active Jobs</p>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
-                <Card x-chunk="dashboard-01-chunk-2">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Job Response Rate</CardTitle>
-                        <UserCheck className="h-4 w-4 text-green-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-green-600">92%</div>
-                        <p className="text-xs text-muted-foreground">
-                            Excellent response time
-                        </p>
+
+                <Card x-chunk="dashboard-01-chunk-2" className="rounded-[24px] border-none shadow-sm shadow-violet-100/50 bg-gradient-to-br from-white to-orange-50/30">
+                    <CardContent className="p-4 sm:p-6">
+                        <div className="flex flex-col gap-3">
+                            <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                                <Clock className="h-5 w-5 text-orange-600" />
+                            </div>
+                            <div>
+                                <div className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">8h</div>
+                                <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Availability</p>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
-                <Card x-chunk="dashboard-01-chunk-3">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Hours Available
-                        </CardTitle>
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">8h / Today</div>
-                        <p className="text-xs text-muted-foreground">
-                            09:00 AM - 05:00 PM
-                        </p>
+
+                <Card x-chunk="dashboard-01-chunk-3" className="rounded-[24px] border-none shadow-sm shadow-violet-100/50 bg-gradient-to-br from-white to-yellow-50/30 ring-1 ring-yellow-100/50">
+                    <CardContent className="p-4 sm:p-6 relative overflow-hidden">
+                        <div className="absolute -right-4 -top-4 opacity-10">
+                            <Star className="h-24 w-24 text-yellow-500 fill-yellow-500" />
+                        </div>
+                        <div className="flex flex-col gap-3 relative z-10">
+                            <div className="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                                <Award className="h-5 w-5 text-yellow-600" />
+                            </div>
+                            <div>
+                                <div className="text-xl sm:text-2xl font-black text-yellow-600 tracking-tight">Elite Pro</div>
+                                <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Grade</p>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
             </div>

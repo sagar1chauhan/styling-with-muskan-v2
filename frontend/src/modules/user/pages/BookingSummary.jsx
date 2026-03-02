@@ -33,10 +33,39 @@ const BookingSummary = () => {
   }, 0);
 
   const [coupon, setCoupon] = useState("");
-  const [couponApplied, setCouponApplied] = useState(false);
+  const [couponApplied, setCouponApplied] = useState(null);
+  const [couponError, setCouponError] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const discount = couponApplied ? Math.round(displayTotalPrice * 0.1) : 0;
+  const handleApplyCoupon = () => {
+    const adminCouponsRaw = localStorage.getItem("muskan-admin-coupons");
+    const adminCoupons = adminCouponsRaw ? JSON.parse(adminCouponsRaw) : [];
+
+    // Convert both to uppercase for case-insensitive comparison
+    const foundCoupon = adminCoupons.find(c =>
+      c.code.toUpperCase() === coupon.toUpperCase() &&
+      c.status === "ACTIVE"
+    );
+
+    if (!foundCoupon) {
+      setCouponError("Invalid or expired coupon");
+      setCouponApplied(null);
+      return;
+    }
+
+    if (displayTotalPrice < (foundCoupon.minOrder || 0)) {
+      setCouponError(`Min order ₹${foundCoupon.minOrder} required`);
+      setCouponApplied(null);
+      return;
+    }
+
+    setCouponError("");
+    setCouponApplied(foundCoupon);
+  };
+
+  const discount = couponApplied
+    ? (couponApplied.type === "FIXED" ? Number(couponApplied.value) : Math.round(displayTotalPrice * (Number(couponApplied.value) / 100)))
+    : 0;
   const finalTotal = displayTotalPrice - discount;
 
   const handlePay = () => {
@@ -213,18 +242,24 @@ const BookingSummary = () => {
             <Input
               placeholder="Enter coupon code"
               value={coupon}
-              onChange={(e) => setCoupon(e.target.value)}
+              onChange={(e) => {
+                setCoupon(e.target.value);
+                setCouponError("");
+                setCouponApplied(null);
+              }}
               className="flex-1 h-12 rounded-xl bg-accent border-none text-base font-medium"
             />
             <Button
               className="h-12 rounded-xl px-6 font-bold"
               variant={couponApplied ? "secondary" : "default"}
-              onClick={() => coupon && setCouponApplied(true)}
+              onClick={handleApplyCoupon}
               disabled={!coupon}
             >
               {couponApplied ? "Applied ✓" : "Apply"}
             </Button>
           </div>
+          {couponError && <p className="text-[10px] text-destructive mt-2 ml-1 font-bold">{couponError}</p>}
+          {couponApplied && <p className="text-[10px] text-green-600 mt-2 ml-1 font-bold">Coupon applied successfully!</p>}
         </motion.div>
 
         {/* Price Breakdown */}
@@ -241,7 +276,7 @@ const BookingSummary = () => {
           )}
           {couponApplied && (
             <div className="flex justify-between text-sm">
-              <span className="text-primary font-medium">Coupon Discount (10%)</span>
+              <span className="text-primary font-medium">Coupon Discount ({couponApplied.code})</span>
               <span className="text-primary font-bold">-₹{discount.toLocaleString()}</span>
             </div>
           )}

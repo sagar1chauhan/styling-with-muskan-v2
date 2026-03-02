@@ -6,7 +6,9 @@ import {
   CalendarClock,
   BarChart2,
   User,
-  Settings
+  Settings,
+  Bell,
+  CalendarRange
 } from "lucide-react";
 import { cn } from "@/modules/user/lib/utils";
 
@@ -18,7 +20,7 @@ const ProviderLayout = () => {
 
   const navLinks = [
     { name: "Dashboard", path: "/provider/dashboard", icon: LayoutDashboard },
-    { name: "Credits", path: "/provider/credits", icon: Wallet },
+    { name: "Bookings", path: "/provider/bookings", icon: CalendarRange },
     { name: "Availability", path: "/provider/availability", icon: CalendarClock },
     { name: "Performance", path: "/provider/performance", icon: BarChart2 },
     { name: "Profile", path: "/provider/profile", icon: User },
@@ -32,9 +34,9 @@ const ProviderLayout = () => {
       {/* Desktop Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r bg-background md:flex">
         <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-          <Link to="/" className="flex items-center gap-3 group px-1">
+          <Link to="/provider/profile" className="flex items-center gap-3 group px-1">
             <div className="relative">
-              <img src="/logo.png" alt="Logo" className="h-10 w-10 object-contain transition-all duration-300 group-hover:scale-110 group-hover:rotate-3" onError={(e) => e.target.style.display = 'none'} />
+              <img src="/logo1.png" alt="Logo" className="h-12 w-12 rounded-full object-cover border-2 border-primary/20 shadow-md transition-all duration-300 group-hover:scale-110 group-hover:rotate-3" onError={(e) => e.target.style.display = 'none'} />
               <div className="absolute -bottom-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
             </div>
             <div className="flex flex-col">
@@ -71,10 +73,10 @@ const ProviderLayout = () => {
       {/* Main Content Area */}
       <div className="flex flex-col flex-1 md:pl-64">
         {/* Mobile Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 md:hidden">
-          <Link to="/" className="flex items-center gap-3 group">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 md:hidden">
+          <Link to="/provider/profile" className="flex items-center gap-3 group">
             <div className="relative">
-              <img src="/logo.png" alt="Logo" className="h-9 w-9 object-contain" onError={(e) => e.target.style.display = 'none'} />
+              <img src="/logo1.png" alt="Logo" className="h-10 w-10 rounded-full object-cover border-2 border-primary/20 shadow-md" onError={(e) => e.target.style.display = 'none'} />
               <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 bg-green-500 rounded-full border-2 border-white"></div>
             </div>
             <div className="flex flex-col">
@@ -84,6 +86,42 @@ const ProviderLayout = () => {
               </div>
             </div>
           </Link>
+
+          {/* Right side icons */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                if (window.confirm("EMERGENCY: Do you want to trigger SOS alert?")) {
+                  const sosAlertsRaw = localStorage.getItem("muskan-admin-sos");
+                  const sosAlerts = sosAlertsRaw ? JSON.parse(sosAlertsRaw) : [];
+                  // In real app, we'd get provider data from context
+                  const newAlert = {
+                    id: Date.now(),
+                    userId: 'sp_demo',
+                    userName: 'Demo Provider',
+                    userPhone: '9876543210',
+                    type: 'BEAUTICIAN',
+                    status: 'PENDING',
+                    location: 'Service Site B',
+                    timestamp: new Date().toISOString()
+                  };
+                  localStorage.setItem("muskan-admin-sos", JSON.stringify([newAlert, ...sosAlerts]));
+                  alert("SOS Alert Sent! Emergency team notified.");
+                }
+              }}
+              className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition-colors"
+              title="Emergency SOS"
+            >
+              <Bell className="h-5 w-5 animate-pulse" />
+            </button>
+            <Link to="/provider/credits" className="p-2 bg-purple-50 text-purple-600 rounded-full hover:bg-purple-100 transition-colors">
+              <Wallet className="h-5 w-5" />
+            </Link>
+            <button className="p-2 bg-gray-50 text-gray-600 rounded-full relative hover:bg-gray-100 transition-colors">
+              <Bell className="h-5 w-5" />
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-red-500 rounded-full border border-white"></span>
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8 md:p-8 pb-20 md:pb-8">

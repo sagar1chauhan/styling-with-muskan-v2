@@ -5,7 +5,7 @@ import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useWishlist } from "@/modules/user/contexts/WishlistContext";
-import { services } from "@/modules/user/data/services";
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 import { Button } from "@/modules/user/components/ui/button";
 import { Heart } from "lucide-react";
 
@@ -15,6 +15,7 @@ const PopularServices = () => {
   const { isLoggedIn, setIsLoginModalOpen } = useAuth();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const navigate = useNavigate();
+  const { services } = useUserModuleData();
   const filtered = services.filter((s) => s.gender === gender);
 
   const handleAddToCart = (service) => {

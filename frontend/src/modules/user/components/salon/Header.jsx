@@ -38,7 +38,7 @@ const Header = () => {
       {/* Top Row: Address + Desktop Nav + Notification */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 sm:gap-4">
-          <img src="/logo.png" alt="Muskan" className="h-[28px] sm:h-[34px] w-auto object-contain transition-transform hover:scale-105" />
+          <img src="/logo1.png" alt="Muskan" className="h-12 w-12 sm:h-14 sm:w-14 rounded-full object-cover border-2 border-primary/20 shadow-md transition-transform hover:scale-105" />
           <div className="h-6 w-px bg-border hidden sm:block"></div>
           <button
             onClick={() => setIsAddressModalOpen(true)}
@@ -103,6 +103,31 @@ const Header = () => {
                 {totalItems}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => {
+              if (window.confirm("EMERGENCY: Do you want to trigger SOS alert?")) {
+                const sosAlertsRaw = localStorage.getItem("muskan-admin-sos");
+                const sosAlerts = sosAlertsRaw ? JSON.parse(sosAlertsRaw) : [];
+                const newAlert = {
+                  id: Date.now(),
+                  userId: user?.id || 'guest',
+                  userName: user?.name || 'Guest User',
+                  userPhone: user?.phone || 'Unknown',
+                  type: 'CUSTOMER',
+                  status: 'PENDING',
+                  location: user?.address?.area || 'Current Location',
+                  timestamp: new Date().toISOString()
+                };
+                localStorage.setItem("muskan-admin-sos", JSON.stringify([newAlert, ...sosAlerts]));
+                alert("SOS Alert Sent! Our team is contacting you.");
+              }
+            }}
+            className="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center relative hover:bg-red-200 transition-all active:scale-90"
+            title="Emergency SOS"
+          >
+            <Bell className="w-4 h-4 animate-pulse" />
           </button>
 
           <button className="w-9 h-9 rounded-full bg-accent flex items-center justify-center relative hover:bg-primary/10 hover:text-primary transition-all active:scale-90">

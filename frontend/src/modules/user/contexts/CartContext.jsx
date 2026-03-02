@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { categories } from "@/modules/user/data/services";
 
 const CartContext = createContext(undefined);
 
@@ -12,13 +11,25 @@ export const useCart = () => {
 };
 
 export const CartProvider = ({ children }) => {
+    // We cannot easily use useUserModuleData here if CartProvider is inside it, but we can fallback to localStorage or just assume it's initialized. 
+    // Wait, better to not initialize categories statically, but parse from context or simply let the components do it.
+    // Actually, `categories` is only used inside functions here. I will just read from localStorage dynamically or let the components supply the category type if possible.
+    // For now, let's just use localStorage "swm_categories" directly here since this is context.
+
+    // helper to get categories
+    const getCategories = () => {
+        const saved = localStorage.getItem("swm_categories");
+        return saved ? JSON.parse(saved) : [];
+    };
+
     const [cartItems, setCartItems] = useState(() => {
         const savedCart = localStorage.getItem("cart");
         if (savedCart) {
             try {
                 const items = JSON.parse(savedCart);
                 return items.map(item => {
-                    const cat = item.category ? categories.find(c => c.id === item.category) : null;
+                    const cats = getCategories();
+                    const cat = item.category ? cats.find(c => c.id === item.category) : null;
                     const type = cat?.serviceType || item.serviceType || "other";
                     return { ...item, serviceType: type };
                 });
@@ -71,7 +82,8 @@ export const CartProvider = ({ children }) => {
         };
 
         cartItems.forEach(item => {
-            const cat = item.category ? categories.find(c => c.id === item.category) : null;
+            const cats = getCategories();
+            const cat = item.category ? cats.find(c => c.id === item.category) : null;
             const type = cat?.serviceType || item.serviceType || "other";
             if (!groups[type]) {
                 groups[type] = {
@@ -91,7 +103,8 @@ export const CartProvider = ({ children }) => {
     };
 
     const addToCart = (service) => {
-        const cat = service.category ? categories.find(c => c.id === service.category) : null;
+        const cats = getCategories();
+        const cat = service.category ? cats.find(c => c.id === service.category) : null;
         const mappedServiceType = cat?.serviceType || service.serviceType || "other";
         const serviceWithType = { ...service, serviceType: mappedServiceType };
         setCartItems((prevItems) => {
@@ -105,6 +118,7 @@ export const CartProvider = ({ children }) => {
             }
             return [...prevItems, { ...serviceWithType, quantity: 1 }];
         });
+        setIsFloatingSummaryOpen(true);
     };
 
     const updateQuantity = (serviceId, amount) => {
@@ -127,6 +141,15 @@ export const CartProvider = ({ children }) => {
         setCartItems([]);
     };
 
+    const [activeCheckoutType, setActiveCheckoutType] = useState(null);
+    const [isFloatingSummaryOpen, setIsFloatingSummaryOpen] = useState(false);
+
+    useEffect(() => {
+        if (isCartOpen) {
+            setIsFloatingSummaryOpen(false);
+        }
+    }, [isCartOpen]);
+
     return (
         <CartContext.Provider
             value={{
@@ -136,6 +159,10 @@ export const CartProvider = ({ children }) => {
                 totalSavings,
                 isCartOpen,
                 setIsCartOpen,
+                isFloatingSummaryOpen,
+                setIsFloatingSummaryOpen,
+                activeCheckoutType,
+                setActiveCheckoutType,
                 selectedSlot,
                 setSelectedSlot,
                 bookingType,

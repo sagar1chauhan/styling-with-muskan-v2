@@ -10,24 +10,29 @@ import SlotSelectionModal from "./SlotSelectionModal";
 import { useNavigate } from "react-router-dom";
 
 const ExpressCheckout = () => {
-    const { cartItems, updateQuantity, clearCart, clearGroup, totalPrice, totalSavings, isCartOpen, setIsCartOpen, selectedSlot, getGroupedItems } = useCart();
+    const { cartItems, updateQuantity, clearCart, clearGroup, totalPrice, totalSavings, isCartOpen, setIsCartOpen, activeCheckoutType, setActiveCheckoutType, selectedSlot, getGroupedItems } = useCart();
     const { isLoggedIn, hasAddress, setIsLoginModalOpen, user } = useAuth();
     const { gender } = useGenderTheme();
     const navigate = useNavigate();
     const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
 
-    const isHighValue = cartItems.some(item =>
-        item.name.toLowerCase().includes("bridal") ||
-        item.name.toLowerCase().includes("party makeup") ||
-        item.price >= 3000
-    );
-
-    const advancePercentage = 30; // 30% advance
-    const advanceAmount = isHighValue ? Math.round((totalPrice * advancePercentage) / 100) : 0;
-    const remainingAmount = totalPrice - advanceAmount;
-
     if (!isCartOpen) return null;
+
+    const groupedItems = getGroupedItems();
+    const displayedGroups = activeCheckoutType && groupedItems[activeCheckoutType]
+        ? { [activeCheckoutType]: groupedItems[activeCheckoutType] }
+        : groupedItems;
+
+    const displayedTotalPrice = Object.values(displayedGroups).reduce((acc, g) => acc + g.subtotal, 0);
+
+    const isHighValue = cartItems.some(item =>
+        (activeCheckoutType ? item.serviceType === activeCheckoutType : true) && (
+            item.name.toLowerCase().includes("bridal") ||
+            item.name.toLowerCase().includes("party makeup") ||
+            item.price >= 3000
+        )
+    );
 
     const handleCheckout = (typeId = null) => {
         if (!isLoggedIn) {
@@ -46,8 +51,9 @@ const ExpressCheckout = () => {
         }
 
         setIsCartOpen(false);
-        if (typeId && typeof typeId === 'string') {
-            navigate(`/booking/summary?type=${typeId}`);
+        const finalType = typeId || activeCheckoutType;
+        if (finalType && typeof finalType === 'string') {
+            navigate(`/booking/summary?type=${finalType}`);
         } else {
             navigate("/booking/summary");
         }
@@ -82,15 +88,23 @@ const ExpressCheckout = () => {
                         {/* Header */}
                         <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-background/80 backdrop-blur-md sticky top-0 z-10">
                             <div>
-                                <h2 className="text-xl font-bold font-display">Express Checkout</h2>
+                                <h2 className="text-xl font-bold font-display">
+                                    {activeCheckoutType ? groupedItems[activeCheckoutType]?.label.replace(/🧴 |💇 |💄 /g, '') + " Checkout" : "Express Checkout"}
+                                </h2>
                                 <p className="text-[10px] text-muted-foreground font-bold tracking-widest uppercase mt-0.5">
-                                    Complete your booking
+                                    {activeCheckoutType ? "Focused Booking" : "Complete your booking"}
                                 </p>
                             </div>
                             <div className="flex items-center gap-3">
-                                <button onClick={clearCart} className="text-[10px] font-bold text-destructive hover:underline uppercase tracking-tight">
-                                    Clear All
-                                </button>
+                                {activeCheckoutType ? (
+                                    <button onClick={() => setActiveCheckoutType(null)} className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tight">
+                                        Show All
+                                    </button>
+                                ) : (
+                                    <button onClick={clearCart} className="text-[10px] font-bold text-destructive hover:underline uppercase tracking-tight">
+                                        Clear All
+                                    </button>
+                                )}
                                 <button onClick={() => setIsCartOpen(false)} className="p-2 rounded-full hover:bg-accent transition-colors">
                                     <X className="w-5 h-5" />
                                 </button>
@@ -170,7 +184,7 @@ const ExpressCheckout = () => {
 
                             {/* Savings Banner */}
                             {totalSavings > 0 && (
-                                <div className="bg-green-600 rounded-2xl p-4 flex items-center gap-4 shadow-lg shadow-green-500/20 text-white">
+                                <div className="bg-primary rounded-2xl p-4 flex items-center gap-4 shadow-lg shadow-primary/20 text-white">
                                     <span className="text-2xl">⚡</span>
                                     <p className="text-sm font-bold uppercase tracking-wide">
                                         You are saving ₹{totalSavings} today!
@@ -186,19 +200,19 @@ const ExpressCheckout = () => {
                                         <h4 className="font-bold text-sm">Advance Payment Mandatory</h4>
                                     </div>
                                     <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                        For Bridal & High-Value services, a {advancePercentage}% advance is required to confirm your booking.
-                                        Remaining ₹{remainingAmount.toLocaleString()} is payable after service.
+                                        For Bridal & High-Value services, a 30% advance is required to confirm your booking.
+                                        Remaining ₹{(displayedTotalPrice - Math.round((displayedTotalPrice * 30) / 100)).toLocaleString()} is payable after service.
                                     </p>
                                     <div className="flex justify-between items-center pt-2 border-t border-primary/10">
                                         <span className="text-[10px] font-bold uppercase text-muted-foreground">Due Now</span>
-                                        <span className="text-lg font-black text-primary">₹{advanceAmount.toLocaleString()}</span>
+                                        <span className="text-lg font-black text-primary">₹{Math.round((displayedTotalPrice * 30) / 100).toLocaleString()}</span>
                                     </div>
                                 </div>
                             )}
 
                             {/* Grouped Items Section */}
                             <div className="space-y-6 pb-4">
-                                {Object.entries(getGroupedItems()).map(([type, group]) => (
+                                {Object.entries(displayedGroups).map(([type, group]) => (
                                     <motion.div
                                         key={type}
                                         initial={{ opacity: 0, y: 20 }}
@@ -278,16 +292,16 @@ const ExpressCheckout = () => {
                                 <div className="space-y-3 mb-4">
                                     <div className="flex items-center justify-between text-muted-foreground">
                                         <span className="text-[10px] font-bold uppercase tracking-wider">Total Service Value</span>
-                                        <span className="text-sm font-bold">₹{totalPrice.toLocaleString()}</span>
+                                        <span className="text-sm font-bold">₹{displayedTotalPrice.toLocaleString()}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Advance to Pay Now</p>
-                                            <p className="text-2xl font-black text-primary">₹{advanceAmount.toLocaleString()}</p>
+                                            <p className="text-2xl font-black text-primary">₹{Math.round((displayedTotalPrice * 30) / 100).toLocaleString()}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-bold text-muted-foreground uppercase">Remaining Balance</p>
-                                            <p className="text-sm font-bold text-foreground">₹{remainingAmount.toLocaleString()}</p>
+                                            <p className="text-sm font-bold text-foreground">₹{(displayedTotalPrice - Math.round((displayedTotalPrice * 30) / 100)).toLocaleString()}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -295,7 +309,7 @@ const ExpressCheckout = () => {
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
                                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Payable Amount</p>
-                                        <p className="text-2xl font-black text-primary">₹{totalPrice.toLocaleString()}</p>
+                                        <p className="text-2xl font-black text-primary">₹{displayedTotalPrice.toLocaleString()}</p>
                                     </div>
                                     <div className="text-right">
                                         <p className="text-[10px] font-bold text-green-600 uppercase">You Save</p>
@@ -307,7 +321,7 @@ const ExpressCheckout = () => {
                             <Button
                                 onClick={handleCheckout}
                                 className={`w-full h-15 rounded-2xl text-lg font-bold shadow-xl transition-all duration-300 gap-3 group border-none ${isLoggedIn && hasAddress && selectedSlot
-                                    ? "bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 shadow-green-500/20"
+                                    ? "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-primary/20"
                                     : "bg-primary shadow-primary/20"
                                     }`}
                             >

@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     ArrowLeft, Search, Filter, RefreshCcw, Heart, Share2, Plus, Star, MapPin
 } from "lucide-react";
-import { services, categories, SERVICE_TYPES } from "@/modules/user/data/services";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useWishlist } from "@/modules/user/contexts/WishlistContext";
@@ -23,6 +23,7 @@ const ExplorePage = () => {
     const { totalItems, addToCart, bookingType: contextBookingType, setBookingType } = useCart();
     const { isLoggedIn, setIsLoginModalOpen } = useAuth();
     const { toggleWishlist, isInWishlist } = useWishlist();
+    const { services, categories, serviceTypes: SERVICE_TYPES } = useUserModuleData();
 
     const searchParams = new URLSearchParams(location.search);
     const queryParam = searchParams.get('q') || "";

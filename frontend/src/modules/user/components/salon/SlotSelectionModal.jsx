@@ -4,11 +4,12 @@ import { X, Calendar, Clock, Check, ChevronRight, Star, MapPin, UserCheck, Shiel
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { Button } from "@/modules/user/components/ui/button";
-import { mockProviders } from "@/modules/user/data/services";
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 
 const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
     const { selectedSlot, setSelectedSlot, cartItems } = useCart();
     const { gender } = useGenderTheme();
+    const { providers: mockProviders } = useUserModuleData();
 
     const [tempDate, setTempDate] = useState(selectedSlot?.date || null);
     const [tempSlot, setTempSlot] = useState(selectedSlot?.time || null);

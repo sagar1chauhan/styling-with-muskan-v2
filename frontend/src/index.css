@@ -9,41 +9,41 @@
   /* Women Theme (default) */
   :root,
   .theme-women {
-    --background: 20 33% 98%;
-    --foreground: 340 20% 15%;
-    --card: 20 25% 97%;
-    --card-foreground: 340 20% 15%;
-    --popover: 20 25% 97%;
-    --popover-foreground: 340 20% 15%;
-    --primary: 340 65% 55%;
+    --background: 270 20% 99%;
+    --foreground: 270 20% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 270 20% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 270 20% 10%;
+    --primary: 271 76% 53%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 30 30% 93%;
-    --secondary-foreground: 340 20% 20%;
-    --muted: 20 20% 94%;
-    --muted-foreground: 340 10% 45%;
-    --accent: 340 45% 90%;
-    --accent-foreground: 340 50% 30%;
+    --secondary: 270 30% 96%;
+    --secondary-foreground: 271 60% 30%;
+    --muted: 270 10% 95%;
+    --muted-foreground: 270 10% 45%;
+    --accent: 271 80% 97%;
+    --accent-foreground: 271 76% 51%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 340 20% 90%;
-    --input: 340 15% 90%;
-    --ring: 340 65% 55%;
+    --border: 270 15% 90%;
+    --input: 270 15% 92%;
+    --ring: 271 76% 53%;
     --radius: 1rem;
 
-    --sidebar-background: 20 25% 97%;
-    --sidebar-foreground: 340 20% 15%;
-    --sidebar-primary: 340 65% 55%;
+    --sidebar-background: 271 50% 15%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 271 76% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 340 45% 92%;
-    --sidebar-accent-foreground: 340 50% 30%;
-    --sidebar-border: 340 20% 90%;
-    --sidebar-ring: 340 65% 55%;
+    --sidebar-accent: 271 40% 25%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 271 40% 20%;
+    --sidebar-ring: 271 76% 53%;
 
-    --gradient-start: 340 65% 55%;
-    --gradient-end: 30 50% 60%;
-    --glow: 340 65% 55%;
+    --gradient-start: 271 76% 53%;
+    --gradient-end: 270 30% 96%;
+    --glow: 271 76% 53%;
 
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Inter', sans-serif;
   }
 
   /* Men Theme */
@@ -154,6 +154,84 @@
 
     --gradient-start: 271 85% 60%;
     --gradient-end: 272 50% 3%;
+  }
+
+  /* Vendor Theme - Professional Emerald/Teal */
+  .theme-vendor {
+    --background: 160 20% 98%;
+    --foreground: 160 25% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 25% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 25% 10%;
+    --primary: 160 70% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 160 25% 95%;
+    --secondary-foreground: 160 60% 25%;
+    --muted: 160 10% 95%;
+    --muted-foreground: 160 10% 45%;
+    --accent: 160 60% 95%;
+    --accent-foreground: 160 70% 35%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 160 15% 90%;
+    --input: 160 15% 92%;
+    --ring: 160 70% 40%;
+    --radius: 0.75rem;
+
+    --sidebar-background: 162 60% 12%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 160 70% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 162 45% 20%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 162 40% 18%;
+    --sidebar-ring: 160 70% 45%;
+
+    --gradient-start: 160 70% 40%;
+    --gradient-end: 180 50% 35%;
+    --glow: 160 70% 40%;
+
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Admin Theme - Professional Dark Indigo/Slate */
+  .theme-admin {
+    --background: 224 30% 6%;
+    --foreground: 220 15% 95%;
+    --card: 224 25% 9%;
+    --card-foreground: 220 15% 95%;
+    --popover: 224 25% 9%;
+    --popover-foreground: 220 15% 95%;
+    --primary: 230 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 224 20% 14%;
+    --secondary-foreground: 220 15% 80%;
+    --muted: 224 20% 12%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 230 40% 18%;
+    --accent-foreground: 230 70% 75%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 15% 16%;
+    --input: 224 15% 16%;
+    --ring: 230 70% 55%;
+    --radius: 0.625rem;
+
+    --sidebar-background: 224 35% 5%;
+    --sidebar-foreground: 220 10% 90%;
+    --sidebar-primary: 230 70% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 230 30% 15%;
+    --sidebar-accent-foreground: 230 60% 80%;
+    --sidebar-border: 224 20% 12%;
+    --sidebar-ring: 230 70% 55%;
+
+    --gradient-start: 230 70% 55%;
+    --gradient-end: 260 60% 45%;
+    --glow: 230 70% 55%;
+
+    font-family: 'Inter', sans-serif;
   }
 }
 

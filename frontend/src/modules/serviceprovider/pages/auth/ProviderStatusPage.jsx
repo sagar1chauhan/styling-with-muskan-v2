@@ -12,11 +12,22 @@ import {
 } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
 import { Card, CardContent } from "@/modules/user/components/ui/card";
+import { useProviderAuth } from "@/modules/serviceprovider/contexts/ProviderAuthContext";
 
 export default function ProviderStatusPage() {
-    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const status = searchParams.get("status") || "pending"; // pending, approved, rejected, suspended
+    const { provider, isApproved, adminApprove, adminReject, logout } = useProviderAuth();
+    const status = provider?.approvalStatus || "pending"; // pending, approved, rejected, suspended
+
+    React.useEffect(() => {
+        if (isApproved) {
+            const timer = setTimeout(() => {
+                logout();
+                navigate("/provider/login", { replace: true });
+            }, 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [isApproved, navigate, logout]);
 
     const statusConfigs = {
         pending: {
@@ -67,7 +78,7 @@ export default function ProviderStatusPage() {
     const Icon = config.icon;
 
     return (
-        <div className="min-h-screen bg-[#fdf8f6] flex items-center justify-center p-6">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
             <Card className="w-full max-w-md border-none shadow-2xl rounded-[32px] overflow-hidden bg-white">
                 <CardContent className="p-8 sm:p-10 flex flex-col items-center text-center">
                     <div className="w-full flex justify-between items-center mb-10">
@@ -91,11 +102,11 @@ export default function ProviderStatusPage() {
                     <div className="w-full space-y-4">
                         <Button
                             className={`w-full h-14 rounded-2xl font-black text-lg transition-all active:scale-[0.98] ${config.isCritical
-                                    ? "bg-amber-600 hover:bg-amber-700"
-                                    : status === 'approved'
-                                        ? "bg-green-600 hover:bg-green-700"
-                                        : "bg-[#e65689] hover:bg-[#d44678]"
-                                } text-white shadow-xl shadow-pink-100 border-none`}
+                                ? "bg-amber-600 hover:bg-amber-700"
+                                : status === 'approved'
+                                    ? "bg-green-600 hover:bg-green-700"
+                                    : "bg-violet-600 hover:bg-violet-700"
+                                } text-white shadow-xl shadow-violet-100 border-none`}
                             onClick={config.onButtonClick}
                         >
                             {status === 'rejected' && <FileUp className="mr-2 h-5 w-5" />}
@@ -112,17 +123,36 @@ export default function ProviderStatusPage() {
                             <MessageCircle className="h-5 w-5" />
                             Talk to Support
                         </Button>
+
+                        {/* Mock Admin Controls - Hidden in Production usually */}
+                        <div className="p-4 border-2 border-dashed border-violet-200 rounded-[24px] bg-violet-50/50 mt-4">
+                            <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest text-center mb-3">Admin Simulation</p>
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={adminApprove}
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-xs h-10"
+                                >
+                                    Approve
+                                </Button>
+                                <Button
+                                    onClick={adminReject}
+                                    className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs h-10"
+                                >
+                                    Reject
+                                </Button>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="mt-10 pt-8 border-t border-gray-50 w-full">
-                        <img src="/logo.png" alt="SWM" className="h-8 w-auto mx-auto opacity-30 grayscale" />
+                        <img src="/logo1.png" alt="SWM" className="h-12 w-12 rounded-full object-cover mx-auto opacity-50 grayscale hover:opacity-100 transition-all shadow-sm" />
                         <p className="text-[10px] font-black uppercase text-gray-300 mt-2 tracking-widest">Styling with Muskan</p>
                     </div>
                 </CardContent>
             </Card>
 
             {/* Background Decorative Circles */}
-            <div className="fixed top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-pink-100 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
+            <div className="fixed top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-violet-100 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
             <div className="fixed bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-purple-100 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
         </div>
     );

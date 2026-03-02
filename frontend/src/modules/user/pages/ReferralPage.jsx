@@ -10,6 +10,16 @@ const ReferralPage = () => {
     const { gender } = useGenderTheme();
     const referralCode = "MUSKAN450";
 
+    // Dynamic referral settings from Admin
+    const adminReferralRaw = localStorage.getItem("muskan-admin-referral");
+    const adminReferral = adminReferralRaw ? JSON.parse(adminReferralRaw) : {
+        bonusReferrer: 150,
+        bonusReferee: 100
+    };
+
+    const giveAmt = adminReferral.bonusReferee;
+    const getAmt = adminReferral.bonusReferrer;
+
     const handleCopy = () => {
         if (navigator.clipboard) {
             navigator.clipboard.writeText(referralCode);
@@ -45,9 +55,9 @@ const ReferralPage = () => {
                     <div className="w-20 h-20 rounded-3xl bg-gradient-theme mx-auto mb-6 flex items-center justify-center shadow-xl rotate-12">
                         <Gift className="w-10 h-10 text-white -rotate-12" />
                     </div>
-                    <h2 className="text-2xl font-bold font-display">Give ₹100, Get ₹150</h2>
+                    <h2 className="text-2xl font-bold font-display">Give ₹{giveAmt}, Get ₹{getAmt}</h2>
                     <p className="text-sm text-muted-foreground mt-2 px-4">
-                        Invite your friends to try Styling with Muskan. They get ₹100 off their first booking, and you get ₹150 in your wallet!
+                        Invite your friends to try Styling with Muskan. They get ₹{giveAmt} off their first booking, and you get ₹{getAmt} in your wallet!
                     </p>
 
                     <div className="mt-8 p-4 rounded-2xl bg-accent border border-dashed border-primary/30 flex items-center justify-between">
@@ -65,7 +75,7 @@ const ReferralPage = () => {
 
                     <Button
                         onClick={() => {
-                            const shareRow = `Hey! Use my referral code ${referralCode} to get ₹100 off on your first booking at Styling with Muskan. Download now!`;
+                            const shareRow = `Hey! Use my referral code ${referralCode} to get ₹${giveAmt} off on your first booking at Styling with Muskan. Download now!`;
                             shareContent({
                                 title: "Refer & Earn - Styling with Muskan",
                                 text: shareRow,
@@ -84,8 +94,8 @@ const ReferralPage = () => {
                     <div className="space-y-3">
                         {[
                             { icon: Share2, title: "Share your code", desc: "Send your unique code to friends" },
-                            { icon: Star, title: "Friend books a service", desc: "They get ₹100 instant discount" },
-                            { icon: Trophy, title: "You get rewarded", desc: "₹150 added to your wallet" },
+                            { icon: Star, title: "Friend books a service", desc: `They get ₹${giveAmt} instant discount` },
+                            { icon: Trophy, title: "You get rewarded", desc: `₹${getAmt} added to your wallet` },
                         ].map((step, i) => (
                             <div key={i} className="flex gap-4 p-4 rounded-2xl glass-strong border border-border/50">
                                 <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center text-primary flex-shrink-0">

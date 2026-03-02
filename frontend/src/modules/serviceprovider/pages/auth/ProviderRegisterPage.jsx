@@ -29,6 +29,8 @@ import {
 } from "@/modules/user/components/ui/select";
 import { Badge } from "@/modules/user/components/ui/badge";
 import { Checkbox } from "@/modules/user/components/ui/checkbox";
+import { Label } from "@/modules/user/components/ui/label";
+import { useProviderAuth } from "@/modules/serviceprovider/contexts/ProviderAuthContext";
 
 const steps = [
     { title: "Personal", icon: CheckCircle2 },
@@ -40,12 +42,14 @@ const steps = [
 
 export default function ProviderRegisterPage() {
     const navigate = useNavigate();
+    const { register, provider } = useProviderAuth();
     const [currentStep, setCurrentStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
 
     // Form States
     const [formData, setFormData] = useState({
+        phone: provider?.phone || "",
         name: "",
         email: "",
         gender: "",
@@ -91,6 +95,7 @@ export default function ProviderRegisterPage() {
     const handleSubmit = () => {
         setIsLoading(true);
         setTimeout(() => {
+            register(formData);
             setIsLoading(false);
             setIsSuccess(true);
         }, 2000);
@@ -118,17 +123,17 @@ export default function ProviderRegisterPage() {
                     </div>
                 </div>
                 <Button
-                    className="bg-[#e65689] hover:bg-[#d44678] text-white font-black h-14 w-full max-w-sm rounded-2xl shadow-xl shadow-pink-200"
-                    onClick={() => navigate("/provider/dashboard")}
+                    className="bg-violet-600 hover:bg-violet-700 text-white font-black h-14 w-full max-w-sm rounded-2xl shadow-xl shadow-violet-200"
+                    onClick={() => navigate("/provider/status")}
                 >
-                    Go to Dashboard
+                    Check Status
                 </Button>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#fdf8f6] pb-12">
+        <div className="min-h-screen bg-slate-50 pb-12">
             {/* Header with Progress Bar */}
             <div className="sticky top-0 z-20 bg-white shadow-sm pb-1">
                 <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -136,24 +141,24 @@ export default function ProviderRegisterPage() {
                         <ChevronLeft className="h-6 w-6 text-gray-600" />
                     </button>
                     <span className="font-black text-gray-900">Partner Registration</span>
-                    <button onClick={() => navigate("/provider/login")} className="text-sm font-bold text-gray-400">Cancel</button>
+                    <button onClick={() => navigate("/provider/login")} className="text-sm font-bold text-violet-400">Cancel</button>
                 </div>
                 <div className="max-w-4xl mx-auto px-4 pb-4">
                     <div className="flex justify-between items-center mb-2">
                         {steps.map((s, i) => (
                             <div key={i} className="flex flex-col items-center gap-1">
                                 <div className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${currentStep > i + 1 ? "bg-green-500 text-white" :
-                                    currentStep === i + 1 ? "bg-[#e65689] text-white scale-110 shadow-md" :
+                                    currentStep === i + 1 ? "bg-violet-600 text-white scale-110 shadow-md" :
                                         "bg-gray-100 text-gray-400"
                                     }`}>
                                     {currentStep > i + 1 ? <Check className="h-5 w-5" /> : <s.icon className="h-4 w-4" />}
                                 </div>
-                                <span className={`text-[10px] font-black uppercase tracking-tighter ${currentStep === i + 1 ? "text-[#e65689]" : "text-gray-400"
+                                <span className={`text-[10px] font-black uppercase tracking-tighter ${currentStep === i + 1 ? "text-violet-600" : "text-gray-400"
                                     }`}>{s.title}</span>
                             </div>
                         ))}
                     </div>
-                    <Progress value={(currentStep / 5) * 100} className="h-1 bg-gray-100 [&>div]:bg-[#e65689]" />
+                    <Progress value={(currentStep / 5) * 100} className="h-1 bg-gray-100 [&>div]:bg-violet-600" />
                 </div>
             </div>
 
@@ -181,12 +186,12 @@ export default function ProviderRegisterPage() {
                                         className="relative group cursor-pointer"
                                         onClick={() => profileInputRef.current.click()}
                                     >
-                                        <div className="w-32 h-32 rounded-3xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-[#e65689] group-active:scale-95">
+                                        <div className="w-32 h-32 rounded-3xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-violet-600 group-active:scale-95">
                                             {formData.profilePhoto ? (
                                                 <img src={formData.profilePhoto} className="w-full h-full object-cover" alt="Profile" />
                                             ) : (
                                                 <>
-                                                    <Camera className="h-10 w-10 text-gray-300 group-hover:text-[#e65689] transition-colors" />
+                                                    <Camera className="h-10 w-10 text-gray-300 group-hover:text-violet-600 transition-colors" />
                                                     <span className="text-[10px] font-black uppercase text-gray-400 mt-1">Live Photo</span>
                                                 </>
                                             )}
@@ -200,10 +205,20 @@ export default function ProviderRegisterPage() {
 
                                 <div className="grid gap-6 sm:grid-cols-2">
                                     <div className="space-y-2">
+                                        <Label className="text-xs font-black uppercase text-gray-400">Mobile Number</Label>
+                                        <Input
+                                            type="tel"
+                                            placeholder="10-digit mobile number"
+                                            className="h-12 rounded-xl bg-gray-50 border-gray-100 font-bold focus:ring-violet-600"
+                                            value={formData.phone}
+                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
                                         <Label className="text-xs font-black uppercase text-gray-400">Full Name</Label>
                                         <Input
                                             placeholder="Enter as per Aadhar"
-                                            className="h-12 rounded-xl bg-gray-50 border-gray-100 font-bold"
+                                            className="h-12 rounded-xl bg-gray-50 border-gray-100 font-bold focus:ring-violet-600"
                                             value={formData.name}
                                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                         />
@@ -258,7 +273,7 @@ export default function ProviderRegisterPage() {
                                         <div className="grid grid-cols-2 gap-4">
                                             <div
                                                 onClick={() => aadharFrontRef.current.click()}
-                                                className="border-2 border-dashed rounded-2xl aspect-[3/2] flex flex-col items-center justify-center bg-gray-50 text-gray-400 hover:border-[#e65689] transition-all group cursor-pointer overflow-hidden"
+                                                className="border-2 border-dashed rounded-2xl aspect-[3/2] flex flex-col items-center justify-center bg-gray-50 text-gray-400 hover:border-violet-600 transition-all group cursor-pointer overflow-hidden"
                                             >
                                                 {formData.aadharFront ? (
                                                     <img src={formData.aadharFront} className="w-full h-full object-cover" />
@@ -271,7 +286,7 @@ export default function ProviderRegisterPage() {
                                             </div>
                                             <div
                                                 onClick={() => aadharBackRef.current.click()}
-                                                className="border-2 border-dashed rounded-2xl aspect-[3/2] flex flex-col items-center justify-center bg-gray-50 text-gray-400 hover:border-[#e65689] transition-all group cursor-pointer overflow-hidden"
+                                                className="border-2 border-dashed rounded-2xl aspect-[3/2] flex flex-col items-center justify-center bg-gray-50 text-gray-400 hover:border-violet-600 transition-all group cursor-pointer overflow-hidden"
                                             >
                                                 {formData.aadharBack ? (
                                                     <img src={formData.aadharBack} className="w-full h-full object-cover" />
@@ -289,7 +304,7 @@ export default function ProviderRegisterPage() {
                                         <Label className="text-xs font-black uppercase text-gray-400">PAN Card</Label>
                                         <div
                                             onClick={() => panCardRef.current.click()}
-                                            className="border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center bg-gray-50 text-gray-400 hover:border-[#e65689] transition-all cursor-pointer overflow-hidden min-h-[100px]"
+                                            className="border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center bg-gray-50 text-gray-400 hover:border-violet-600 transition-all cursor-pointer overflow-hidden min-h-[100px]"
                                         >
                                             {formData.panCard ? (
                                                 <div className="flex items-center gap-2 text-purple-600">
@@ -410,7 +425,7 @@ export default function ProviderRegisterPage() {
                                     <div className="border border-gray-100 rounded-2xl overflow-hidden">
                                         <div className="bg-gray-50 p-3 px-4 flex justify-between items-center">
                                             <span className="text-[10px] font-black uppercase text-gray-400">Profile Summary</span>
-                                            <button onClick={() => setCurrentStep(1)} className="text-[10px] font-black uppercase text-[#e65689]">Edit</button>
+                                            <button onClick={() => setCurrentStep(1)} className="text-[10px] font-black uppercase text-violet-600">Edit</button>
                                         </div>
                                         <div className="p-4 flex gap-4">
                                             {formData.profilePhoto && (
@@ -441,19 +456,19 @@ export default function ProviderRegisterPage() {
                                         <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors">
                                             <Checkbox id="c1" onCheckedChange={(c) => setFormData({ ...formData, agreed: c })} />
                                             <label htmlFor="c1" className="text-xs font-bold text-gray-700 leading-snug cursor-pointer">
-                                                I accept the <span className="text-[#e65689]">85/15 Payout Commission</span> Policy.
+                                                I accept the <span className="text-violet-600">85/15 Payout Commission</span> Policy.
                                             </label>
                                         </div>
                                         <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors">
                                             <Checkbox id="c2" />
                                             <label htmlFor="c2" className="text-xs font-bold text-gray-700 leading-snug cursor-pointer">
-                                                I agree to follow the <span className="text-[#e65689]">Safety & Hygiene Guidelines</span> on every visit.
+                                                I agree to follow the <span className="text-violet-600">Safety & Hygiene Guidelines</span> on every visit.
                                             </label>
                                         </div>
                                         <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors">
                                             <Checkbox id="c3" />
                                             <label htmlFor="c3" className="text-xs font-bold text-gray-700 leading-snug cursor-pointer">
-                                                I understand that my profile will be subject to a <span className="text-[#e65689]">Background Check</span>.
+                                                I understand that my profile will be subject to a <span className="text-violet-600">Background Check</span>.
                                             </label>
                                         </div>
                                     </div>
@@ -473,7 +488,7 @@ export default function ProviderRegisterPage() {
                             )}
                             <Button
                                 onClick={nextStep}
-                                className="flex-[2] h-14 rounded-2xl bg-[#e65689] hover:bg-[#d44678] text-white font-black text-lg shadow-xl shadow-pink-200 transition-all border-none"
+                                className="flex-[2] h-14 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white font-black text-lg shadow-xl shadow-violet-200 transition-all border-none"
                                 disabled={isLoading}
                             >
                                 {isLoading ? <Loader2 className="animate-spin" /> : currentStep === 5 ? "Submit Application" : "Continue"}
@@ -484,7 +499,7 @@ export default function ProviderRegisterPage() {
                         {currentStep === 1 && (
                             <div className="text-center pt-6">
                                 <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest leading-none">
-                                    Already a partner? <Link to="/provider/login" className="text-[#e65689]">Login Here</Link>
+                                    Already a partner? <Link to="/provider/login" className="text-violet-600">Login Here</Link>
                                 </p>
                             </div>
                         )}
@@ -493,8 +508,4 @@ export default function ProviderRegisterPage() {
             </div>
         </div>
     );
-}
-
-function Label({ children, className }) {
-    return <label className={`block ${className}`}>{children}</label>;
 }

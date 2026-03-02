@@ -1,19 +1,31 @@
 import React, { useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-    CardFooter
-} from "@/modules/user/components/ui/card";
+    ChevronLeft,
+    ChevronRight,
+    Calendar as CalendarIcon,
+    Clock,
+    Plane,
+    CheckCircle2,
+    AlertCircle,
+    MoreHorizontal,
+    Info
+} from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
 import { Switch } from "@/modules/user/components/ui/switch";
-import { Calendar } from "@/modules/user/components/ui/calendar"; // Assuming standard Shadcn Calendar
-import { Popover, PopoverContent, PopoverTrigger } from "@/modules/user/components/ui/popover";
-import { cn } from "@/modules/user/lib/utils";
-import { format } from "date-fns";
-import { Calendar as CalendarIcon, Clock, CheckCircle } from "lucide-react";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/modules/user/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { format, addHours, isBefore, isWeekend } from "date-fns";
 
 const timeSlots = [
     "07:00 AM", "08:00 AM", "09:00 AM", "10:00 AM",
@@ -23,134 +35,384 @@ const timeSlots = [
 ];
 
 export default function AvailabilityCalendar() {
-    const [date, setDate] = useState(new Date());
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
-    // Initially assume all slots from 09:00 AM to 05:00 PM are active (index 2 to 10)
-    const [activeSlots, setActiveSlots] = useState(
-        timeSlots.reduce((acc, slot, i) => {
-            acc[slot] = i >= 2 && i <= 10;
-            return acc;
-        }, {})
-    );
+    // Day-based availability states
+    const [dateSlots, setDateSlots] = useState({});
+
+    // Leave states
+    const [showLeaveModal, setShowLeaveModal] = useState(false);
+    const [leaveType, setLeaveType] = useState("Full Day");
+    const [leaveStart, setLeaveStart] = useState("");
+    const [leaveEnd, setLeaveEnd] = useState("");
+    const [leaveReason, setLeaveReason] = useState("");
+    const [leaves, setLeaves] = useState([
+        { id: 1, startDate: "Mar 05, 2024", endDate: "Mar 06, 2024", reason: "Personal work", status: "approved" }
+    ]);
+
+    const monthDays = useMemo(() => {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        const first = new Date(year, month, 1);
+        const last = new Date(year, month + 1, 0);
+        const days = [];
+        for (let i = 0; i < first.getDay(); i++) days.push(null);
+        for (let d = 1; d <= last.getDate(); d++) {
+            const date = new Date(year, month, d);
+            const key = format(date, "yyyy-MM-dd");
+            days.push({
+                date: d,
+                key,
+                isToday: key === format(new Date(), "yyyy-MM-dd"),
+                dayOfWeek: date.getDay()
+            });
+        }
+        return days;
+    }, [currentMonth]);
+
+    const currentDaySlots = dateSlots[selectedDate] || timeSlots.reduce((acc, slot, i) => {
+        acc[slot] = i >= 2 && i <= 10; // Default: 9am-5pm
+        return acc;
+    }, {});
 
     const toggleSlot = (slot) => {
-        setActiveSlots(prev => ({
+        setDateSlots(prev => ({
             ...prev,
-            [slot]: !prev[slot]
+            [selectedDate]: {
+                ...currentDaySlots,
+                [slot]: !currentDaySlots[slot]
+            }
         }));
     };
 
-    const setAll = (val) => {
-        setActiveSlots(timeSlots.reduce((acc, slot) => {
-            acc[slot] = val;
-            return acc;
-        }, {}));
+    const handleBulkToggle = (val) => {
+        setDateSlots(prev => ({
+            ...prev,
+            [selectedDate]: timeSlots.reduce((acc, slot) => {
+                acc[slot] = val;
+                return acc;
+            }, {})
+        }));
+        toast.success(`Turned ${val ? 'ON' : 'OFF'} all slots for this day`);
     };
 
-    const totalHours = useMemo(() => {
-        return Object.values(activeSlots).filter(Boolean).length;
-    }, [activeSlots]);
+    const handleLeaveSubmit = () => {
+        if (!leaveStart) return;
+
+        const requestTime = new Date();
+        const leaveStartTime = new Date(leaveStart);
+        const isLeaveWeekend = isWeekend(leaveStartTime);
+
+        const hoursUntilLeave = (leaveStartTime - requestTime) / (1000 * 60 * 60);
+
+        if (isLeaveWeekend) {
+            if (hoursUntilLeave < 24) {
+                toast.error("Weekend leaves must be requested at least 24 hours in advance for admin approval.");
+                return;
+            }
+        } else {
+            if (hoursUntilLeave < 12) {
+                toast.error("Weekday leaves must be requested at least 12 hours in advance.");
+                return;
+            }
+        }
+
+        const newLeave = {
+            id: Date.now(),
+            startDate: format(new Date(leaveStart), "MMM dd, yyyy"),
+            endDate: leaveEnd ? format(new Date(leaveEnd), "MMM dd, yyyy") : format(new Date(leaveStart), "MMM dd, yyyy"),
+            reason: leaveReason || "Professional Break",
+            status: isLeaveWeekend ? "pending admin" : "approved"
+        };
+
+        setLeaves([newLeave, ...leaves]);
+        setShowLeaveModal(false);
+        setLeaveStart(""); setLeaveEnd(""); setLeaveReason("");
+        toast.success(isLeaveWeekend ? "Sent for Admin Approval" : "Leave applied successfully!");
+    };
+
+    const totalHours = Object.values(currentDaySlots).filter(Boolean).length;
 
     return (
-        <div className="flex flex-1 w-full flex-col gap-6 pt-4 md:pt-0">
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Hourly Availability</h1>
-                    <p className="text-muted-foreground">Manage your working hours directly on the calendar.</p>
+        <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-50 via-background to-background min-h-screen pb-24 -m-4 md:m-0">
+            <div className="max-w-4xl mx-auto p-4 space-y-6">
+
+                {/* Header - Beautician Style */}
+                <div className="pt-4 flex justify-between items-end">
+                    <div className="space-y-1">
+                        <h1 className="text-2xl font-black text-slate-900 tracking-tighter">Schedule & Availability</h1>
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Configure your service hours</p>
+                    </div>
+                    <Button onClick={() => setShowLeaveModal(true)} variant="outline" className="h-10 px-6 rounded-2xl border-slate-200 text-xs font-black gap-2 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+                        <Plane className="w-4 h-4" /> REQUEST LEAVE
+                    </Button>
                 </div>
 
-                <Popover>
-                    <PopoverTrigger asChild>
-                        <Button
-                            variant={"outline"}
-                            className={cn(
-                                "w-[240px] justify-start text-left font-normal bg-card shadow-sm",
-                                !date && "text-muted-foreground"
-                            )}
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4 text-purple-600" />
-                            {date ? format(date, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar
-                            mode="single"
-                            selected={date}
-                            onSelect={(d) => d && setDate(d)}
-                            initialFocus
-                        />
-                    </PopoverContent>
-                </Popover>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left Column: Calendar & History */}
+                    <div className="lg:col-span-8 space-y-6">
+                        {/* Calendar Card */}
+                        <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-xl shadow-slate-200/50">
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-widest">
+                                    {format(currentMonth, "MMMM yyyy")}
+                                </h3>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-slate-900 hover:text-white transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                                    <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center hover:bg-slate-900 hover:text-white transition-all"><ChevronRight className="w-4 h-4" /></button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-7 gap-1 mb-4">
+                                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+                                    <div key={d} className="text-center text-[10px] font-black text-slate-400 uppercase py-2">{d}</div>
+                                ))}
+                            </div>
+
+                            <div className="grid grid-cols-7 gap-1.5">
+                                {monthDays.map((day, i) => {
+                                    if (!day) return <div key={i} />;
+                                    const isSelected = selectedDate === day.key;
+                                    const hasData = dateSlots[day.key];
+                                    return (
+                                        <button
+                                            key={i}
+                                            onClick={() => setSelectedDate(day.key)}
+                                            className={`aspect-square rounded-2xl text-[13px] font-black flex flex-col items-center justify-center transition-all relative ${isSelected ? "bg-slate-900 text-white shadow-lg scale-105 z-10" :
+                                                hasData ? "bg-purple-50 text-purple-700 border border-purple-100" :
+                                                    "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                                                } ${day.isToday && !isSelected ? "ring-2 ring-purple-600/30 ring-offset-2" : ""}`}
+                                        >
+                                            {day.date}
+                                            {hasData && !isSelected && <div className="absolute bottom-2 w-1.5 h-1.5 rounded-full bg-purple-400" />}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Leave History Card */}
+                        {leaves.length > 0 && (
+                            <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Leaves</h4>
+                                    <MoreHorizontal className="h-4 w-4 text-slate-300" />
+                                </div>
+                                <div className="space-y-3">
+                                    {leaves.map(l => (
+                                        <div key={l.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 group hover:border-purple-200 transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:rotate-6 transition-transform">
+                                                    <Plane className="w-4 h-4 text-slate-400" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-slate-900">{l.startDate} {l.endDate !== l.startDate && `— ${l.endDate}`}</p>
+                                                    <p className="text-[10px] text-slate-500 font-medium uppercase tracking-tight">{l.reason}</p>
+                                                </div>
+                                            </div>
+                                            <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full border shadow-sm ${l.status === "approved" ? "bg-green-50 text-green-600 border-green-100" :
+                                                    l.status === "pending admin" ? "bg-amber-50 text-amber-600 border-amber-100 animate-pulse" :
+                                                        "bg-slate-100 text-slate-400 border-slate-200"
+                                                }`}>
+                                                {l.status}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Column: Slot Toggles */}
+                    <div className="lg:col-span-4">
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={selectedDate}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-2xl shadow-slate-200/60 sticky top-24"
+                            >
+                                <div className="flex items-center justify-between mb-8">
+                                    <div>
+                                        <h3 className="text-base font-black text-slate-900 tracking-tight">
+                                            {format(new Date(selectedDate), "MMM dd")} slots
+                                        </h3>
+                                        <div className="flex items-center gap-1 mt-0.5">
+                                            <div className="h-1.5 w-1.5 bg-green-500 rounded-full" />
+                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-tighter">{totalHours} Hours Live</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-1">
+                                        {/* On All Confirmation */}
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <button className="text-[9px] font-black uppercase px-2 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors">ON ALL</button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle className="text-xl font-black">Enable All Slots?</AlertDialogTitle>
+                                                    <AlertDialogDescription className="text-slate-500 font-medium">
+                                                        This will mark you as available for all 16 time slots on {format(new Date(selectedDate), "PPP")}.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter className="gap-2">
+                                                    <AlertDialogCancel className="rounded-xl font-bold border-slate-100">Wait, No</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleBulkToggle(true)} className="rounded-xl font-bold bg-slate-900">Yes, Turn ON</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+
+                                        {/* Off All Confirmation */}
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <button className="text-[9px] font-black uppercase px-2 py-1.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors">OFF ALL</button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle className="text-xl font-black">Disable All Slots?</AlertDialogTitle>
+                                                    <AlertDialogDescription className="text-slate-500 font-medium">
+                                                        This will mark you as unavailable for the entire day. Any active leads for this day may be reassigned.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter className="gap-2">
+                                                    <AlertDialogCancel className="rounded-xl font-bold border-slate-100">Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleBulkToggle(false)} className="rounded-xl font-bold bg-red-600 hover:bg-red-700">Confirm OFF</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {timeSlots.map(slot => {
+                                        const isActive = currentDaySlots[slot];
+                                        return (
+                                            <div
+                                                key={slot}
+                                                className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all ${isActive ? 'bg-purple-50/50 border-purple-200' : 'bg-white border-slate-100'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <Clock className={`h-3.5 w-3.5 ${isActive ? 'text-purple-600 font-bold' : 'text-slate-300'}`} />
+                                                    <span className={`text-xs font-bold ${isActive ? 'text-slate-900' : 'text-slate-400'}`}>{slot}</span>
+                                                </div>
+                                                <Switch
+                                                    checked={isActive}
+                                                    onCheckedChange={() => toggleSlot(slot)}
+                                                    className="data-[state=checked]:bg-purple-600 scale-90"
+                                                />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="mt-6 p-4 bg-slate-900 rounded-[24px] flex gap-3 shadow-lg ring-1 ring-white/10">
+                                    <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                                        <Info className="w-4 h-4 text-purple-400" />
+                                    </div>
+                                    <p className="text-[10px] text-slate-300 font-bold leading-relaxed uppercase tracking-widest">
+                                        Available hours help you rank higher in search results.
+                                    </p>
+                                </div>
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
+                </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-3">
-                {/* Total Hours Calculation */}
-                <Card className="lg:col-span-1 shadow-sm flex flex-col justify-between border-green-200 bg-green-50/50 dark:bg-green-950/20">
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-green-600" /> Real-time Calculation
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-                        <div className="text-6xl font-bold tracking-tight text-green-700 dark:text-green-500">
-                            {totalHours}
-                        </div>
-                        <p className="text-sm text-green-800 font-medium mt-2 dark:text-green-400">Total Hours Available</p>
-                        <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">
-                            Providers with 8+ hours get prioritized in the algorithm.
-                        </p>
-                    </CardContent>
-                    <CardFooter className="pb-6">
-                        <Button className="w-full bg-green-600 hover:bg-green-700">
-                            <CheckCircle className="h-4 w-4 mr-2" /> Save Active Hours
-                        </Button>
-                    </CardFooter>
-                </Card>
+            {/* Leave Request Modal - Modified Logic */}
+            <AnimatePresence>
+                {showLeaveModal && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLeaveModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 40 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 40 }}
+                            className="relative w-full max-w-sm bg-white border border-slate-100 rounded-[40px] p-8 shadow-3xl z-10"
+                        >
+                            <div className="flex flex-col items-center mb-6">
+                                <div className="h-16 w-16 bg-purple-50 rounded-3xl flex items-center justify-center text-purple-600 mb-4 shadow-sm rotate-12">
+                                    <Plane className="h-8 w-8" />
+                                </div>
+                                <h3 className="font-black text-2xl text-slate-900 tracking-tighter">Request Time Off</h3>
+                            </div>
 
-                {/* Hourly Toggles */}
-                <Card className="lg:col-span-2 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 mb-4 border-b">
-                        <div>
-                            <CardTitle>Time Slots for {format(date, "MMMM do, yyyy")}</CardTitle>
-                            <CardDescription>Select individual hours to open your schedule.</CardDescription>
-                        </div>
-                        <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => setAll(true)}>On All</Button>
-                            <Button variant="outline" size="sm" onClick={() => setAll(false)}>Off All</Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                            {timeSlots.map((slot) => {
-                                const isActive = activeSlots[slot];
-                                return (
-                                    <div
-                                        key={slot}
-                                        className={cn(
-                                            "flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer",
-                                            isActive ? "bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800" : "bg-card border-border hover:bg-muted"
-                                        )}
-                                        onClick={(e) => {
-                                            if (e.target.tagName !== "BUTTON" && e.target.closest("button") === null) {
-                                                toggleSlot(slot);
-                                            }
-                                        }}
+                            <div className="space-y-5">
+                                <div className="grid grid-cols-2 gap-3 mb-2">
+                                    <button
+                                        onClick={() => setLeaveType("Full Day")}
+                                        className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${leaveType === "Full Day" ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
                                     >
-                                        <span className={cn("text-sm font-medium", isActive ? "text-purple-700 dark:text-purple-300" : "text-foreground")}>
-                                            {slot}
-                                        </span>
-                                        <Switch
-                                            checked={isActive}
-                                            onCheckedChange={() => toggleSlot(slot)}
-                                            className="data-[state=checked]:bg-purple-600"
+                                        Full Day
+                                    </button>
+                                    <button
+                                        onClick={() => setLeaveType("Half Day")}
+                                        className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${leaveType === "Half Day" ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
+                                    >
+                                        Half Day
+                                    </button>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Start Date & Time</label>
+                                    <input
+                                        type="datetime-local"
+                                        value={leaveStart}
+                                        onChange={e => setLeaveStart(e.target.value)}
+                                        className="w-full h-14 px-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-purple-500 transition-all shadow-inner"
+                                    />
+                                </div>
+
+                                {leaveType === "Full Day" && (
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">End Date (Optional)</label>
+                                        <input
+                                            type="date"
+                                            value={leaveEnd}
+                                            onChange={e => setLeaveEnd(e.target.value)}
+                                            className="w-full h-14 px-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none shadow-inner"
                                         />
                                     </div>
-                                )
-                            })}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
+                                )}
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Reason</label>
+                                    <textarea
+                                        value={leaveReason}
+                                        onChange={e => setLeaveReason(e.target.value)}
+                                        placeholder="Brief explanation..."
+                                        className="w-full h-24 px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none resize-none focus:ring-2 focus:ring-purple-500 transition-all shadow-inner"
+                                    />
+                                </div>
+
+                                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3">
+                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                    <p className="text-[10px] text-amber-800 font-bold leading-tight uppercase tracking-tighter">
+                                        {isWeekend(new Date(leaveStart || Date.now()))
+                                            ? "Weekend leaves require admin approval (apply 24h prior)."
+                                            : "Weekday leaves must be applied 12h prior."}
+                                    </p>
+                                </div>
+
+                                <Button onClick={handleLeaveSubmit} disabled={!leaveStart} className="w-full h-14 rounded-2xl font-black text-sm bg-slate-900 text-white shadow-xl hover:scale-[1.02] active:scale-95 transition-all">
+                                    SUBMIT REQUEST
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+            `}} />
         </div>
     );
 }

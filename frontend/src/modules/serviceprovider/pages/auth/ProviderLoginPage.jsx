@@ -17,14 +17,28 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/modules/user/components/ui/select";
+import { useProviderAuth } from "@/modules/serviceprovider/contexts/ProviderAuthContext";
 
 export default function ProviderLoginPage() {
     const navigate = useNavigate();
+    const { login, isLoggedIn, isRegistered, isApproved, isPending, isRejected } = useProviderAuth();
     const [step, setStep] = useState(1); // 1: Login, 2: OTP
     const [phone, setPhone] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [otp, setOtp] = useState(["", "", "", "", "", ""]);
     const [timer, setTimer] = useState(30);
+
+    useEffect(() => {
+        if (isLoggedIn) {
+            if (!isRegistered) {
+                navigate("/provider/register", { replace: true });
+            } else if (isApproved) {
+                navigate("/provider/dashboard", { replace: true });
+            } else if (isPending || isRejected) {
+                navigate("/provider/status", { replace: true });
+            }
+        }
+    }, [isLoggedIn, isRegistered, isApproved, isPending, isRejected, navigate]);
 
     useEffect(() => {
         let interval;
@@ -50,10 +64,8 @@ export default function ProviderLoginPage() {
     const handleVerifyOtp = () => {
         setIsLoading(true);
         setTimeout(() => {
+            login(phone);
             setIsLoading(false);
-            // In a real app, we'd check user status here
-            // Mocking a redirect to dashboard for now
-            navigate("/provider/dashboard");
         }, 1500);
     };
 
@@ -71,23 +83,23 @@ export default function ProviderLoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#fdf8f6] flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
             {/* Desktop Illustration - Only visible on larger screens */}
             <div className="hidden lg:flex flex-1 max-w-lg items-center justify-center mr-12">
                 <div className="space-y-6">
-                    <img src="/logo.png" alt="Logo" className="h-24 w-auto mb-8 animate-bounce" />
+                    <img src="/logo1.png" alt="Logo" className="h-28 w-28 rounded-full object-cover border-4 border-white shadow-xl mb-8 animate-bounce" />
                     <h1 className="text-4xl font-extrabold text-gray-900 leading-tight">
-                        Grow your <span className="text-[#e65689]">Profession</span> with Styling with Muskan.
+                        Grow your <span className="text-violet-600">Profession</span> with Styling with Muskan.
                     </h1>
                     <p className="text-lg text-gray-600">
                         Join 10,000+ professionals providing beauty services at home. Manage bookings, track earnings, and build your brand.
                     </p>
                     <div className="flex gap-4 pt-4">
-                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-pink-100 flex items-center gap-3">
+                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-violet-100 flex items-center gap-3">
                             <ShieldCheck className="text-green-500 h-6 w-6" />
                             <span className="font-semibold text-sm">Verified Profile</span>
                         </div>
-                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-pink-100 flex items-center gap-3">
+                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-violet-100 flex items-center gap-3">
                             <ShieldCheck className="text-purple-500 h-6 w-6" />
                             <span className="font-semibold text-sm">Fast Payouts</span>
                         </div>
@@ -105,7 +117,7 @@ export default function ProviderLoginPage() {
                     )}
 
                     <div className="flex flex-col items-center text-center mb-8">
-                        <img src="/logo.png" alt="SWM Logo" className="h-16 w-auto mb-4" />
+                        <img src="/logo1.png" alt="SWM Logo" className="h-20 w-20 rounded-full object-cover border-2 border-white shadow-lg mb-4" />
                         <h2 className="text-2xl font-black text-gray-900 tracking-tight">
                             {step === 1 ? "Professional Login" : "Verify Number"}
                         </h2>
@@ -136,7 +148,7 @@ export default function ProviderLoginPage() {
                                         <Input
                                             type="tel"
                                             placeholder="Enter 10-digit number"
-                                            className="h-12 pl-10 rounded-xl bg-gray-50 border-gray-100 font-bold focus:ring-[#e65689] focus:border-[#e65689]"
+                                            className="h-12 pl-10 rounded-xl bg-gray-50 border-gray-100 font-bold focus:ring-violet-600 focus:border-violet-600"
                                             value={phone}
                                             onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                                         />
@@ -146,7 +158,7 @@ export default function ProviderLoginPage() {
                             </div>
 
                             <Button
-                                className="w-full h-14 rounded-2xl bg-[#e65689] hover:bg-[#d44678] text-white font-black text-lg shadow-lg shadow-pink-200 transition-all active:scale-[0.98]"
+                                className="w-full h-14 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white font-black text-lg shadow-lg shadow-violet-200 transition-all active:scale-[0.98]"
                                 onClick={handleContinue}
                                 disabled={phone.length < 10 || isLoading}
                             >
@@ -157,7 +169,7 @@ export default function ProviderLoginPage() {
                             <div className="text-center pt-4">
                                 <p className="text-gray-500 text-sm font-medium">
                                     New here?{" "}
-                                    <Link to="/provider/register" className="text-[#e65689] font-black hover:underline">
+                                    <Link to="/provider/register" className="text-violet-600 font-black hover:underline">
                                         Register as Partner
                                     </Link>
                                 </p>
@@ -174,14 +186,14 @@ export default function ProviderLoginPage() {
                                         maxLength={1}
                                         value={digit}
                                         onChange={(e) => handleOtpChange(i, e.target.value)}
-                                        className="w-10 h-14 sm:w-12 sm:h-16 text-center text-xl font-bold bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-[#e65689] focus:bg-white outline-none transition-all shadow-sm"
+                                        className="w-10 h-14 sm:w-12 sm:h-16 text-center text-xl font-bold bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-violet-600 focus:bg-white outline-none transition-all shadow-sm"
                                     />
                                 ))}
                             </div>
 
                             <div className="space-y-4">
                                 <Button
-                                    className="w-full h-14 rounded-2xl bg-[#e65689] hover:bg-[#d44678] text-white font-black text-lg shadow-lg shadow-pink-200"
+                                    className="w-full h-14 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white font-black text-lg shadow-lg shadow-violet-200"
                                     onClick={handleVerifyOtp}
                                     disabled={otp.some(d => !d) || isLoading}
                                 >
@@ -194,7 +206,7 @@ export default function ProviderLoginPage() {
                                             Resend OTP in <span className="text-gray-900 font-bold">0:{timer.toString().padStart(2, '0')}</span>
                                         </p>
                                     ) : (
-                                        <button className="text-[#e65689] text-sm font-black hover:underline">
+                                        <button className="text-violet-600 text-sm font-black hover:underline">
                                             Resend OTP
                                         </button>
                                     )}

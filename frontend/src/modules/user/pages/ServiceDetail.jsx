@@ -8,7 +8,7 @@ import {
   UserCheck
 } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
-import { services, mockProviders } from "@/modules/user/data/services";
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
@@ -23,6 +23,7 @@ const ServiceDetail = () => {
   const { gender } = useGenderTheme();
   const { addToCart, setIsCartOpen, selectedSlot: globalSlot, setSelectedSlot: setGlobalSlot } = useCart();
   const { isLoggedIn, setIsLoginModalOpen } = useAuth();
+  const { services, providers: mockProviders } = useUserModuleData();
   const service = services.find((s) => s.id === id);
 
   const [qty, setQty] = useState(1);

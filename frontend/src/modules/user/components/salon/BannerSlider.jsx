@@ -1,15 +1,43 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
-import { banners } from "@/modules/user/data/services";
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 
 const BannerSlider = () => {
   const { gender } = useGenderTheme();
+  const { banners } = useUserModuleData();
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
-  const items = banners[gender];
+  const [items, setItems] = useState(banners[gender] || []);
+
+  useEffect(() => {
+    const adminBannersRaw = localStorage.getItem("muskan-admin-banners");
+    const adminBanners = adminBannersRaw ? JSON.parse(adminBannersRaw) : [];
+
+    // Filter active banners and map to slider format
+    const activeAdminBanners = adminBanners
+      .filter(b => {
+        const now = new Date();
+        return (!b.startDate || new Date(b.startDate) <= now) &&
+          (!b.endDate || new Date(b.endDate) >= now);
+      })
+      .map(b => ({
+        title: b.title,
+        subtitle: "Exclusive deals for you",
+        cta: "Book Now",
+        image: b.image,
+        gradient: "from-indigo-600/50 to-purple-600/50",
+        priority: b.priority || 0
+      }));
+
+    const combined = [...activeAdminBanners, ...(banners[gender] || [])];
+    // Sort combined by priority if available
+    combined.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
+    setItems(combined);
+  }, [gender, banners]);
 
   const goTo = useCallback(
     (index) => {
