@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useProviderAuth } from "../contexts/ProviderAuthContext";
 import {
     Calendar,
     Map,
@@ -48,19 +49,27 @@ const menuItems = [
 ];
 
 export default function ProviderProfile() {
+    const { provider, logout } = useProviderAuth();
     const navigate = useNavigate();
-    const [name] = useState("Muskan Poswal");
-    const [profileImage] = useState("https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&h=240");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-    // Mock registration data
+    // Provide default fallbacks if provider context is missing somehow
+    const safeProvider = provider || {};
+    const name = safeProvider.name || "Muskan Poswal";
+    const profileImage = safeProvider.profilePhoto || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&h=240";
+
     const providerDetails = {
-        email: "muskan.poswal@swm.com",
-        phone: "+91 98765 43210",
-        city: "New Delhi",
-        category: "Beautician - Hair & Makeup",
-        joiningDate: "Jan 12, 2024",
-        experience: "4+ Years"
+        email: safeProvider.email || "muskan.poswal@swm.com",
+        phone: safeProvider.phone || "+91 98765 43210",
+        city: "New Delhi", // Hardcoded for now unless added to registration
+        category: safeProvider.documents?.primaryCategory?.[0] || "Beautician",
+        joiningDate: safeProvider.createdAt ? new Date(safeProvider.createdAt).toLocaleDateString() : "Jan 12, 2024",
+        experience: safeProvider.experience || "4+ Years"
+    };
+
+    const handleLogout = () => {
+        logout();
+        navigate("/provider/login");
     };
 
     return (
@@ -191,7 +200,7 @@ export default function ProviderProfile() {
 
                 {/* Logout Button */}
                 <button
-                    onClick={() => navigate("/provider/login")}
+                    onClick={handleLogout}
                     className="w-full flex items-center justify-between p-5 border-b border-gray-50 active:bg-red-50 transition-colors group"
                 >
                     <div className="flex items-center gap-4">

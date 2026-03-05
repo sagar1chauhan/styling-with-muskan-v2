@@ -11,7 +11,7 @@ export const useVenderAuth = () => {
 const STORAGE_KEY = "muskan-vendor-auth";
 const VENDORS_DB_KEY = "muskan-vendors";
 const SP_DB_KEY = "muskan-provider-db";
-const SP_BOOKINGS_KEY = "muskan-provider-bookings";
+const SP_BOOKINGS_KEY = "muskan-bookings";
 const SOS_KEY = "muskan-sos-alerts";
 
 export const VenderAuthProvider = ({ children }) => {
@@ -99,7 +99,7 @@ export const VenderAuthProvider = ({ children }) => {
     const assignSPToBooking = (bookingId, spId) => {
         const bookings = JSON.parse(localStorage.getItem(SP_BOOKINGS_KEY) || "[]");
         const updated = bookings.map(b =>
-            b.id === bookingId ? { ...b, assignedProvider: spId, status: "accepted" } : b
+            b.id === bookingId ? { ...b, assignedProvider: spId, status: "pending" } : b
         );
         localStorage.setItem(SP_BOOKINGS_KEY, JSON.stringify(updated));
     };

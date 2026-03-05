@@ -11,7 +11,7 @@ export const useAdminAuth = () => {
 const ADMIN_KEY = "muskan-admin";
 const VENDORS_DB_KEY = "muskan-vendors";
 const SP_DB_KEY = "muskan-provider-db";
-const SP_BOOKINGS_KEY = "muskan-provider-bookings";
+const SP_BOOKINGS_KEY = "muskan-bookings";
 const USER_BOOKINGS_KEY = "muskan-bookings";
 const COUPONS_KEY = "muskan-admin-coupons";
 const BANNERS_KEY = "muskan-admin-banners";
@@ -66,7 +66,7 @@ export const AdminAuthProvider = ({ children }) => {
     const getUserBookings = () => JSON.parse(localStorage.getItem(USER_BOOKINGS_KEY) || "[]");
     const assignSPToBooking = (bookingId, spId) => {
         const bookings = getAllBookings();
-        const updated = bookings.map(b => b.id === bookingId ? { ...b, assignedProvider: spId, status: "accepted" } : b);
+        const updated = bookings.map(b => b.id === bookingId ? { ...b, assignedProvider: spId, status: "pending" } : b);
         localStorage.setItem(SP_BOOKINGS_KEY, JSON.stringify(updated));
     };
 

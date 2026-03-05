@@ -11,6 +11,7 @@ import {
   CalendarRange
 } from "lucide-react";
 import { cn } from "@/modules/user/lib/utils";
+import { useProviderAuth } from "../contexts/ProviderAuthContext";
 
 // Fallback cn if needed, but normally it's at @/lib/utils in these setups
 // If not, we can just use template literals. Assuming standard shadcn template.
@@ -29,6 +30,11 @@ const ProviderLayout = () => {
 
   const isActive = (path) => location.pathname === path;
 
+  const { provider } = useProviderAuth();
+  const safeProvider = provider || {};
+  const name = safeProvider.name || "Styling with Muskan";
+  const profileImage = safeProvider.profilePhoto || "/logo1.png";
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40 md:flex-row">
       {/* Desktop Sidebar */}
@@ -36,11 +42,11 @@ const ProviderLayout = () => {
         <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
           <Link to="/provider/profile" className="flex items-center gap-3 group px-1">
             <div className="relative">
-              <img src="/logo1.png" alt="Logo" className="h-12 w-12 rounded-full object-cover border-2 border-primary/20 shadow-md transition-all duration-300 group-hover:scale-110 group-hover:rotate-3" onError={(e) => e.target.style.display = 'none'} />
+              <img src={profileImage} alt="Logo" className="h-12 w-12 rounded-full object-cover border-2 border-primary/20 shadow-md transition-all duration-300 group-hover:scale-110 group-hover:rotate-3" onError={(e) => { e.target.onerror = null; e.target.src = '/logo1.png' }} />
               <div className="absolute -bottom-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
             </div>
             <div className="flex flex-col">
-              <span className="text-[15px] font-bold leading-none text-gray-900 tracking-tight group-hover:text-purple-700 transition-colors">Styling with Muskan</span>
+              <span className="text-[15px] font-bold leading-none text-gray-900 tracking-tight group-hover:text-purple-700 transition-colors w-32 truncate">{name}</span>
               <div className="flex items-center gap-1.5 mt-1">
                 <div className="h-[1px] w-3 bg-purple-300"></div>
                 <span className="text-[9px] font-black uppercase text-purple-600 tracking-[0.25em] leading-none">Professional</span>
@@ -74,13 +80,13 @@ const ProviderLayout = () => {
       <div className="flex flex-col flex-1 md:pl-64">
         {/* Mobile Header */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 md:hidden">
-          <Link to="/provider/profile" className="flex items-center gap-3 group">
-            <div className="relative">
-              <img src="/logo1.png" alt="Logo" className="h-10 w-10 rounded-full object-cover border-2 border-primary/20 shadow-md" onError={(e) => e.target.style.display = 'none'} />
+          <Link to="/provider/profile" className="flex items-center gap-3 group max-w-[70%]">
+            <div className="relative shrink-0">
+              <img src={profileImage} alt="Logo" className="h-10 w-10 rounded-full object-cover border-2 border-primary/20 shadow-md" onError={(e) => { e.target.onerror = null; e.target.src = '/logo1.png' }} />
               <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 bg-green-500 rounded-full border-2 border-white"></div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-[14px] font-bold leading-none text-gray-900 tracking-tight">Styling with Muskan</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[14px] font-bold leading-none text-gray-900 tracking-tight truncate">{name}</span>
               <div className="flex items-center gap-1 mt-1">
                 <span className="text-[8px] font-black uppercase text-purple-600 tracking-[0.2em] leading-none">Professional</span>
               </div>

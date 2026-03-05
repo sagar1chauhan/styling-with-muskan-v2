@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Clock, MapPin, Star, Phone, MessageSquare, Zap, Receipt, ShieldCheck, ChevronRight } from "lucide-react";
+import { X, Calendar, Clock, MapPin, Star, Phone, MessageSquare, Zap, Receipt, ShieldCheck, ChevronRight, CheckCircle2, Navigation, Home, Scissors } from "lucide-react";
 
 const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
     if (!booking) return null;
@@ -25,6 +25,27 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
             </span>
         );
     };
+
+    const currentStatus = (booking.status || 'pending').toLowerCase();
+
+    const getStepIndex = () => {
+        if (currentStatus === 'completed') return 4;
+        if (currentStatus === 'in_progress') return 3;
+        if (currentStatus === 'arrived') return 2;
+        if (currentStatus === 'travelling') return 1;
+        if (currentStatus === 'accepted') return 0;
+        return -1;
+    };
+
+    const activeIndex = getStepIndex();
+
+    const bookingSteps = [
+        { id: 'accepted', label: 'Booking Accepted', icon: CheckCircle2 },
+        { id: 'travelling', label: 'Provider on the way', icon: Navigation },
+        { id: 'arrived', label: 'Provider Arrived', icon: Home },
+        { id: 'in_progress', label: 'Service Started', icon: Scissors },
+        { id: 'completed', label: 'Service Completed', icon: Star },
+    ];
 
     return (
         <AnimatePresence>
@@ -61,6 +82,28 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                         {/* Content */}
                         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 hide-scrollbar pb-32">
 
+                            {/* Track Map showing if travelling/arrived */}
+                            {['travelling', 'arrived'].includes(currentStatus) && (
+                                <div className="rounded-2xl overflow-hidden border border-border/50 bg-accent/20 relative h-48 shadow-inner animate-in fade-in zoom-in duration-500">
+                                    <img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?w=600&h=300&fit=crop" className="w-full h-full object-cover opacity-60 grayscale mix-blend-multiply" alt="Map Route" />
+                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background to-transparent h-24" />
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-full p-2 shadow-xl animate-bounce">
+                                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                                            <Navigation className="w-5 h-5 text-primary fill-primary/20" />
+                                        </div>
+                                    </div>
+                                    <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md rounded-2xl p-4 flex items-center justify-between shadow-lg border border-border/50">
+                                        <div>
+                                            <p className="text-sm font-black text-gray-900">{currentStatus === 'travelling' ? 'Reaching in 15 mins' : 'Provider Arrived at Location'}</p>
+                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-0.5">{currentStatus === 'travelling' ? `Provider is 2.5km away` : 'Please guide them in'}</p>
+                                        </div>
+                                        <button className="h-10 w-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center shadow-sm">
+                                            <Phone className="w-4 h-4 fill-green-600/20" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Status Card */}
                             <div className="flex items-center justify-between p-4 bg-accent/30 rounded-2xl border border-border/50">
                                 <div className="flex items-center gap-3">
@@ -73,6 +116,40 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                                     </div>
                                 </div>
                                 <StatusBadge status={booking.status} />
+                            </div>
+
+                            {/* Timeline */}
+                            <div className="space-y-4 pt-2">
+                                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Order Tracking</h3>
+                                <div className="relative py-2 space-y-0">
+                                    {/* Timeline Line */}
+                                    <div className="absolute left-6 top-6 bottom-6 w-[2px] bg-border/50 rounded-full" />
+
+                                    {bookingSteps.map((step, index) => {
+                                        const isCompleted = index <= activeIndex;
+                                        const isCurrent = index === activeIndex;
+                                        const StepIcon = step.icon;
+
+                                        return (
+                                            <div key={step.id} className="relative flex items-center gap-4 group">
+                                                <div className={`relative z-10 w-12 h-12 rounded-2xl bg-background flex items-center justify-center transition-all duration-300
+                                                    ${isCompleted ? 'shadow-sm' : ''}`}>
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300
+                                                        ${isCompleted ? 'bg-primary text-primary-foreground shadow-md' : 'bg-accent/50 text-muted-foreground/30'}`}>
+                                                        <StepIcon className="w-4 h-4" />
+                                                    </div>
+                                                </div>
+                                                <div className={`flex-1 flex justify-between items-center py-4 border-b border-border/30 last:border-0`}>
+                                                    <div>
+                                                        <p className={`text-sm font-bold ${isCompleted ? 'text-gray-900' : 'text-muted-foreground/50'}`}>{step.label}</p>
+                                                        {isCurrent && <p className="text-[10px] text-primary font-bold uppercase tracking-wider mt-0.5">Current Status</p>}
+                                                    </div>
+                                                    {isCompleted && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
                             </div>
 
                             {/* Service Items */}
@@ -156,12 +233,29 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                                         </div>
                                     )}
                                     <div className="h-px bg-dashed-border w-full opacity-30 my-2" style={{ backgroundImage: 'linear-gradient(to right, #ccc 50%, rgba(255,255,255,0) 0%)', backgroundSize: '10px 1px', backgroundRepeat: 'repeat-x' }} />
+
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-xs font-bold text-muted-foreground">
+                                            <span>Full Service Value</span>
+                                            <span>₹{booking.totalAmount.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs font-bold text-green-600">
+                                            <span>Amount Prepaid</span>
+                                            <span>-₹{(booking.prepaidAmount || 0).toLocaleString()}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="h-px bg-border/30 w-full my-2" />
+
                                     <div className="flex justify-between items-center text-lg">
-                                        <span className="font-black tracking-tight">Total Paid</span>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest leading-none">Remaining Balance</span>
+                                            <span className="text-[10px] text-muted-foreground font-medium mt-1 uppercase italic">Payable after service</span>
+                                        </div>
                                         <div className="text-right">
-                                            <p className="font-black text-primary font-display">₹{booking.totalAmount}</p>
-                                            <span className="text-[8px] font-black uppercase px-1 rounded bg-green-50 text-green-600 border border-green-200">
-                                                {booking.paymentStatus || 'Success'}
+                                            <p className="font-black text-primary font-display">₹{(booking.balanceAmount || 0).toLocaleString()}</p>
+                                            <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${booking.balanceAmount === 0 ? 'bg-green-50 text-green-600 border-green-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
+                                                {booking.balanceAmount === 0 ? 'Fully Paid' : (booking.paymentStatus || 'Partially Paid')}
                                             </span>
                                         </div>
                                     </div>

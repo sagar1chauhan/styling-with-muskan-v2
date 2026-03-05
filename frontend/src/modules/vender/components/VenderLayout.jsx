@@ -49,15 +49,15 @@ const VenderLayout = () => {
     return (
         <div className="flex min-h-screen w-full bg-background">
             {/* Desktop Sidebar */}
-            <aside className="fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col bg-sidebar-background md:flex">
+            <aside className="fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col bg-sidebar md:flex">
                 {/* Logo */}
                 <div className="flex h-[70px] items-center gap-3 border-b border-sidebar-border px-5">
                     <motion.div
                         whileHover={{ scale: 1.05, rotate: 3 }}
-                        className="relative h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-emerald-400 flex items-center justify-center shadow-lg"
+                        className="relative h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-green-500 flex items-center justify-center shadow-lg"
                     >
                         <Store className="h-5 w-5 text-white" />
-                        <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-400 rounded-full border-2 border-sidebar-background animate-pulse" />
+                        <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-400 rounded-full border-2 border-sidebar animate-pulse" />
                     </motion.div>
                     <div className="flex flex-col">
                         <span className="text-[14px] font-bold text-sidebar-foreground tracking-tight">
@@ -82,18 +82,17 @@ const VenderLayout = () => {
                                         className={cn(
                                             "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200",
                                             active
-                                                ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                                                : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                                                ? "bg-emerald-800/60 text-white shadow-sm ring-1 ring-emerald-700/30"
+                                                : "text-emerald-100/70 hover:text-white hover:bg-emerald-800/30"
                                         )}
                                     >
                                         <div className={cn(
                                             "h-8 w-8 rounded-lg flex items-center justify-center transition-colors",
-                                            active ? "bg-primary text-white" : "bg-sidebar-border/30"
+                                            active ? "bg-emerald-500 text-white shadow-md" : "bg-black/20 text-emerald-200/70"
                                         )}>
                                             <Icon className="h-4 w-4" />
                                         </div>
                                         {link.name}
-                                        {active && <ChevronRight className="h-4 w-4 ml-auto" />}
                                     </Link>
                                 </motion.div>
                             );
@@ -107,9 +106,9 @@ const VenderLayout = () => {
                         whileHover={{ x: 4 }}
                         whileTap={{ scale: 0.97 }}
                         onClick={handleLogout}
-                        className="flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-semibold text-sidebar-foreground/50 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        className="flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-semibold text-emerald-100/70 hover:text-red-400 hover:bg-red-500/10 transition-all"
                     >
-                        <div className="h-8 w-8 rounded-lg bg-sidebar-border/30 flex items-center justify-center">
+                        <div className="h-8 w-8 rounded-lg bg-black/20 text-emerald-200/70 flex items-center justify-center">
                             <LogOut className="h-4 w-4" />
                         </div>
                         Logout
@@ -133,11 +132,11 @@ const VenderLayout = () => {
                             animate={{ x: 0 }}
                             exit={{ x: "-100%" }}
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="fixed inset-y-0 left-0 z-50 w-[280px] bg-sidebar-background flex flex-col md:hidden shadow-2xl"
+                            className="fixed inset-y-0 left-0 z-50 w-[280px] bg-sidebar flex flex-col md:hidden shadow-2xl"
                         >
                             <div className="flex h-[70px] items-center justify-between border-b border-sidebar-border px-5">
                                 <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-emerald-400 flex items-center justify-center">
+                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-green-500 flex items-center justify-center">
                                         <Store className="h-5 w-5 text-white" />
                                     </div>
                                     <span className="text-[14px] font-bold text-sidebar-foreground">SWM Vendor</span>
@@ -159,11 +158,11 @@ const VenderLayout = () => {
                                                 className={cn(
                                                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all",
                                                     active
-                                                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                                                        : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                                                        ? "bg-emerald-800/60 text-white shadow-sm ring-1 ring-emerald-700/30"
+                                                        : "text-emerald-100/70 hover:text-white hover:bg-emerald-800/30"
                                                 )}
                                             >
-                                                <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", active ? "bg-primary text-white" : "bg-sidebar-border/30")}>
+                                                <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", active ? "bg-emerald-500 text-white shadow-md" : "bg-black/20 text-emerald-200/70")}>
                                                     <Icon className="h-4 w-4" />
                                                 </div>
                                                 {link.name}
@@ -173,8 +172,11 @@ const VenderLayout = () => {
                                 </nav>
                             </div>
                             <div className="p-4 border-t border-sidebar-border">
-                                <button onClick={handleLogout} className="flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-semibold text-red-400 hover:bg-red-500/10 transition-all">
-                                    <LogOut className="h-4 w-4" /> Logout
+                                <button onClick={handleLogout} className="flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-semibold text-emerald-100/70 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                                    <div className="h-8 w-8 rounded-lg bg-black/20 text-emerald-200/70 flex items-center justify-center">
+                                        <LogOut className="h-4 w-4" />
+                                    </div>
+                                    Logout
                                 </button>
                             </div>
                         </motion.aside>

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useProviderAuth } from "./ProviderAuthContext";
 
 const ProviderBookingContext = createContext(undefined);
 
@@ -8,7 +9,7 @@ export const useProviderBookings = () => {
     return context;
 };
 
-const STORAGE_KEY = "muskan-provider-bookings";
+const STORAGE_KEY = "muskan-bookings";
 
 // Generate mock incoming bookings
 const generateMockBookings = () => [
@@ -90,20 +91,31 @@ export const ProviderBookingProvider = ({ children }) => {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
             const parsed = JSON.parse(saved);
-            return parsed.length > 0 ? parsed : generateMockBookings();
+            return parsed;
         }
-        return generateMockBookings();
+        return [];
     });
 
     useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
+        } catch (e) {
+            console.error("ProviderBooking storage limit exceeded!", e);
+        }
     }, [bookings]);
 
-    const incomingBookings = bookings.filter(b => b.status === "incoming");
-    const pendingBookings = bookings.filter(b => b.status === "pending");
-    const activeBookings = bookings.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes(b.status));
-    const completedBookings = bookings.filter(b => b.status === "completed");
-    const cancelledBookings = bookings.filter(b => ["cancelled", "rejected"].includes(b.status));
+    const { provider } = useProviderAuth();
+
+    const providerId = provider?.id || provider?.phone;
+
+    // Only show bookings explicitly assigned to this provider
+    const myBookings = bookings.filter(b => b.assignedProvider === providerId);
+
+    const incomingBookings = myBookings.filter(b => b.status === "incoming" || b.status === "pending" || b.status === "Pending");
+    const pendingBookings = myBookings.filter(b => b.status === "pending" || b.status === "Pending");
+    const activeBookings = myBookings.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes(b.status));
+    const completedBookings = myBookings.filter(b => b.status === "completed");
+    const cancelledBookings = myBookings.filter(b => ["cancelled", "rejected"].includes(b.status));
 
     const acceptBooking = useCallback((id) => {
         setBookings(prev => prev.map(b =>

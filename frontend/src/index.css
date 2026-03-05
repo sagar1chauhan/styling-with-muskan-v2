@@ -9,20 +9,20 @@
   /* Women Theme (default) */
   :root,
   .theme-women {
-    --background: 270 20% 99%;
-    --foreground: 270 20% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 270 20% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 270 20% 10%;
-    --primary: 271 76% 53%;
+    --background: 271 40% 95%;
+    --foreground: 271 40% 5%;
+    --card: 271 40% 98%;
+    --card-foreground: 271 40% 5%;
+    --popover: 271 40% 98%;
+    --popover-foreground: 271 40% 5%;
+    --primary: 271 85% 55%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 270 30% 96%;
-    --secondary-foreground: 271 60% 30%;
-    --muted: 270 10% 95%;
-    --muted-foreground: 270 10% 45%;
-    --accent: 271 80% 97%;
-    --accent-foreground: 271 76% 51%;
+    --secondary: 271 60% 90%;
+    --secondary-foreground: 271 70% 25%;
+    --muted: 271 20% 93%;
+    --muted-foreground: 271 20% 40%;
+    --accent: 271 90% 92%;
+    --accent-foreground: 271 85% 45%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
     --border: 270 15% 90%;
@@ -40,7 +40,7 @@
     --sidebar-ring: 271 76% 53%;
 
     --gradient-start: 271 76% 53%;
-    --gradient-end: 270 30% 96%;
+    --gradient-end: 271 60% 88%;
     --glow: 271 76% 53%;
 
     font-family: 'Inter', sans-serif;
@@ -87,28 +87,28 @@
 
   /* Beautician Theme - Professional Light Purple/Violet */
   .theme-beautician {
-    --background: 270 20% 99%;
-    --foreground: 270 20% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 270 20% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 270 20% 10%;
-    --primary: 271 76% 53%;
+    --background: 271 45% 97%;
+    --foreground: 271 40% 5%;
+    --card: 271 40% 99%;
+    --card-foreground: 271 40% 5%;
+    --popover: 271 40% 99%;
+    --popover-foreground: 271 40% 5%;
+    --primary: 271 85% 58%;
     /* Deep Violet */
     --primary-foreground: 0 0% 100%;
-    --secondary: 270 30% 96%;
+    --secondary: 271 60% 92%;
     /* Light Lavender */
-    --secondary-foreground: 271 60% 30%;
-    --muted: 270 10% 95%;
-    --muted-foreground: 270 10% 45%;
-    --accent: 271 80% 97%;
+    --secondary-foreground: 271 70% 20%;
+    --muted: 271 20% 94%;
+    --muted-foreground: 271 20% 40%;
+    --accent: 271 95% 93%;
     /* Very soft purple highlight */
-    --accent-foreground: 271 76% 51%;
+    --accent-foreground: 271 90% 48%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 270 15% 90%;
-    --input: 270 15% 92%;
-    --ring: 271 76% 53%;
+    --border: 271 30% 88%;
+    --input: 271 30% 90%;
+    --ring: 271 85% 58%;
     --radius: 0.375rem;
 
     --sidebar-background: 271 50% 15%;
@@ -121,7 +121,7 @@
     --sidebar-ring: 271 76% 53%;
 
     --gradient-start: 271 76% 53%;
-    --gradient-end: 270 20% 99%;
+    --gradient-end: 271 60% 88%;
     --glow: 271 76% 53%;
 
     font-family: 'Inter', sans-serif;
@@ -156,41 +156,41 @@
     --gradient-end: 272 50% 3%;
   }
 
-  /* Vendor Theme - Professional Emerald/Teal */
+  /* Vendor Theme - Professional Dark Green */
   .theme-vendor {
-    --background: 160 20% 98%;
-    --foreground: 160 25% 10%;
+    --background: 142 20% 98%;
+    --foreground: 142 25% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 160 25% 10%;
+    --card-foreground: 142 25% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 160 25% 10%;
-    --primary: 160 70% 40%;
+    --popover-foreground: 142 25% 10%;
+    --primary: 142 70% 35%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 160 25% 95%;
-    --secondary-foreground: 160 60% 25%;
-    --muted: 160 10% 95%;
-    --muted-foreground: 160 10% 45%;
-    --accent: 160 60% 95%;
-    --accent-foreground: 160 70% 35%;
+    --secondary: 142 25% 95%;
+    --secondary-foreground: 142 60% 25%;
+    --muted: 142 10% 95%;
+    --muted-foreground: 142 10% 45%;
+    --accent: 142 60% 95%;
+    --accent-foreground: 142 70% 30%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 160 15% 90%;
-    --input: 160 15% 92%;
-    --ring: 160 70% 40%;
+    --border: 142 15% 90%;
+    --input: 142 15% 92%;
+    --ring: 142 70% 35%;
     --radius: 0.75rem;
 
-    --sidebar-background: 162 60% 12%;
+    --sidebar-background: 142 60% 10%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 160 70% 45%;
+    --sidebar-primary: 142 70% 40%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 162 45% 20%;
+    --sidebar-accent: 142 45% 18%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 162 40% 18%;
-    --sidebar-ring: 160 70% 45%;
+    --sidebar-border: 142 40% 16%;
+    --sidebar-ring: 142 70% 40%;
 
-    --gradient-start: 160 70% 40%;
-    --gradient-end: 180 50% 35%;
-    --glow: 160 70% 40%;
+    --gradient-start: 142 70% 35%;
+    --gradient-end: 142 50% 25%;
+    --glow: 142 70% 35%;
 
     font-family: 'Inter', sans-serif;
   }
@@ -284,7 +284,7 @@
   }
 
   .bg-gradient-theme {
-    background-image: linear-gradient(135deg, hsl(var(--gradient-start)), hsl(var(--gradient-end)));
+    background-image: linear-gradient(135deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-start)) 35%, hsl(var(--gradient-end)) 100%);
   }
 
   .shadow-soft {

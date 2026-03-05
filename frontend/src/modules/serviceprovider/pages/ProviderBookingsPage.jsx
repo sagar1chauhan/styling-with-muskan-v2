@@ -26,48 +26,65 @@ const CountdownTimer = ({ expiresAt }) => {
     );
 };
 
-const BookingCard = ({ booking, type, onAccept, onReject, onNavigate }) => (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-card rounded-2xl p-4 border border-border shadow-sm hover:border-purple-300 transition-all">
-        <div className="flex items-center justify-between mb-3">
-            <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md ${booking.bookingType === "instant" ? "bg-amber-50 text-amber-600 border border-amber-200" : "bg-purple-50 text-purple-600 border border-purple-100"}`}>
-                {booking.bookingType === "instant" ? "Instant" : "Scheduled"}
-            </span>
-            {(type === "incoming" || type === "pending") && booking.expiresAt && <CountdownTimer expiresAt={booking.expiresAt} />}
-            {type === "active" && <span className="text-[10px] font-bold uppercase text-green-500 flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> {booking.status.replace("_", " ")}</span>}
-            {type === "cancelled" && <span className="text-[10px] font-bold uppercase text-red-500 flex items-center gap-1.5">{booking.status}</span>}
-        </div>
+const BookingCard = ({ booking, type, onAccept, onReject, onNavigate }) => {
+    const isFirstTime = !booking.customerBookingCount || booking.customerBookingCount <= 1;
 
-        <div className="space-y-1.5">
-            {booking.services.map((s, i) => (
-                <div key={i} className="flex justify-between items-center"><span className="text-sm font-bold text-gray-900">{s.name}</span><span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">{s.duration}</span></div>
-            ))}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mt-4 pt-3 border-t border-gray-100">
-            <span className="flex items-center gap-1.5 font-medium"><Calendar className="w-3.5 h-3.5 text-purple-600" /> {booking.slot.date}</span>
-            <span className="flex items-center gap-1.5 font-medium"><Clock className="w-3.5 h-3.5 text-purple-600" /> {booking.slot.time}</span>
-        </div>
-        <p className="text-xs text-gray-600 flex items-center gap-1.5 truncate mt-2 font-medium">
-            <MapPin className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" /> {booking.address.area}
-        </p>
-
-        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
-            <p className="text-lg font-black text-gray-900">₹{booking.totalAmount.toLocaleString()}</p>
-            {(type === "incoming" || type === "pending") && (
-                <div className="flex gap-2">
-                    <Button onClick={() => onReject(booking.id)} variant="ghost" className="h-9 px-3.5 rounded-xl text-red-600 text-xs font-bold hover:bg-red-50">Reject</Button>
-                    <Button onClick={() => onAccept(booking.id)} className="h-9 px-5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-200">Accept</Button>
+    return (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-2xl p-4 border border-border shadow-sm hover:border-purple-300 transition-all">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                    <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md ${booking.bookingType === "instant" ? "bg-amber-50 text-amber-600 border border-amber-200" : "bg-purple-50 text-purple-600 border border-purple-100"}`}>
+                        {booking.bookingType === "instant" ? "Instant" : "Scheduled"}
+                    </span>
+                    {isFirstTime ? (
+                        <span className="text-[9px] font-black uppercase px-2 py-1 flex items-center gap-1 rounded-md bg-red-50 text-red-600 border border-red-200">
+                            UnVerify
+                        </span>
+                    ) : (
+                        <span className="text-[9px] font-black uppercase px-2 py-1 flex items-center gap-1 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            <Check className="w-2.5 h-2.5" /> Verified Customer
+                        </span>
+                    )}
                 </div>
-            )}
-            {(type === "active" || type === "completed" || type === "cancelled") && (
-                <Button onClick={() => onNavigate(booking.id)} variant="outline" className="h-9 px-4 rounded-xl text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 group">
-                    {type === "active" ? "Manage Job" : "View Details"} <ChevronRight className="w-3.5 h-3.5 ml-1.5 text-gray-400 group-hover:translate-x-0.5 transition-all" />
-                </Button>
-            )}
-        </div>
-    </motion.div>
-);
+                <div className="flex items-center gap-2">
+                    {(type === "incoming" || type === "pending") && booking.expiresAt && <CountdownTimer expiresAt={booking.expiresAt} />}
+                    {type === "active" && <span className="text-[10px] font-bold uppercase text-green-500 flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> {booking.status.replace("_", " ")}</span>}
+                    {type === "cancelled" && <span className="text-[10px] font-bold uppercase text-red-500 flex items-center gap-1.5">{booking.status}</span>}
+                </div>
+            </div>
+
+            <div className="space-y-1.5">
+                {(booking.services || booking.items || []).map((s, i) => (
+                    <div key={i} className="flex justify-between items-center"><span className="text-sm font-bold text-gray-900">{s.name}</span><span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">{s.duration || "N/A"}</span></div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mt-4 pt-3 border-t border-gray-100">
+                <span className="flex items-center gap-1.5 font-medium"><Calendar className="w-3.5 h-3.5 text-purple-600" /> {booking.slot?.date || "TBD"}</span>
+                <span className="flex items-center gap-1.5 font-medium"><Clock className="w-3.5 h-3.5 text-purple-600" /> {booking.slot?.time || "TBD"}</span>
+            </div>
+            <p className="text-xs text-gray-600 flex items-center gap-1.5 truncate mt-2 font-medium">
+                <MapPin className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" /> {booking.address?.area || booking.address?.city || "Address not provided"}
+            </p>
+
+            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+                <p className="text-lg font-black text-gray-900">₹{(booking.totalAmount || 0).toLocaleString()}</p>
+                {(type === "incoming" || type === "pending") && (
+                    <div className="flex gap-2">
+                        <Button onClick={() => onReject(booking.id)} variant="ghost" className="h-9 px-3.5 rounded-xl text-red-600 text-xs font-bold hover:bg-red-50">Reject</Button>
+                        <Button onClick={() => onAccept(booking.id)} className="h-9 px-5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-200">Accept</Button>
+                    </div>
+                )}
+                {(type === "active" || type === "completed" || type === "cancelled") && (
+                    <Button onClick={() => onNavigate(booking.id)} variant="outline" className="h-9 px-4 rounded-xl text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 group">
+                        {type === "active" ? "Manage Job" : "View Details"} <ChevronRight className="w-3.5 h-3.5 ml-1.5 text-gray-400 group-hover:translate-x-0.5 transition-all" />
+                    </Button>
+                )}
+            </div>
+        </motion.div>
+    );
+};
 
 const ProviderBookingsPage = () => {
     const navigate = useNavigate();

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, MapPin, Clock, Calendar, Check, Navigation, Camera, ChevronRight, Shield, IndianRupee, Map as MapIcon, UserCircle, Package, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Calendar, Check, Navigation, Camera, ChevronRight, Shield, IndianRupee, Map as MapIcon, UserCircle, Package, CheckCircle2, Smartphone, Wallet } from "lucide-react";
 import { useProviderBookings } from "@/modules/serviceprovider/contexts/ProviderBookingContext";
 import { Button } from "@/modules/user/components/ui/button";
 
@@ -10,7 +10,8 @@ const statusSteps = [
     { key: "travelling", label: "Travelling", icon: Navigation },
     { key: "arrived", label: "Arrived", icon: MapPin },
     { key: "in_progress", label: "In Progress", icon: Clock },
-    { key: "completed", label: "Completed", icon: Check },
+    { key: "payment", label: "Payment", icon: IndianRupee },
+    { key: "completed", label: "Completed", icon: CheckCircle2 },
 ];
 
 const ProviderBookingDetailPage = () => {
@@ -58,12 +59,22 @@ const ProviderBookingDetailPage = () => {
         setShowComplete(false);
     };
 
+    const handleCollectPayment = () => {
+        updateBookingStatus(id, "payment");
+    };
+
+    const handleFinalizePayment = (method) => {
+        // In a real app, this would update the booking's payment details in the database
+        updateBookingStatus(id, "completed");
+    };
+
     const getNextAction = () => {
         switch (booking.status) {
             case "accepted": return { label: "Start Travelling", icon: Navigation, action: () => updateBookingStatus(id, "travelling") };
             case "travelling": return { label: "Mark as Arrived", icon: MapPin, action: () => updateBookingStatus(id, "arrived") };
             case "arrived": return { label: "Verify Customer OTP", icon: Shield, action: () => setShowOTP(true) };
-            case "in_progress": return { label: "Complete Job", icon: Check, action: () => setShowComplete(true) };
+            case "in_progress": return { label: "Collect Service Payment", icon: IndianRupee, action: () => handleCollectPayment() };
+            case "payment": return { label: "Finalize & Complete", icon: CheckCircle2, action: () => setShowComplete(true) };
             default: return null;
         }
     };
@@ -88,12 +99,54 @@ const ProviderBookingDetailPage = () => {
             </div>
 
             <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
+                {/* Payment Collection UI */}
+                {booking.status === "payment" && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-purple-600 rounded-[24px] p-6 shadow-xl shadow-purple-200 text-white space-y-4"
+                    >
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-[10px] font-black uppercase tracking-widest opacity-80">Collection Phase</h3>
+                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                                <IndianRupee className="w-4 h-4" />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-bold opacity-70 uppercase">Balance to Collect</p>
+                            <p className="text-4xl font-black">₹{(booking.balanceAmount || 0).toLocaleString()}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                            <button
+                                onClick={() => handleFinalizePayment('online')}
+                                className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl p-4 transition-all text-left group"
+                            >
+                                <Smartphone className="w-5 h-5 mb-2 opacity-80 group-hover:scale-110 transition-transform" />
+                                <p className="text-xs font-bold leading-tight">ONLINE<br /><span className="opacity-60 font-medium">UPI/Card</span></p>
+                            </button>
+                            <button
+                                onClick={() => handleFinalizePayment('cash')}
+                                className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl p-4 transition-all text-left group"
+                            >
+                                <Wallet className="w-5 h-5 mb-2 opacity-80 group-hover:scale-110 transition-transform" />
+                                <p className="text-xs font-bold leading-tight">CASH<br /><span className="opacity-60 font-medium">Physical Cash</span></p>
+                            </button>
+                        </div>
+
+                        <p className="text-[9px] font-medium opacity-60 text-center uppercase tracking-wider italic pt-2">
+                            Confirm collection before finalizing the job
+                        </p>
+                    </motion.div>
+                )}
+
                 {/* Status Progression */}
                 <div className="bg-white border text-center border-gray-100 rounded-[20px] p-5 shadow-sm shadow-purple-50 text-center">
                     <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-6">Job Progression</h3>
                     <div className="flex items-center justify-between relative px-2">
                         <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-[3px] bg-gray-100 z-0 rounded-full" />
-                        <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-[3px] bg-purple-500 z-0 rounded-full transition-all duration-500" style={{ width: `${Math.max(0, currentIdx) * 25}%` }} />
+                        <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-[3px] bg-purple-500 z-0 rounded-full transition-all duration-500" style={{ width: `${Math.max(0, currentIdx) * 20}%` }} />
 
                         {statusSteps.map((step, i) => {
                             const done = i <= currentIdx;
@@ -146,7 +199,7 @@ const ProviderBookingDetailPage = () => {
 
                             {/* Google Maps External Button */}
                             <Button
-                                onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${booking.address.houseNo}, ${booking.address.area}`)}`, '_blank')}
+                                onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${booking.address?.houseNo || ""}, ${booking.address?.area || booking.address?.city || ""}`)}`, '_blank')}
                                 className="absolute bottom-3 right-3 h-10 px-4 rounded-xl bg-white hover:bg-white text-gray-900 border border-gray-200 shadow-lg flex items-center gap-2 text-xs font-bold"
                             >
                                 <MapIcon className="w-3.5 h-3.5 text-green-600" /> Open Maps
@@ -161,11 +214,11 @@ const ProviderBookingDetailPage = () => {
                         <Shield className="w-3.5 h-3.5 text-purple-600" /> Service Overview
                     </h3>
                     <div className="space-y-2">
-                        {booking.services.map((s, i) => (
+                        {(booking.services || booking.items || []).map((s, i) => (
                             <div key={i} className="flex justify-between items-center bg-gray-50/80 p-3 rounded-xl border border-gray-100">
                                 <div>
                                     <p className="text-sm font-bold text-gray-900">{s.name}</p>
-                                    <p className="text-[11px] font-semibold text-gray-500 mt-0.5">{s.duration}</p>
+                                    <p className="text-[11px] font-semibold text-gray-500 mt-0.5">{s.duration || "N/A"}</p>
                                 </div>
                                 <p className="text-sm font-black text-gray-900">₹{s.price}</p>
                             </div>
@@ -173,7 +226,7 @@ const ProviderBookingDetailPage = () => {
                     </div>
                     <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
                         <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Total Earnings</p>
-                        <p className="text-xl font-black text-purple-600 flex items-center"><IndianRupee className="w-4 h-4 mr-0.5" />{booking.totalAmount}</p>
+                        <p className="text-xl font-black text-purple-600 flex items-center"><IndianRupee className="w-4 h-4 mr-0.5" />{(booking.totalAmount || 0).toLocaleString()}</p>
                     </div>
                 </div>
 
@@ -185,8 +238,8 @@ const ProviderBookingDetailPage = () => {
                         </div>
                         <div className="space-y-0.5">
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Scheduled For</p>
-                            <p className="text-sm font-black text-gray-900">{booking.slot.date}</p>
-                            <p className="text-xs font-bold text-purple-600">{booking.slot.time}</p>
+                            <p className="text-sm font-black text-gray-900">{booking.slot?.date || "TBD"}</p>
+                            <p className="text-xs font-bold text-purple-600">{booking.slot?.time || "TBD"}</p>
                         </div>
                     </div>
                     <div className="bg-white border border-gray-100 rounded-[20px] p-5 shadow-sm shadow-purple-50 flex items-start gap-4">
@@ -199,8 +252,8 @@ const ProviderBookingDetailPage = () => {
                                 <p className="text-sm font-bold leading-tight text-gray-400 italic">Location hidden for safety post-service</p>
                             ) : (
                                 <>
-                                    <p className="text-sm font-bold leading-tight text-gray-900">{booking.address.houseNo}, {booking.address.area}</p>
-                                    {booking.address.landmark && <p className="text-[10px] text-gray-500 font-semibold tracking-tight">Landmark: {booking.address.landmark}</p>}
+                                    <p className="text-sm font-bold leading-tight text-gray-900">{booking.address?.houseNo || ""}, {booking.address?.area || booking.address?.city || "Address not provided"}</p>
+                                    {booking.address?.landmark && <p className="text-[10px] text-gray-500 font-semibold tracking-tight">Landmark: {booking.address.landmark}</p>}
                                 </>
                             )}
                         </div>
@@ -323,16 +376,18 @@ const ProviderBookingDetailPage = () => {
             </AnimatePresence>
 
             {/* Sticky Action Footer */}
-            {nextAction && (
-                <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-100 p-4 z-40">
-                    <div className="max-w-xl mx-auto">
-                        <Button onClick={nextAction.action} className="w-full h-14 rounded-2xl font-black text-sm bg-purple-600 hover:bg-purple-700 text-white shadow-xl shadow-purple-200 flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] active:scale-[0.99]">
-                            {nextAction.label.toUpperCase()} <ChevronRight className="w-4 h-4" />
-                        </Button>
+            {
+                nextAction && (
+                    <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-100 p-4 z-40">
+                        <div className="max-w-xl mx-auto">
+                            <Button onClick={nextAction.action} className="w-full h-14 rounded-2xl font-black text-sm bg-purple-600 hover:bg-purple-700 text-white shadow-xl shadow-purple-200 flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] active:scale-[0.99]">
+                                {nextAction.label.toUpperCase()} <ChevronRight className="w-4 h-4" />
+                            </Button>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

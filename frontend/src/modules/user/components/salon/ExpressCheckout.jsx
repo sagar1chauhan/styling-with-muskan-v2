@@ -7,12 +7,18 @@ import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { Button } from "@/modules/user/components/ui/button";
 import AddressModal from "./AddressModal";
 import SlotSelectionModal from "./SlotSelectionModal";
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 import { useNavigate } from "react-router-dom";
 
 const ExpressCheckout = () => {
-    const { cartItems, updateQuantity, clearCart, clearGroup, totalPrice, totalSavings, isCartOpen, setIsCartOpen, activeCheckoutType, setActiveCheckoutType, selectedSlot, getGroupedItems } = useCart();
+    const {
+        cartItems, updateQuantity, clearCart, clearGroup, totalPrice, totalSavings,
+        isCartOpen, setIsCartOpen, activeCheckoutType, setActiveCheckoutType,
+        selectedSlot, getGroupedItems
+    } = useCart();
     const { isLoggedIn, hasAddress, setIsLoginModalOpen, user } = useAuth();
     const { gender } = useGenderTheme();
+    const { categories } = useUserModuleData(); // Access categories for dynamic advance payment
     const navigate = useNavigate();
     const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
@@ -26,13 +32,40 @@ const ExpressCheckout = () => {
 
     const displayedTotalPrice = Object.values(displayedGroups).reduce((acc, g) => acc + g.subtotal, 0);
 
-    const isHighValue = cartItems.some(item =>
-        (activeCheckoutType ? item.serviceType === activeCheckoutType : true) && (
-            item.name.toLowerCase().includes("bridal") ||
-            item.name.toLowerCase().includes("party makeup") ||
-            item.price >= 3000
-        )
-    );
+    // Calculate dynamic advance payment based on category settings
+    const calculateAdvancePayment = () => {
+        let totalAdvance = 0;
+        let itemsWithAdvance = [];
+
+        cartItems.forEach(item => {
+            // Check if item belongs to a displayed group
+            if (activeCheckoutType && item.serviceType !== activeCheckoutType) return;
+
+            const category = categories?.find(c => c.id === item.category);
+
+            // Instant bookings don't have advance payments
+            if ((category?.bookingType || item.bookingType || "").toLowerCase() === "instant") return;
+
+            const advancePercent = category?.advancePercentage || 0;
+
+            if (advancePercent > 0) {
+                const itemAdvance = Math.round((item.price * item.quantity * advancePercent) / 100);
+                totalAdvance += itemAdvance;
+                itemsWithAdvance.push({
+                    name: item.name,
+                    percent: advancePercent,
+                    advance: itemAdvance
+                });
+            }
+        });
+
+        return { totalAdvance, itemsWithAdvance, hasAdvance: totalAdvance > 0 };
+    };
+
+    const advanceInfo = calculateAdvancePayment();
+    const isHighValue = advanceInfo.hasAdvance; // Re-use this flag for UI logic
+    const advanceAmount = advanceInfo.totalAdvance;
+    const remainingAmount = displayedTotalPrice - advanceAmount;
 
     const handleCheckout = (typeId = null) => {
         if (!isLoggedIn) {
@@ -52,10 +85,19 @@ const ExpressCheckout = () => {
 
         setIsCartOpen(false);
         const finalType = typeId || activeCheckoutType;
+
+        // Pass advance info in state or use dynamic calculation in summary page too
+        const bookingData = {
+            totalAmount: displayedTotalPrice,
+            advanceAmount: advanceAmount,
+            remainingAmount: remainingAmount,
+            type: finalType
+        };
+
         if (finalType && typeof finalType === 'string') {
-            navigate(`/booking/summary?type=${finalType}`);
+            navigate(`/booking/summary?type=${finalType}`, { state: bookingData });
         } else {
-            navigate("/booking/summary");
+            navigate("/booking/summary", { state: bookingData });
         }
     };
 
@@ -197,15 +239,22 @@ const ExpressCheckout = () => {
                                 <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-3">
                                     <div className="flex items-center gap-2 text-primary">
                                         <ShieldCheck className="w-5 h-5" />
-                                        <h4 className="font-bold text-sm">Advance Payment Mandatory</h4>
+                                        <h4 className="font-bold text-sm">Advance Payment Required</h4>
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                        For Bridal & High-Value services, a 30% advance is required to confirm your booking.
-                                        Remaining ₹{(displayedTotalPrice - Math.round((displayedTotalPrice * 30) / 100)).toLocaleString()} is payable after service.
+                                    <div className="space-y-1.5">
+                                        {advanceInfo.itemsWithAdvance.map((item, idx) => (
+                                            <p key={idx} className="text-[10px] text-muted-foreground leading-relaxed flex justify-between">
+                                                <span>• {item.name} ({item.percent}%)</span>
+                                                <span className="font-bold text-foreground">₹{item.advance.toLocaleString()}</span>
+                                            </p>
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground/80 italic">
+                                        Remaining ₹{remainingAmount.toLocaleString()} is payable after service completion.
                                     </p>
                                     <div className="flex justify-between items-center pt-2 border-t border-primary/10">
-                                        <span className="text-[10px] font-bold uppercase text-muted-foreground">Due Now</span>
-                                        <span className="text-lg font-black text-primary">₹{Math.round((displayedTotalPrice * 30) / 100).toLocaleString()}</span>
+                                        <span className="text-[10px] font-bold uppercase text-muted-foreground">Total Advance Due Now</span>
+                                        <span className="text-lg font-black text-primary">₹{advanceAmount.toLocaleString()}</span>
                                     </div>
                                 </div>
                             )}
@@ -289,7 +338,7 @@ const ExpressCheckout = () => {
                         {/* Final Footer */}
                         <div className="p-4 bg-background border-t border-border shadow-2xl relative z-20">
                             {isHighValue ? (
-                                <div className="space-y-3 mb-4">
+                                <div className="space-y-3">
                                     <div className="flex items-center justify-between text-muted-foreground">
                                         <span className="text-[10px] font-bold uppercase tracking-wider">Total Service Value</span>
                                         <span className="text-sm font-bold">₹{displayedTotalPrice.toLocaleString()}</span>
@@ -297,16 +346,16 @@ const ExpressCheckout = () => {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Advance to Pay Now</p>
-                                            <p className="text-2xl font-black text-primary">₹{Math.round((displayedTotalPrice * 30) / 100).toLocaleString()}</p>
+                                            <p className="text-2xl font-black text-primary">₹{advanceAmount.toLocaleString()}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-bold text-muted-foreground uppercase">Remaining Balance</p>
-                                            <p className="text-sm font-bold text-foreground">₹{(displayedTotalPrice - Math.round((displayedTotalPrice * 30) / 100)).toLocaleString()}</p>
+                                            <p className="text-sm font-bold text-foreground">₹{remainingAmount.toLocaleString()}</p>
                                         </div>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Payable Amount</p>
                                         <p className="text-2xl font-black text-primary">₹{displayedTotalPrice.toLocaleString()}</p>
@@ -317,26 +366,6 @@ const ExpressCheckout = () => {
                                     </div>
                                 </div>
                             )}
-
-                            <Button
-                                onClick={handleCheckout}
-                                className={`w-full h-15 rounded-2xl text-lg font-bold shadow-xl transition-all duration-300 gap-3 group border-none ${isLoggedIn && hasAddress && selectedSlot
-                                    ? "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-primary/20"
-                                    : "bg-primary shadow-primary/20"
-                                    }`}
-                            >
-                                {/* Dynamic Button Text */}
-                                {!isLoggedIn && "Sign in to Proceed"}
-                                {isLoggedIn && !hasAddress && "Add Service Address"}
-                                {isLoggedIn && hasAddress && !selectedSlot && "Pick Booking Slot"}
-                                {isLoggedIn && hasAddress && selectedSlot && (
-                                    isHighValue ? "PAY ADVANCE & BOOK" : "BOOK SERVICES NOW"
-                                )}
-
-                                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform">
-                                    {isHighValue ? <CreditCard className="w-4 h-4 text-white" /> : <ArrowRight className="w-5 h-5 text-white" />}
-                                </div>
-                            </Button>
                         </div>
                     </motion.div>
                 </div>

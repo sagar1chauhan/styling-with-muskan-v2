@@ -161,15 +161,15 @@ export default function SPManagement() {
                     <>
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedSP(null)} />
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="fixed inset-x-4 top-[10%] md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[500px] z-50 bg-card rounded-2xl shadow-2xl border border-border overflow-hidden max-h-[80vh] overflow-y-auto"
+                            initial={{ opacity: 0, scale: 0.95, x: "-50%", y: "-40%" }}
+                            animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
+                            exit={{ opacity: 0, scale: 0.95, x: "-50%", y: "-40%" }}
+                            className="fixed left-1/2 top-1/2 w-[calc(100vw-2rem)] sm:w-[500px] z-50 bg-card rounded-2xl shadow-2xl border border-border overflow-hidden max-h-[85vh] overflow-y-auto"
                         >
                             <div className="p-6 space-y-5">
                                 {/* Header */}
                                 <div className="flex items-center gap-4">
-                                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-emerald-400 flex items-center justify-center text-white text-2xl font-black">
+                                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-green-500 flex items-center justify-center text-white text-2xl font-black">
                                         {selectedSP.name?.charAt(0) || "?"}
                                     </div>
                                     <div>

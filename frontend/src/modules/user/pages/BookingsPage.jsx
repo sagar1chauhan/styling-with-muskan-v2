@@ -117,10 +117,10 @@ const BookingsPage = () => {
                                                                 {booking.items?.length > 1 && ` + ${booking.items.length - 1} more`}
                                                             </h3>
                                                             <div className="flex items-center gap-2 mt-0.5">
-                                                                <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded flex items-center gap-1 ${booking.bookingType === 'instant' ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600"
+                                                                <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded flex items-center gap-1 ${(booking.bookingType || "").toLowerCase() === 'instant' ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600"
                                                                     }`}>
-                                                                    {booking.bookingType === 'instant' ? <Zap className="w-2 h-2" /> : <Calendar className="w-2 h-2" />}
-                                                                    {booking.bookingType === 'instant' ? 'Instant' : 'Pre-book'}
+                                                                    {(booking.bookingType || "").toLowerCase() === 'instant' ? <Zap className="w-2 h-2" /> : <Calendar className="w-2 h-2" />}
+                                                                    {(booking.bookingType || "").toLowerCase() === 'instant' ? 'Instant' : 'Pre-book'}
                                                                 </span>
                                                                 <span className="text-[10px] text-muted-foreground font-medium">
                                                                     ID: {booking.id}
@@ -152,6 +152,11 @@ const BookingsPage = () => {
                                                         <MapPin className="w-3 h-3 text-primary" />
                                                         {booking.address?.houseNo}, {booking.address?.area}
                                                     </p>
+                                                    {booking.otp && ["pending", "Pending", "accepted", "Accepted", "travelling", "arrived"].includes(booking.status) && (
+                                                        <div className="mt-2 inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 px-3 py-1.5 rounded-lg text-[11px] font-black tracking-widest shadow-sm">
+                                                            OTP: {booking.otp}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -159,9 +164,9 @@ const BookingsPage = () => {
                                                 <div>
                                                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Payment Status</p>
                                                     <p className="font-bold text-primary flex items-center gap-1">
-                                                        ₹{booking.totalAmount?.toLocaleString()}
+                                                        ₹{booking.prepaidAmount ? booking.prepaidAmount.toLocaleString() : ((booking.bookingType || "").toLowerCase() === 'instant' ? booking.totalAmount?.toLocaleString() : (booking.totalAmount * 0.3)?.toLocaleString())}
                                                         <span className="text-[8px] font-black text-green-600 bg-green-50 px-1 rounded uppercase">
-                                                            {booking.paymentStatus || 'Pending'}
+                                                            {booking.paymentStatus || ((booking.bookingType || "").toLowerCase() === 'instant' ? 'PAID' : '30% PAID')}
                                                         </span>
                                                     </p>
                                                 </div>

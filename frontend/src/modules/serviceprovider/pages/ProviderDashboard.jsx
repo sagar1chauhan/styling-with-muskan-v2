@@ -21,10 +21,20 @@ import {
     CalendarDays,
     IndianRupee,
     Briefcase,
-    Award
+    Award,
+    Check
 } from "lucide-react";
+import { useProviderBookings } from "../contexts/ProviderBookingContext";
+import { useProviderAuth } from "../contexts/ProviderAuthContext";
 
 const ProviderDashboard = () => {
+    const { activeBookings, completedBookings, incomingBookings } = useProviderBookings();
+    const { provider } = useProviderAuth();
+
+    const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    const activeJobsCount = activeBookings.length;
+    const providerGrade = provider?.rating >= 4.5 ? "Elite Pro" : (provider?.rating >= 4.0 ? "Pro" : "New");
+
     return (
         <div className="flex flex-1 w-full flex-col gap-4 md:gap-8 pt-4 md:pt-0">
             {/* Calendar Bar */}
@@ -62,7 +72,7 @@ const ProviderDashboard = () => {
                                 <IndianRupee className="h-5 w-5 text-purple-600" />
                             </div>
                             <div>
-                                <div className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">₹4,250</div>
+                                <div className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">₹{totalRevenue.toLocaleString()}</div>
                                 <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Revenue</p>
                             </div>
                         </div>
@@ -76,7 +86,7 @@ const ProviderDashboard = () => {
                                 <Briefcase className="h-5 w-5 text-blue-600" />
                             </div>
                             <div>
-                                <div className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">12</div>
+                                <div className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">{activeJobsCount}</div>
                                 <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Active Jobs</p>
                             </div>
                         </div>
@@ -107,7 +117,7 @@ const ProviderDashboard = () => {
                                 <Award className="h-5 w-5 text-yellow-600" />
                             </div>
                             <div>
-                                <div className="text-xl sm:text-2xl font-black text-yellow-600 tracking-tight">Elite Pro</div>
+                                <div className="text-xl sm:text-2xl font-black text-yellow-600 tracking-tight">{providerGrade}</div>
                                 <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Grade</p>
                             </div>
                         </div>
@@ -133,26 +143,33 @@ const ProviderDashboard = () => {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {[
-                                { name: "Bridal Makeup", loc: "Sector 14", time: "2 hrs ago", val: "150 Credits", status: "New" },
-                                { name: "Hair Styling", loc: "DLF Phase 3", time: "5 hrs ago", val: "80 Credits", status: "Missed" },
-                                { name: "Party Makeup", loc: "Golf Course Rd", time: "1 day ago", val: "120 Credits", status: "Bought" }
-                            ].map((lead, i) => (
+                            {incomingBookings.length > 0 ? incomingBookings.slice(0, 3).map((job, i) => (
                                 <div key={i} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="font-semibold text-sm">{lead.name}</span>
-                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                            {lead.loc} • {lead.time}
+                                    <div className="flex flex-col gap-1 w-full max-w-[200px]">
+                                        <span className="font-semibold text-sm truncate">{job.items?.[0]?.name || job.services?.[0]?.name || "Service Booking"}</span>
+                                        <span className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+                                            {job.address?.area || job.address?.city} • {new Date(job.createdAt).toLocaleDateString()}
                                         </span>
+                                        {(!job.customerBookingCount || job.customerBookingCount <= 1) ? (
+                                            <span className="text-[9px] w-fit font-black uppercase px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-200 mt-1">
+                                                UnVerify
+                                            </span>
+                                        ) : (
+                                            <span className="text-[9px] w-fit font-black uppercase px-2 py-0.5 flex items-center gap-1 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 mt-1">
+                                                <Check className="w-2.5 h-2.5" /> Verified Customer
+                                            </span>
+                                        )}
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm font-medium">{lead.val}</span>
-                                        {lead.status === "New" && <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200">New</Badge>}
-                                        {lead.status === "Missed" && <Badge variant="destructive" className="bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30">Missed</Badge>}
-                                        {lead.status === "Bought" && <Badge className="bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/30">Purchased</Badge>}
+                                    <div className="flex items-center gap-3 shrink-0">
+                                        <span className="text-sm font-medium whitespace-nowrap">₹{job.totalAmount}</span>
+                                        <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200">New Job</Badge>
                                     </div>
                                 </div>
-                            ))}
+                            )) : (
+                                <div className="text-center py-6 text-sm text-gray-400 font-medium">
+                                    No new job requests assigned yet.
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>

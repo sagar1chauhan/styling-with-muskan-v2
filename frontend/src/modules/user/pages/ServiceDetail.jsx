@@ -78,21 +78,9 @@ const ServiceDetail = () => {
       return;
     }
 
-    if (!selectedDate || !selectedSlot) {
-      alert("Please select a date and time slot first!");
-      return;
-    }
-
     addToCart({
       ...service,
       price: service.price * qty,
-    });
-
-    // Also update global slot if not set
-    setGlobalSlot({
-      date: selectedDate,
-      time: selectedSlot,
-      provider: selectedProvider
     });
 
     setAddedToCart(true);
@@ -197,7 +185,7 @@ const ServiceDetail = () => {
               <Sparkles className="w-4 h-4 text-primary" /> What's Included
             </h3>
             <div className="flex flex-wrap gap-2">
-              {service.includes.map((item) => (
+              {(service.includes || []).map((item) => (
                 <span
                   key={item}
                   className="text-xs px-3 py-1.5 rounded-full bg-accent text-accent-foreground flex items-center gap-1"
@@ -314,46 +302,60 @@ const ServiceDetail = () => {
         )}
 
         {/* ===== WORK GALLERY (Before/After) ===== */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-          className="mt-6"
-        >
-          <h3 className={`font-semibold text-base mb-4 px-1 flex items-center gap-2 ${gender === "women" ? "font-display" : "font-heading-men"}`}>
-            <Camera className="w-5 h-5 text-primary" />
-            Work Gallery (Before/After)
-          </h3>
-          <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2 px-1">
-            {[1, 2, 3].map((item) => (
-              <div key={item} className="flex-shrink-0 w-[280px] space-y-3">
-                <div className="relative h-40 rounded-2xl overflow-hidden group">
-                  <div className="absolute inset-0 flex">
-                    <div className="w-1/2 relative">
-                      <img
-                        src={`https://placehold.co/400x600/333/fff?text=Before+${item}`}
-                        alt="Before"
-                        className="w-full h-full object-cover grayscale"
-                      />
-                      <div className="absolute top-2 left-2 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase backdrop-blur-md">Before</div>
-                    </div>
-                    <div className="w-1/2 relative border-l-2 border-primary/50">
-                      <img
-                        src={`https://placehold.co/400x600/555/fff?text=After+${item}`}
-                        alt="After"
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute top-2 right-2 bg-primary text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase shadow-lg">After</div>
+        {service.gallery && service.gallery.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+            className="mt-6"
+          >
+            <h3 className={`font-semibold text-base mb-4 px-1 flex items-center gap-2 ${gender === "women" ? "font-display" : "font-heading-men"}`}>
+              <Camera className="w-5 h-5 text-primary" />
+              Work Gallery (Before/After)
+            </h3>
+            <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2 px-1">
+              {/* Pair images for before/after effect if there are many, or just show them individual if few */}
+              {service.gallery.reduce((acc, curr, i, arr) => {
+                if (i % 2 === 0) {
+                  acc.push(arr.slice(i, i + 2));
+                }
+                return acc;
+              }, []).map((pair, idx) => (
+                <div key={idx} className="flex-shrink-0 w-[280px] space-y-3">
+                  <div className="relative h-44 rounded-2xl overflow-hidden group shadow-lg border border-border">
+                    <div className="absolute inset-0 flex">
+                      <div className={`relative ${pair.length > 1 ? "w-1/2" : "w-full"}`}>
+                        <img
+                          src={pair[0]}
+                          alt="Before"
+                          className={`w-full h-full object-cover ${pair.length > 1 ? "grayscale group-hover:grayscale-0 transition-all duration-500" : ""}`}
+                        />
+                        {pair.length > 1 && (
+                          <div className="absolute top-2 left-2 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase backdrop-blur-md">Before</div>
+                        )}
+                      </div>
+                      {pair.length > 1 && (
+                        <div className="w-1/2 relative border-l-2 border-primary/50">
+                          <img
+                            src={pair[1]}
+                            alt="After"
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute top-2 right-2 bg-primary text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase shadow-lg">After</div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  {/* Overlay Polish */}
-                  <div className="absolute inset-0 pointer-events-none ring-1 ring-inset ring-white/10 rounded-2xl" />
+                  <p className="text-[10px] text-muted-foreground font-medium px-1 leading-tight">
+                    {pair.length > 1
+                      ? `Real results from our ${service.name} session.`
+                      : `Detailed transformation view.`}
+                  </p>
                 </div>
-                <p className="text-[11px] text-muted-foreground font-medium px-1">Visible results after just one session of {service.name}</p>
-              </div>
-            ))}
-          </div>
-        </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* ===== QUANTITY & COST ===== */}
         <motion.div
@@ -417,99 +419,7 @@ const ServiceDetail = () => {
           </div>
         </motion.div>
 
-        {/* ===== PROFESSIONAL SELECTION ===== */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mt-6 space-y-6"
-        >
-          {/* Provider Selection */}
-          <div>
-            <h3 className={`font-semibold text-base mb-4 px-1 flex items-center gap-2 ${gender === "women" ? "font-display" : "font-heading-men"}`}>
-              <UserCheck className="w-5 h-5 text-primary" /> Choose Service Professional
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 px-1">
-              {availableProviders.map((provider) => (
-                <button
-                  key={provider.id}
-                  onClick={() => setSelectedProvider(provider)}
-                  className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${selectedProvider?.id === provider.id
-                    ? "border-primary bg-primary/5 shadow-md scale-102"
-                    : "border-border glass-strong hover:border-primary/20"
-                    }`}
-                >
-                  <div className="relative flex-shrink-0">
-                    <img src={provider.image} className="w-14 h-14 rounded-xl object-cover" alt={provider.name} />
-                    {selectedProvider?.id === provider.id && (
-                      <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center border-2 border-background">
-                        <Check className="w-3 h-3 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-sm truncate">{provider.name}</h4>
-                    <span className="text-[8px] font-black uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20">
-                      {provider.tag}
-                    </span>
-                    <div className="flex items-center gap-2 mt-1 opacity-60">
-                      <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
-                      <span className="text-[10px] font-bold">{provider.rating}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Date Picker */}
-          <div className="glass-strong rounded-2xl p-5 border border-border/50">
-            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-primary" /> Select Preferred Date
-            </h3>
-            <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
-              {dates.map((d) => (
-                <button
-                  key={d.key}
-                  onClick={() => setSelectedDate(d.key)}
-                  className={`flex-shrink-0 px-4 py-3 rounded-xl text-center text-xs transition-all duration-200 min-w-[75px] border-2 ${selectedDate === d.key
-                    ? "bg-primary text-white border-primary shadow-lg scale-105"
-                    : "glass border-border hover:border-primary/30"
-                    }`}
-                >
-                  <div className="font-bold">{d.label}</div>
-                  <div className="mt-1 text-[10px] opacity-80">{d.date}</div>
-                  {d.isToday && (
-                    <div className={`text-[8px] font-black mt-1 uppercase ${selectedDate === d.key ? "text-white/90" : "text-primary"}`}>
-                      Today
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Slot Picker */}
-          <div className="glass-strong rounded-2xl p-5 border border-border/50">
-            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-primary" /> Select Preferred Slot
-            </h3>
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
-              {slots.map((slot) => (
-                <button
-                  key={slot}
-                  onClick={() => setSelectedSlot(slot)}
-                  className={`px-2 py-3 rounded-xl text-[10px] font-bold text-center border-2 transition-all duration-200 ${selectedSlot === slot
-                    ? "bg-primary text-white border-primary shadow-md scale-105"
-                    : "glass border-border hover:border-primary/30"
-                    }`}
-                >
-                  {slot}
-                </button>
-              ))}
-            </div>
-          </div>
-        </motion.div>
       </div>
 
       {/* ===== STICKY BOTTOM BAR ===== */}
@@ -533,32 +443,22 @@ const ServiceDetail = () => {
           <div className="flex items-center gap-2">
             {/* Add to Cart Button */}
             <Button
-              variant="outline"
               onClick={handleAddToCart}
-              className={`px-4 md:px-6 gap-2 rounded-xl border-2 transition-all duration-300 ${addedToCart
-                ? "border-green-500 text-green-500 bg-green-500/10"
-                : "border-primary text-primary hover:bg-primary/10"
-                } ${(!selectedDate || !selectedSlot) ? "opacity-30 grayscale pointer-events-none" : ""}`}
+              className={`flex-1 h-12 gap-2 rounded-xl transition-all duration-300 font-bold ${addedToCart
+                ? "bg-green-500 text-white hover:bg-green-600"
+                : "bg-primary text-primary-foreground glow-primary"
+                }`}
             >
               {addedToCart ? (
                 <>
-                  <Check className="w-4 h-4" /> Added
+                  <Check className="w-5 h-5" /> Added to Cart
                 </>
               ) : (
                 <>
-                  <ShoppingCart className="w-4 h-4" />
-                  <span className="hidden md:inline">Add to Cart</span>
+                  <ShoppingCart className="w-5 h-5" />
+                  Add to Cart
                 </>
               )}
-            </Button>
-
-            {/* Continue / Book Now Button */}
-            <Button
-              onClick={handleBookingAction}
-              className="px-6 md:px-8 glow-primary rounded-xl gap-2 h-11"
-              disabled={(!selectedDate || !selectedSlot)}
-            >
-              SECURE SLOT <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
         </div>

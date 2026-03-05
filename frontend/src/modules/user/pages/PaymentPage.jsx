@@ -10,6 +10,7 @@ import { useCart } from "@/modules/user/contexts/CartContext";
 import { useBookings } from "@/modules/user/contexts/BookingContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 import { Button } from "@/modules/user/components/ui/button";
 
 const PaymentPage = () => {
@@ -20,6 +21,7 @@ const PaymentPage = () => {
     const { cartItems, totalPrice, totalSavings, selectedSlot, clearCart, clearGroup, getGroupedItems } = useCart();
     const { user } = useAuth();
     const { addBooking } = useBookings();
+    const { categories } = useUserModuleData();
 
     const [selectedMethod, setSelectedMethod] = useState("upi");
     const [isProcessing, setIsProcessing] = useState(false);
@@ -44,27 +46,32 @@ const PaymentPage = () => {
     const handlePayment = () => {
         setIsProcessing(true);
 
-        const isHighValue = displayItems.some(item =>
-            item.name.toLowerCase().includes("bridal") ||
-            item.name.toLowerCase().includes("party makeup") ||
-            item.price >= 3000
-        );
-
-        const advanceAmount = isHighValue ? Math.round((finalTotal * 0.3)) : 0;
+        const advanceAmount = passedState?.advanceAmount || 0;
+        const remainingAmount = passedState?.remainingAmount || finalTotal;
+        const isPartiallyPaid = passedState?.isPartiallyPaid || false;
 
         // Simulate payment process
         setTimeout(() => {
             const bookingData = {
-                items: displayItems,
+                items: displayItems.map(item => ({
+                    ...item,
+                    // strip large image data to save storage
+                    image: typeof item.image === 'string' && item.image.startsWith('data:') ? '' : item.image,
+                    steps: undefined,
+                })),
                 totalAmount: finalTotal,
                 savings: totalSavings + (passedState?.discount || 0),
-                bookingType: selectedSlot?.bookingType || "prebook",
+                bookingType: displayItems.some(item => {
+                    const category = categories?.find(c => c.id === item.category);
+                    return (category?.bookingType || item.bookingType || "").toLowerCase() === "instant";
+                }) ? "instant" : "prebook",
                 slot: selectedSlot,
                 address: user?.address,
+                customerName: user?.name || user?.phone || "Customer",
                 paymentMethod: selectedMethod,
-                paymentStatus: selectedMethod === 'cod' ? "Pay after service" : (isHighValue ? "Partially Paid" : "Paid"),
-                prepaidAmount: selectedMethod === 'cod' ? 0 : (isHighValue ? advanceAmount : finalTotal),
-                balanceAmount: selectedMethod === 'cod' ? finalTotal : (isHighValue ? finalTotal - advanceAmount : 0),
+                paymentStatus: selectedMethod === 'cod' ? "Pay after service" : (isPartiallyPaid ? "Partially Paid" : "Paid"),
+                prepaidAmount: selectedMethod === 'cod' ? 0 : (isPartiallyPaid ? advanceAmount : finalTotal),
+                balanceAmount: selectedMethod === 'cod' ? finalTotal : (isPartiallyPaid ? remainingAmount : 0),
                 status: "Pending"
             };
 
@@ -223,7 +230,10 @@ const PaymentPage = () => {
                             </div>
                         ) : (
                             <>
-                                SECURELY PAY ₹{finalTotal.toLocaleString()}
+                                {passedState?.advanceAmount > 0 && selectedMethod !== 'cod'
+                                    ? `PAY ADVANCE ₹${passedState.advanceAmount.toLocaleString()}`
+                                    : `SECURELY PAY ₹${finalTotal.toLocaleString()}`
+                                }
                                 <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform">
                                     <ChevronRight className="w-5 h-5 text-white" />
                                 </div>

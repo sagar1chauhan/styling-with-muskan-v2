@@ -90,15 +90,15 @@ const App = () => {
       <TooltipProvider>
         <BrowserRouter>
           <AuthProvider>
-            <GenderThemeProvider>
-              <CartProvider>
-                <WishlistProvider>
-                  <BookingProvider>
-                    <ProviderAuthProvider>
-                      <ProviderBookingProvider>
-                        <VenderAuthProvider>
-                          <AdminAuthProvider>
-                            <UserModuleDataProvider>
+            <UserModuleDataProvider>
+              <GenderThemeProvider>
+                <CartProvider>
+                  <WishlistProvider>
+                    <BookingProvider>
+                      <ProviderAuthProvider>
+                        <ProviderBookingProvider>
+                          <VenderAuthProvider>
+                            <AdminAuthProvider>
                               <Toaster />
                               <Sonner />
                               <Routes>
@@ -181,15 +181,15 @@ const App = () => {
                                 <Route path="*" element={<NotFound />} />
                               </Routes>
                               <LoginModal />
-                            </UserModuleDataProvider>
-                          </AdminAuthProvider>
-                        </VenderAuthProvider>
-                      </ProviderBookingProvider>
-                    </ProviderAuthProvider>
-                  </BookingProvider>
-                </WishlistProvider>
-              </CartProvider>
-            </GenderThemeProvider>
+                            </AdminAuthProvider>
+                          </VenderAuthProvider>
+                        </ProviderBookingProvider>
+                      </ProviderAuthProvider>
+                    </BookingProvider>
+                  </WishlistProvider>
+                </CartProvider>
+              </GenderThemeProvider>
+            </UserModuleDataProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

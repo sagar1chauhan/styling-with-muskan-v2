@@ -66,7 +66,12 @@ const BookingSummary = () => {
   const discount = couponApplied
     ? (couponApplied.type === "FIXED" ? Number(couponApplied.value) : Math.round(displayTotalPrice * (Number(couponApplied.value) / 100)))
     : 0;
+  const passedBookingData = location.state;
   const finalTotal = displayTotalPrice - discount;
+
+  // Calculate advance based on passed data or fallback
+  const advanceAmount = passedBookingData?.advanceAmount || 0;
+  const remainingAfterAdvance = finalTotal - advanceAmount;
 
   const handlePay = () => {
     navigate("/payment", {
@@ -74,7 +79,10 @@ const BookingSummary = () => {
         discount,
         finalTotal,
         totalSavings: displayTotalSavings,
-        checkoutType
+        checkoutType,
+        advanceAmount: advanceAmount,
+        remainingAmount: remainingAfterAdvance,
+        isPartiallyPaid: advanceAmount > 0
       }
     });
   };
@@ -284,9 +292,23 @@ const BookingSummary = () => {
             <span className="text-muted-foreground font-medium">Taxes & Fees</span>
             <span className="font-bold">₹0</span>
           </div>
+
+          {advanceAmount > 0 && (
+            <>
+              <div className="pt-2 border-t border-border/30 flex justify-between text-sm text-primary font-bold">
+                <span>Advance Payable Now</span>
+                <span>₹{advanceAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm text-muted-foreground italic">
+                <span>Remaining Balance (Due after service)</span>
+                <span>₹{remainingAfterAdvance.toLocaleString()}</span>
+              </div>
+            </>
+          )}
+
           <div className="pt-3 border-t border-dashed border-border flex justify-between items-center text-lg font-black">
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Total Payable</span>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Total Value</span>
               <span className="text-primary mt-1">₹{finalTotal.toLocaleString()}</span>
             </div>
             {displayTotalSavings + discount > 0 && (
@@ -306,11 +328,11 @@ const BookingSummary = () => {
       <div className="fixed bottom-0 left-0 right-0 glass-strong border-t border-border p-5 z-40">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
           <div className="flex flex-col">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase">Grand Total</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase">{advanceAmount > 0 ? "Grand Total" : "Grand Total"}</p>
             <p className="text-2xl font-black text-primary leading-none">₹{finalTotal.toLocaleString()}</p>
           </div>
-          <Button onClick={handlePay} className="flex-1 h-14 rounded-2xl bg-gradient-theme text-white text-lg font-bold shadow-xl shadow-primary/20 gap-2 group border-none">
-            PROCEED TO PAY
+          <Button onClick={handlePay} className="flex-1 h-14 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground text-lg font-bold shadow-xl shadow-primary/20 gap-2 group border-none">
+            {advanceAmount > 0 ? `PAY ADVANCE ₹${advanceAmount.toLocaleString()}` : "PROCEED TO PAY"}
             <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform">
               <ChevronRight className="w-5 h-5" />
             </div>

@@ -66,9 +66,6 @@ const FloatingCart = ({ isVisible = true }) => {
                                 <p className="text-white/60 text-[8px] font-bold uppercase tracking-tighter">Grand Total</p>
                                 <p className="text-white text-base font-black">₹{totalPrice.toLocaleString()}</p>
                             </div>
-                            <div className="bg-white text-primary px-4 py-1.5 rounded-xl font-black text-[11px] shadow-lg animate-pulse">
-                                VIEW FULL CART
-                            </div>
                         </button>
                     </div>
 

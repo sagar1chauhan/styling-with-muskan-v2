@@ -42,30 +42,48 @@ export const UserModuleDataProvider = ({ children }) => {
         return saved ? JSON.parse(saved) : initialProviders;
     });
 
+    const [officeSettings, setOfficeSettings] = useState(() => {
+        const saved = localStorage.getItem("swm_officeSettings");
+        return saved ? JSON.parse(saved) : { startTime: "09:00", endTime: "21:00", autoAssign: true, notificationMessage: "Our pros are sleeping. Service starts at 9:00 AM" };
+    });
+
+    // Safe Save Helper
+    const safeSave = (key, value) => {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch (e) {
+            console.error(`Storage failed for ${key}`, e);
+        }
+    }
+
     // Save to localStorage whenever state changes
     useEffect(() => {
-        localStorage.setItem("swm_serviceTypes", JSON.stringify(serviceTypes));
+        safeSave("swm_serviceTypes", serviceTypes);
     }, [serviceTypes]);
 
     useEffect(() => {
-        localStorage.setItem("swm_bookingTypeConfig", JSON.stringify(bookingTypeConfig));
+        safeSave("swm_bookingTypeConfig", bookingTypeConfig);
     }, [bookingTypeConfig]);
 
     useEffect(() => {
-        localStorage.setItem("swm_categories", JSON.stringify(categories));
+        safeSave("swm_categories", categories);
     }, [categories]);
 
     useEffect(() => {
-        localStorage.setItem("swm_services", JSON.stringify(services));
+        safeSave("swm_services", services);
     }, [services]);
 
     useEffect(() => {
-        localStorage.setItem("swm_banners", JSON.stringify(banners));
+        safeSave("swm_banners", banners);
     }, [banners]);
 
     useEffect(() => {
-        localStorage.setItem("swm_providers", JSON.stringify(providers));
+        safeSave("swm_providers", providers);
     }, [providers]);
+
+    useEffect(() => {
+        safeSave("swm_officeSettings", officeSettings);
+    }, [officeSettings]);
 
     // CRUD operations
     const addCategory = (category) => setCategories(prev => [...prev, category]);
@@ -101,6 +119,8 @@ export const UserModuleDataProvider = ({ children }) => {
         services,
         banners,
         providers,
+        officeSettings,
+        setOfficeSettings,
         // Category actions
         addCategory,
         updateCategory,
