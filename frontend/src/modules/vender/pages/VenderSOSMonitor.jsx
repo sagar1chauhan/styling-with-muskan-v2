@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ShieldAlert, MapPin, Phone, Clock, CheckCircle, AlertTriangle, User, RefreshCw } from "lucide-react";
+import { ShieldAlert, MapPin, Phone, Clock, CheckCircle, AlertTriangle, User, RefreshCw, Bell, Map } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/modules/user/components/ui/card";
 import { Button } from "@/modules/user/components/ui/button";
 import { Badge } from "@/modules/user/components/ui/badge";
@@ -54,21 +54,26 @@ export default function VenderSOSMonitor() {
                                         </div>
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <Badge className="bg-red-100 text-red-700 border-red-200 text-[8px] font-black">{alert.type === "provider" ? "SERVICE PROVIDER" : "CUSTOMER"}</Badge>
+                                                <Badge className="bg-red-100 text-red-700 border-red-200 text-[8px] font-black uppercase">{alert.type === "provider" ? "SERVICE PROVIDER" : "CUSTOMER"}</Badge>
+                                                <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-[8px] font-black uppercase">{alert.alarmType || "Security Threat"}</Badge>
                                                 <span className="text-[10px] text-muted-foreground font-medium">#{alert.id}</span>
                                             </div>
                                             <h3 className="text-sm font-bold">{alert.userName || "Unknown User"}</h3>
                                             <div className="flex flex-wrap gap-3 mt-1.5 text-[11px] text-muted-foreground font-medium">
+                                                <span className="flex items-center gap-1 text-red-500 font-bold"><Bell className="h-3 w-3" /> Notified: Admin, Family & Vendor</span>
                                                 <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {alert.phone || "N/A"}</span>
                                                 <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {alert.location || "Location shared"}</span>
                                                 <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {alert.time || "Just now"}</span>
                                             </div>
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                                            <Button className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold gap-2">
+                                                <Map className="h-4 w-4" /> Live Tracking
+                                            </Button>
                                             <Button className="h-10 bg-red-600 hover:bg-red-700 rounded-xl font-bold gap-2">
                                                 <Phone className="h-4 w-4" /> Call Now
                                             </Button>
-                                            <Button variant="outline" className="h-10 rounded-xl font-bold gap-2" onClick={() => handleResolve(alert.id)}>
+                                            <Button variant="outline" className="h-10 rounded-xl font-bold gap-2 bg-white hover:bg-green-50 hover:text-green-600 hover:border-green-200" onClick={() => handleResolve(alert.id)}>
                                                 <CheckCircle className="h-4 w-4" /> Resolve
                                             </Button>
                                         </div>

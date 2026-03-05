@@ -75,6 +75,7 @@ import AdminLoginPage from "@/modules/admin/pages/AdminLoginPage";
 import AdminDashboard from "@/modules/admin/pages/AdminDashboard";
 import VendorManagement from "@/modules/admin/pages/VendorManagement";
 import SPOversight from "@/modules/admin/pages/SPOversight";
+import CustomerOversight from "@/modules/admin/pages/CustomerOversight";
 import BookingManagement from "@/modules/admin/pages/BookingManagement";
 import FinanceManagement from "@/modules/admin/pages/FinanceManagement";
 import MarketingControl from "@/modules/admin/pages/MarketingControl";
@@ -166,6 +167,7 @@ const App = () => {
                                   <Route path="dashboard" element={<AdminDashboard />} />
                                   <Route path="vendors" element={<VendorManagement />} />
                                   <Route path="service-providers" element={<SPOversight />} />
+                                  <Route path="customers" element={<CustomerOversight />} />
                                   <Route path="bookings" element={<BookingManagement />} />
                                   <Route path="finance" element={<FinanceManagement />} />
                                   <Route path="banners" element={<MarketingControl />} />

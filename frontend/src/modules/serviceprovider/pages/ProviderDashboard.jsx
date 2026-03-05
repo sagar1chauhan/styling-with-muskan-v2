@@ -135,7 +135,7 @@ const ProviderDashboard = () => {
                             </CardDescription>
                         </div>
                         <Button asChild size="sm" className="ml-auto gap-1 bg-purple-600 hover:bg-purple-700 text-white">
-                            <Link to="/provider/credits">
+                            <Link to="/provider/bookings">
                                 View All
                                 <ArrowUpRight className="h-4 w-4" />
                             </Link>

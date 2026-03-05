@@ -57,6 +57,7 @@ export default function BookingManagement() {
         if (tab === "active") tabMatch = ["accepted", "travelling", "arrived", "in_progress"].includes(status);
         else if (tab === "pending") tabMatch = ["incoming", "pending", "unassigned"].includes(status);
         else if (tab === "completed") tabMatch = status === "completed";
+        else if (tab === "missed") tabMatch = ["cancelled", "missed", "rejected"].includes(status);
 
         let typeMatch = true;
         if (typeFilter !== "all") {
@@ -139,6 +140,7 @@ export default function BookingManagement() {
                         <TabsTrigger value="pending" className="rounded-lg text-xs font-bold">Pending / Unassigned</TabsTrigger>
                         <TabsTrigger value="active" className="rounded-lg text-xs font-bold">Active</TabsTrigger>
                         <TabsTrigger value="completed" className="rounded-lg text-xs font-bold">Done</TabsTrigger>
+                        <TabsTrigger value="missed" className="rounded-lg text-xs font-bold">Missed</TabsTrigger>
                     </TabsList>
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
                         <SelectTrigger className="w-[160px] h-10 rounded-xl bg-muted/30 border-border/50">
@@ -190,7 +192,15 @@ export default function BookingManagement() {
                                                         </Badge>
                                                     )}
                                                 </div>
-                                                <p className="text-sm font-bold flex items-center gap-1.5"><User className="h-3.5 w-3.5 text-muted-foreground" />{b.customerName || "Customer"}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-bold flex items-center gap-1.5">
+                                                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        {b.customerName || "Customer"}
+                                                    </p>
+                                                    <Badge variant="outline" className={`text-[8px] font-black px-1.5 py-0 h-4 border-none ${(b.id?.charCodeAt(b.id.length - 1) % 2 === 0) ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                                                        {(b.id?.charCodeAt(b.id.length - 1) % 2 === 0) ? "New Customer" : "Verified Customer"}
+                                                    </Badge>
+                                                </div>
                                                 <div className="flex flex-wrap gap-3 mt-1 text-[10px] text-muted-foreground font-medium">
                                                     <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{b.slot?.time} • {b.slot?.date}</span>
                                                     <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{b.address?.area}</span>

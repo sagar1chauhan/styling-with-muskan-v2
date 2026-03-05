@@ -52,6 +52,7 @@ export default function ProviderProfile() {
     const { provider, logout } = useProviderAuth();
     const navigate = useNavigate();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [categoryRequested, setCategoryRequested] = useState(false);
 
     // Provide default fallbacks if provider context is missing somehow
     const safeProvider = provider || {};
@@ -134,12 +135,23 @@ export default function ProviderProfile() {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4">
-                                            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+                                            <div className="h-10 w-10 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
                                                 <Briefcase className="h-5 w-5" />
                                             </div>
-                                            <div>
-                                                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Category</p>
-                                                <p className="text-[17px] font-semibold text-slate-900">{providerDetails.category}</p>
+                                            <div className="flex-1 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Category</p>
+                                                    <p className="text-[17px] font-semibold text-slate-900">{providerDetails.category}</p>
+                                                </div>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className={`h-7 px-2 text-[10px] uppercase font-black tracking-widest ${categoryRequested ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50'}`}
+                                                    onClick={() => setCategoryRequested(true)}
+                                                    disabled={categoryRequested}
+                                                >
+                                                    {categoryRequested ? "Requested" : "+ Request New"}
+                                                </Button>
                                             </div>
                                         </div>
                                     </div>
