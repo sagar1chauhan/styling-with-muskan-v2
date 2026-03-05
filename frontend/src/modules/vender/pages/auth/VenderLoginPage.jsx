@@ -51,7 +51,7 @@ export default function VenderLoginPage() {
                         <Store className="h-8 w-8 text-white" />
                     </motion.div>
                     <h1 className="text-2xl font-black tracking-tight text-gray-900">Vendor Portal</h1>
-                    <p className="text-sm text-gray-500 font-medium mt-1">Styling with Muskan</p>
+                    <p className="text-sm text-gray-500 font-medium mt-1 uppercase tracking-widest">stylingwithmuskan</p>
                 </div>
 
                 {/* Form */}

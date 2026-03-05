@@ -32,7 +32,7 @@ const ProviderLayout = () => {
 
   const { provider } = useProviderAuth();
   const safeProvider = provider || {};
-  const name = safeProvider.name || "Styling with Muskan";
+  const name = safeProvider.name || "stylingwithmuskan";
   const profileImage = safeProvider.profilePhoto || "/logo1.png";
 
   return (

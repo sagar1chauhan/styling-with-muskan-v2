@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    ArrowLeft, Search, Filter, RefreshCcw, Heart, Share2, Plus, Star, MapPin
+    ArrowLeft, Search, Filter, RefreshCcw, Heart, Share2, Plus, Star, MapPin, Menu, X
 } from "lucide-react";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
@@ -37,6 +37,7 @@ const ExplorePage = () => {
     const [activeFilter, setActiveFilter] = useState("Top Selling");
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
     const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+    const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const [preferences, setPreferences] = useState({
         concern: null,
         skinType: null,
@@ -143,15 +144,29 @@ const ExplorePage = () => {
             </header>
 
             <div className="relative flex flex-1 overflow-hidden">
-                {/* Vertical Sidebar (Hover Expandable) */}
+                {/* Vertical Sidebar Button (Mobile View) */}
+                <div className="lg:hidden absolute left-0 top-1/2 -translate-y-1/2 z-[45]">
+                    <button
+                        onClick={() => setIsMobileSidebarOpen(prev => !prev)}
+                        className="w-8 h-12 bg-primary rounded-r-2xl flex items-center justify-center text-white shadow-lg border border-l-0 border-white/20 animate-in slide-in-from-left duration-300"
+                    >
+                        {isMobileSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                    </button>
+                </div>
+
+                {/* Vertical Sidebar (Hover Expandable on Desktop, Toggleable on Mobile) */}
                 <aside
-                    onMouseEnter={() => setIsSidebarHovered(true)}
-                    onMouseLeave={() => setIsSidebarHovered(false)}
-                    className={`absolute left-0 top-0 bottom-0 z-40 bg-background/95 backdrop-blur-xl border-r border-border flex flex-col items-center py-6 gap-6 transition-transform duration-300 ease-in-out shadow-2xl w-[90px] ${isSidebarHovered ? 'translate-x-0' : '-translate-x-[75px]'}`}
+                    onMouseEnter={() => !isMobileSidebarOpen && setIsSidebarHovered(true)}
+                    onMouseLeave={() => !isMobileSidebarOpen && setIsSidebarHovered(false)}
+                    className={`absolute left-0 top-0 bottom-0 z-40 bg-background/95 backdrop-blur-xl border-r border-border flex flex-col items-center py-6 gap-6 transition-all duration-300 ease-in-out shadow-2xl w-[90px] 
+                        ${isMobileSidebarOpen
+                            ? 'translate-x-0'
+                            : (isSidebarHovered ? 'translate-x-0' : '-translate-x-full lg:-translate-x-[75px]')
+                        }`}
                 >
-                    {/* Visual cue to hover when closed */}
-                    {!isSidebarHovered && (
-                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-16 bg-muted/60 rounded-l-md flex items-center justify-center cursor-pointer pointer-events-none border border-r-0 border-border">
+                    {/* Visual cue to hover when closed (Desktop Only) */}
+                    {!isSidebarHovered && !isMobileSidebarOpen && (
+                        <div className="hidden lg:flex absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-16 bg-muted/60 rounded-l-md items-center justify-center cursor-pointer pointer-events-none border border-r-0 border-border">
                             <div className="w-1 h-6 rounded-full bg-border" />
                         </div>
                     )}
@@ -162,6 +177,7 @@ const ExplorePage = () => {
                             onClick={() => {
                                 handleTypeChange(type.id);
                                 setIsSidebarHovered(false);
+                                setIsMobileSidebarOpen(false);
                             }}
                             className={`flex flex-col items-center gap-1.5 transition-all relative ${activeType === type.id ? "opacity-100" : "opacity-40 grayscale hover:grayscale-0 hover:opacity-80"}`}
                         >
@@ -176,7 +192,11 @@ const ExplorePage = () => {
                 </aside>
 
                 {/* Main Content Area */}
-                <main className={`flex-1 flex flex-col overflow-hidden bg-accent/10 transition-all duration-300 ${isSidebarHovered ? 'pl-[90px]' : 'pl-[15px]'}`}>
+                <main
+                    className={`flex-1 flex flex-col overflow-hidden bg-accent/10 transition-all duration-300 
+                        ${isSidebarHovered || isMobileSidebarOpen ? 'pl-[90px]' : 'pl-[15px] lg:pl-[15px]'}`}
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                >
                     {/* Category Tabs (Sub-Subcategories) */}
                     <div className="px-4 py-4 flex gap-2 overflow-x-auto hide-scrollbar flex-shrink-0">
                         {filteredCategories.map((cat) => (

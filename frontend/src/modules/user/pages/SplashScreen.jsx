@@ -25,7 +25,7 @@ const SplashScreen = () => {
       </motion.div>
 
       <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.6 }} className="text-3xl md:text-4xl font-display font-bold text-primary-foreground text-center px-4">
-        Styling with Muskan
+        stylingwithmuskan
       </motion.h1>
 
       <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1, duration: 0.6 }} className="mt-3 text-primary-foreground/80 text-center text-sm md:text-base font-body">

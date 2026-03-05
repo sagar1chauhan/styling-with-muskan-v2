@@ -40,7 +40,16 @@ export const AuthProvider = ({ children }) => {
         setIsLoggedIn(false);
         setUser(null);
         setHasAddress(false);
+
+        // Clear all session related data
         localStorage.removeItem('smd_user');
+        localStorage.removeItem('cart');
+        localStorage.removeItem('wishlist');
+        localStorage.removeItem('selectedSlot');
+        localStorage.removeItem('bookingType');
+
+        // Redirect to home and refresh to clear any in-memory state
+        window.location.href = "/home";
     };
 
     const updateAddress = (address) => {

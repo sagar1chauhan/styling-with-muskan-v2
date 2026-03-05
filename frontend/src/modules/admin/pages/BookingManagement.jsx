@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { CalendarRange, Search, MapPin, Clock, User, Users, RefreshCw, CheckCircle, Bell, BellOff, Settings2, Tag, Zap, X } from "lucide-react";
 import { Card, CardContent } from "@/modules/user/components/ui/card";
@@ -227,90 +228,131 @@ export default function BookingManagement() {
             </Tabs>
 
             {/* Assign SP Modal */}
-            <AnimatePresence>
-                {assignModal && (
-                    <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={() => setAssignModal(null)} />
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed inset-x-4 top-[20%] md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[440px] z-50 bg-card rounded-2xl border border-border p-6 space-y-4 shadow-2xl">
+            {assignModal && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setAssignModal(null)}
+                    />
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        className="relative w-full max-w-lg md:w-[480px] bg-card rounded-[32px] border border-border p-8 space-y-6 shadow-2xl"
+                    >
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-black tracking-tight">Assign Service Provider</h3>
+                            <button onClick={() => setAssignModal(null)} className="w-10 h-10 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="bg-muted/50 rounded-2xl p-4 space-y-2 border border-border/50">
+                            <p className="text-sm font-bold">Booking #{assignModal.id}</p>
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-black">Assign Service Provider</h3>
-                                <button onClick={() => setAssignModal(null)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><X className="h-4 w-4" /></button>
+                                <p className="text-xs text-muted-foreground">{assignModal.customerName}</p>
+                                <span className="text-sm font-black text-primary">₹{assignModal.totalAmount?.toLocaleString()}</span>
                             </div>
-                            <div className="bg-muted/50 rounded-xl p-3 space-y-1">
-                                <p className="text-xs font-bold">#{assignModal.id} • {assignModal.customerName}</p>
-                                <p className="text-[10px] text-muted-foreground">Amount: ₹{assignModal.totalAmount?.toLocaleString()}</p>
-                                {assignModal.serviceType && (
-                                    <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-600 border-purple-200 mt-1"><Tag className="h-2.5 w-2.5 mr-1" />{assignModal.serviceType}</Badge>
-                                )}
-                            </div>
+                            {assignModal.serviceType && (
+                                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 mt-1 uppercase tracking-wider font-black px-2 py-0.5">
+                                    <Tag className="h-3 w-3 mr-1.5" />{assignModal.serviceType}
+                                </Badge>
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Select Professional</label>
                             <Select value={selectedSP} onValueChange={setSelectedSP}>
-                                <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select a provider" /></SelectTrigger>
-                                <SelectContent>
-                                    {providers.map(p => (
-                                        <SelectItem key={p.id || p.phone} value={p.id || p.phone}>
-                                            {p.name} {p.phone ? `(${p.phone})` : ""} {p.specialties ? `• ${p.specialties.join(", ")}` : ""}
+                                <SelectTrigger className="h-12 rounded-xl bg-muted/30 border-border/50 focus:ring-primary/20 transition-all">
+                                    <SelectValue placeholder="Pick a service provider" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl">
+                                    {providers.length > 0 ? providers.map(p => (
+                                        <SelectItem key={p.id || p.phone} value={p.id || p.phone} className="rounded-lg">
+                                            <div className="flex flex-col py-0.5">
+                                                <span className="font-bold text-sm">{p.name}</span>
+                                                <span className="text-[10px] text-muted-foreground">{p.phone} {p.specialties ? `• ${p.specialties.join(", ")}` : ""}</span>
+                                            </div>
                                         </SelectItem>
-                                    ))}
+                                    )) : <p className="p-4 text-center text-xs text-muted-foreground">No providers available</p>}
                                 </SelectContent>
                             </Select>
-                            <div className="flex gap-2">
-                                <Button className="flex-1 h-11 rounded-xl font-bold gap-2" onClick={handleAssign} disabled={!selectedSP}>
-                                    <CheckCircle className="h-4 w-4" />Assign
-                                </Button>
-                                <Button variant="outline" className="h-11 rounded-xl font-bold" onClick={() => setAssignModal(null)}>Cancel</Button>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <Button variant="outline" className="flex-1 h-12 rounded-2xl font-bold border-border/50" onClick={() => setAssignModal(null)}>Cancel</Button>
+                            <Button className="flex-2 h-12 rounded-2xl font-bold gap-2 bg-black text-white hover:bg-black/90 shadow-xl shadow-black/10" onClick={handleAssign} disabled={!selectedSP}>
+                                <CheckCircle className="h-5 w-5" />Confirm Assignment
+                            </Button>
+                        </div>
+                    </motion.div>
+                </div>,
+                document.body
+            )}
 
             {/* Office Hours Settings Modal */}
-            <AnimatePresence>
-                {showSettings && (
-                    <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={() => setShowSettings(false)} />
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed inset-x-4 top-[15%] md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[440px] z-50 bg-card rounded-2xl border border-border p-6 space-y-5 shadow-2xl">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-black flex items-center gap-2"><Settings2 className="h-5 w-5 text-primary" /> Office Hours & Notifications</h3>
-                                <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><X className="h-4 w-4" /></button>
+            {showSettings && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSettings(false)} />
+                    <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        className="relative w-full max-w-xl md:w-[540px] bg-card rounded-[40px] border border-border p-8 lg:p-10 space-y-6 shadow-2xl">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-black flex items-center gap-3 tracking-tight"><div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Settings2 className="h-5 w-5 text-primary" /></div> Office Hours</h3>
+                            <button onClick={() => setShowSettings(false)} className="w-10 h-10 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors"><X className="h-5 w-5" /></button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                                <p className="text-xs text-primary font-bold leading-relaxed">
+                                    Set your business hours. Bookings outside these hours will queue notifications for providers until the next business day starts.
+                                </p>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                                Set the official service hours. Bookings placed outside these hours (e.g., 2 AM) will queue SP notifications until service hours begin.
-                            </p>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block mb-1.5">Start Time</label>
-                                    <input type="time" value={tempSettings.startTime} onChange={e => setTempSettings({ ...tempSettings, startTime: e.target.value })}
-                                        className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1 block">Starts At</label>
+                                    <div className="relative group">
+                                        <Clock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                        <input type="time" value={tempSettings.startTime} onChange={e => setTempSettings({ ...tempSettings, startTime: e.target.value })}
+                                            className="w-full pl-11 pr-4 py-3 bg-muted/30 border border-border/50 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/20 transition-all" />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block mb-1.5">End Time</label>
-                                    <input type="time" value={tempSettings.endTime} onChange={e => setTempSettings({ ...tempSettings, endTime: e.target.value })}
-                                        className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1 block">Closes At</label>
+                                    <div className="relative group">
+                                        <Clock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                        <input type="time" value={tempSettings.endTime} onChange={e => setTempSettings({ ...tempSettings, endTime: e.target.value })}
+                                            className="w-full pl-11 pr-4 py-3 bg-muted/30 border border-border/50 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/20 transition-all" />
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex items-center justify-between bg-muted/30 rounded-xl p-3">
-                                <div>
-                                    <p className="text-xs font-bold">Auto-Assign to Nearest SP</p>
-                                    <p className="text-[10px] text-muted-foreground mt-0.5">Automatically assign bookings to the best-matching service provider.</p>
+
+                            <div className="flex items-center justify-between bg-muted/20 border border-border/30 rounded-3xl p-5 hover:bg-muted/30 transition-colors">
+                                <div className="flex-1 pr-4">
+                                    <p className="text-sm font-black tracking-tight">Auto-Assignment</p>
+                                    <p className="text-[11px] text-muted-foreground mt-1 font-medium leading-relaxed">Automatically assign new bookings to the nearest available provider based on specialty.</p>
                                 </div>
                                 <button onClick={() => setTempSettings({ ...tempSettings, autoAssign: !tempSettings.autoAssign })}
-                                    className={`w-12 h-6 rounded-full transition-colors relative ${tempSettings.autoAssign ? 'bg-primary' : 'bg-muted-foreground/30'}`}>
-                                    <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${tempSettings.autoAssign ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                                    className={`w-14 h-8 rounded-full transition-all duration-300 relative p-1 ${tempSettings.autoAssign ? 'bg-primary shadow-lg shadow-primary/20' : 'bg-muted-foreground/30'}`}>
+                                    <div className={`w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-300 ${tempSettings.autoAssign ? 'translate-x-6' : 'translate-x-0'}`} />
                                 </button>
                             </div>
-                            <div>
-                                <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block mb-1.5">Off-Hours Notification Message</label>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1 block">Off-Hours Message</label>
                                 <textarea rows={2} value={tempSettings.notificationMessage || ""} onChange={e => setTempSettings({ ...tempSettings, notificationMessage: e.target.value })}
-                                    className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" placeholder="Message shown when booking is placed outside office hours" />
+                                    className="w-full px-5 py-4 bg-muted/30 border border-border/50 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/20 transition-all resize-none"
+                                    placeholder="Message shown to customers..." />
                             </div>
-                            <Button className="w-full h-11 rounded-xl font-bold" onClick={handleSaveSettings}>Save Settings</Button>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                        </div>
+
+                        <Button className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase bg-black text-white hover:bg-black/90 shadow-2xl shadow-black/10 transition-all hover:scale-[1.02] active:scale-98" onClick={handleSaveSettings}>
+                            Update Business Settings
+                        </Button>
+                    </motion.div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 }

@@ -36,7 +36,7 @@ const WhyChooseUs = () => {
     <div className="px-4 mt-4 mb-4">
       <div className="flex items-center justify-between mb-4">
         <h2 className={`text-lg font-bold ${gender === "women" ? "font-display" : "font-heading-men"}`}>
-          Styling with Muskan Trust
+          stylingwithmuskan Trust
         </h2>
         <div className="flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
           <CheckCircle2 className="w-3 h-3" />
@@ -73,7 +73,7 @@ const WhyChooseUs = () => {
           <ShieldCheck className="w-4 h-4 text-white" />
         </div>
         <div>
-          <p className="text-[11px] font-bold">Styling with Muskan Protect</p>
+          <p className="text-[11px] font-bold">stylingwithmuskan Protect</p>
           <p className="text-[9px] text-muted-foreground">Every service is backed by our ₹10,000 insurance & hygiene guarantee.</p>
         </div>
       </motion.div>

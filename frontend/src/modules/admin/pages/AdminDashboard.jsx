@@ -69,7 +69,7 @@ export default function AdminDashboard() {
         <div className="space-y-8">
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
                 <h1 className="text-2xl md:text-3xl font-black tracking-tight">Admin Dashboard</h1>
-                <p className="text-sm text-muted-foreground font-medium mt-1">Global overview of Styling with Muskan</p>
+                <p className="text-sm text-muted-foreground font-medium mt-1">Global overview of stylingwithmuskan</p>
             </motion.div>
 
             {/* Stats Grid */}

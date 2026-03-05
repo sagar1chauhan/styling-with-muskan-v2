@@ -88,7 +88,7 @@ const LoginModal = () => {
                                 <ShieldCheck className="w-6 h-6 text-primary-foreground" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-bold font-display uppercase tracking-tight">Styling with Muskan</h2>
+                                <h2 className="text-lg font-bold font-display uppercase tracking-tight">stylingwithmuskan</h2>
                                 <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">Salon & Spa at Home</p>
                             </div>
                         </div>

@@ -146,7 +146,7 @@ export default function ProviderStatusPage() {
 
                     <div className="mt-10 pt-8 border-t border-gray-50 w-full">
                         <img src="/logo1.png" alt="SWM" className="h-12 w-12 rounded-full object-cover mx-auto opacity-50 grayscale hover:opacity-100 transition-all shadow-sm" />
-                        <p className="text-[10px] font-black uppercase text-gray-300 mt-2 tracking-widest">Styling with Muskan</p>
+                        <p className="text-[10px] font-black uppercase text-gray-300 mt-2 tracking-widest lowercase">stylingwithmuskan</p>
                     </div>
                 </CardContent>
             </Card>

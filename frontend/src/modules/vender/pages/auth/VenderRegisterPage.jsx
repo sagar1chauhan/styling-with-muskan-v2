@@ -41,7 +41,7 @@ export default function VenderRegisterPage() {
                         <Store className="h-8 w-8 text-white" />
                     </motion.div>
                     <h1 className="text-2xl font-black tracking-tight text-gray-900">Register as Vendor</h1>
-                    <p className="text-sm text-gray-500 font-medium mt-1">Join Styling with Muskan network</p>
+                    <p className="text-sm text-gray-500 font-medium mt-1 uppercase tracking-widest">Join stylingwithmuskan network</p>
                 </div>
 
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}

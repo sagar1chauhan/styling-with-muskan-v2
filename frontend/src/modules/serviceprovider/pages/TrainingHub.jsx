@@ -26,7 +26,7 @@ export default function TrainingHub() {
             duration: "15:30",
             status: "Completed",
             thumbnail: "https://images.unsplash.com/photo-1560869713-7d0a294308a3?auto=format&fit=crop&w=400&q=80",
-            provider: "Styling with Muskan Academy"
+            provider: "stylingwithmuskan Academy"
         },
         {
             id: 2,
@@ -79,8 +79,8 @@ export default function TrainingHub() {
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
                             className={`px-4 py-1.5 rounded-full text-sm font-bold border transition-colors ${selectedCategory === cat
-                                    ? "bg-purple-600 border-purple-600 text-white"
-                                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                                ? "bg-purple-600 border-purple-600 text-white"
+                                : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                                 }`}
                         >
                             {cat}

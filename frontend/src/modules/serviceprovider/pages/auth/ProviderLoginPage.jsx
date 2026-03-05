@@ -89,7 +89,7 @@ export default function ProviderLoginPage() {
                 <div className="space-y-6">
                     <img src="/logo1.png" alt="Logo" className="h-28 w-28 rounded-full object-cover border-4 border-white shadow-xl mb-8 animate-bounce" />
                     <h1 className="text-4xl font-extrabold text-gray-900 leading-tight">
-                        Grow your <span className="text-violet-600">Profession</span> with Styling with Muskan.
+                        Grow your <span className="text-violet-600">Profession</span> with stylingwithmuskan.
                     </h1>
                     <p className="text-lg text-gray-600">
                         Join 10,000+ professionals providing beauty services at home. Manage bookings, track earnings, and build your brand.

@@ -56,8 +56,8 @@ const ReferralPage = () => {
                         <Gift className="w-10 h-10 text-white -rotate-12" />
                     </div>
                     <h2 className="text-2xl font-bold font-display">Give ₹{giveAmt}, Get ₹{getAmt}</h2>
-                    <p className="text-sm text-muted-foreground mt-2 px-4">
-                        Invite your friends to try Styling with Muskan. They get ₹{giveAmt} off their first booking, and you get ₹{getAmt} in your wallet!
+                    <p className="text-sm text-muted-foreground mt-2 px-4 font-medium">
+                        Invite your friends to try <span className="text-primary font-bold">stylingwithmuskan</span>. They get ₹{giveAmt} off their first booking, and you get ₹{getAmt} in your wallet!
                     </p>
 
                     <div className="mt-8 p-4 rounded-2xl bg-accent border border-dashed border-primary/30 flex items-center justify-between">
@@ -75,9 +75,9 @@ const ReferralPage = () => {
 
                     <Button
                         onClick={() => {
-                            const shareRow = `Hey! Use my referral code ${referralCode} to get ₹${giveAmt} off on your first booking at Styling with Muskan. Download now!`;
+                            const shareRow = `Hey! Use my referral code ${referralCode} to get ₹${giveAmt} off on your first booking at stylingwithmuskan. Download now!`;
                             shareContent({
-                                title: "Refer & Earn - Styling with Muskan",
+                                title: "Refer & Earn - stylingwithmuskan",
                                 text: shareRow,
                                 url: window.location.origin
                             });

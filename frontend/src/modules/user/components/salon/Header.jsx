@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Bell, MapPin, ChevronDown, Home, Compass, Calendar, User, Heart } from "lucide-react";
+import { Search, Bell, MapPin, ChevronDown, Home, Compass, Calendar, User, Heart, MessageSquare } from "lucide-react";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useWishlist } from "@/modules/user/contexts/WishlistContext";
@@ -7,7 +7,6 @@ import AddressModal from "@/modules/user/components/salon/AddressModal";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ShoppingCart } from "lucide-react";
 
 const desktopNavItems = [
   { icon: Home, label: "Home", path: "/home" },
@@ -93,17 +92,7 @@ const Header = () => {
             )}
           </button>
 
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className="w-9 h-9 rounded-full bg-accent flex items-center justify-center relative hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
-          >
-            <ShoppingCart className="w-4 h-4" />
-            {totalItems > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-[10px] font-bold text-white flex items-center justify-center border-2 border-background animate-in zoom-in">
-                {totalItems}
-              </span>
-            )}
-          </button>
+
 
           <button
             onClick={() => {
@@ -130,9 +119,11 @@ const Header = () => {
             <Bell className="w-4 h-4 animate-pulse" />
           </button>
 
-          <button className="w-9 h-9 rounded-full bg-accent flex items-center justify-center relative hover:bg-primary/10 hover:text-primary transition-all active:scale-90">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
+          <button
+            onClick={() => navigate("/support")}
+            className="w-9 h-9 rounded-full bg-accent flex items-center justify-center relative hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
+          >
+            <MessageSquare className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -163,4 +154,3 @@ const Header = () => {
   </header>);
 };
 export default Header;
-

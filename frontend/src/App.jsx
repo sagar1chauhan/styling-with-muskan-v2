@@ -28,6 +28,7 @@ import ReferralPage from "@/modules/user/pages/ReferralPage";
 import CouponsPage from "@/modules/user/pages/CouponsPage";
 import SupportPage from "@/modules/user/pages/SupportPage";
 import NotFound from "@/modules/user/pages/NotFound";
+import UserRegisterPage from "@/modules/user/pages/UserRegisterPage";
 import WishlistPage from "@/modules/user/pages/WishlistPage";
 
 // Service Provider Module
@@ -106,6 +107,7 @@ const App = () => {
                                 <Route path="/" element={<SplashScreen />} />
                                 <Route path="/select-gender" element={<GenderSelect />} />
                                 <Route path="/home" element={<HomePage />} />
+                                <Route path="/register" element={<UserRegisterPage />} />
                                 <Route path="/explore" element={<ExplorePage />} />
                                 <Route path="/explore/:categoryId" element={<ExplorePage />} />
                                 <Route path="/bookings" element={<BookingsPage />} />

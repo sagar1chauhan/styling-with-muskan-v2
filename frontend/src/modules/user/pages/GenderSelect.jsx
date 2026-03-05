@@ -27,8 +27,8 @@ const GenderSelect = () => {
         <div className="w-20 h-20 rounded-2xl bg-gradient-theme mx-auto mb-6 flex items-center justify-center rotate-12 shadow-elevated">
           <Scissors className="w-10 h-10 text-primary-foreground -rotate-12" />
         </div>
-        <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">
-          Styling with Muskan
+        <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground lowercase">
+          stylingwithmuskan
         </h1>
         <p className="mt-3 text-muted-foreground text-sm max-w-xs mx-auto">
           Experience luxury salon services at your doorstep. Please select a category to begin.
