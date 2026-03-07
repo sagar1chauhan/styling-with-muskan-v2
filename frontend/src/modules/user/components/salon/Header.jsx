@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Bell, MapPin, ChevronDown, Home, Compass, Calendar, User, Heart, MessageSquare } from "lucide-react";
+import { Search, Bell, MapPin, ChevronDown, Home, Compass, Calendar, User, Heart, MessageSquare, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useWishlist } from "@/modules/user/contexts/WishlistContext";
@@ -18,7 +18,7 @@ const desktopNavItems = [
 const Header = () => {
   const { gender } = useGenderTheme();
   const { user, isAddressModalOpen, setIsAddressModalOpen } = useAuth();
-  const { totalItems, setIsCartOpen } = useCart();
+  const { totalItems } = useCart();
   const { wishlistCount } = useWishlist();
   const [searchQuery, setSearchQuery] = useState("");
   const location = useLocation();
@@ -45,7 +45,7 @@ const Header = () => {
           >
             <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary group-hover:scale-110 transition-transform flex-shrink-0" />
             <span className="font-medium truncate">
-              {user?.address ? `${user.address.type || 'Home'}` : "Location"}
+              {user?.address?.city || user?.address?.area || "Location"}
             </span>
             <ChevronDown className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
           </button>
@@ -95,28 +95,16 @@ const Header = () => {
 
 
           <button
-            onClick={() => {
-              if (window.confirm("EMERGENCY: Do you want to trigger SOS alert?")) {
-                const sosAlertsRaw = localStorage.getItem("muskan-admin-sos");
-                const sosAlerts = sosAlertsRaw ? JSON.parse(sosAlertsRaw) : [];
-                const newAlert = {
-                  id: Date.now(),
-                  userId: user?.id || 'guest',
-                  userName: user?.name || 'Guest User',
-                  userPhone: user?.phone || 'Unknown',
-                  type: 'CUSTOMER',
-                  status: 'PENDING',
-                  location: user?.address?.area || 'Current Location',
-                  timestamp: new Date().toISOString()
-                };
-                localStorage.setItem("muskan-admin-sos", JSON.stringify([newAlert, ...sosAlerts]));
-                alert("SOS Alert Sent! Our team is contacting you.");
-              }
-            }}
-            className="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center relative hover:bg-red-200 transition-all active:scale-90"
-            title="Emergency SOS"
+            onClick={() => navigate("/cart")}
+            className={`w-9 h-9 rounded-full flex items-center justify-center relative transition-all active:scale-90 ${location.pathname === "/cart" ? 'bg-primary text-white shadow-lg' : 'bg-accent hover:bg-primary/10 hover:text-primary'}`}
+            title="Cart"
           >
-            <Bell className="w-4 h-4 animate-pulse" />
+            <ShoppingBag className="w-4 h-4" />
+            {totalItems > 0 && (
+              <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center border-2 animate-in zoom-in ${location.pathname === "/cart" ? 'bg-white text-primary border-primary' : 'bg-primary text-white border-background'}`}>
+                {totalItems}
+              </span>
+            )}
           </button>
 
           <button

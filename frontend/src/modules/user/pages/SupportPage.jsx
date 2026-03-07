@@ -5,7 +5,7 @@ import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { ArrowLeft, MessageSquare, Phone, Mail, ChevronDown, ChevronUp, Search, ExternalLink } from "lucide-react";
 
 const faqs = [
-    { q: "How do I book a service?", a: "To book a service, go to the Home or Explore page, select your desired service, pick a date and time slot, and proceed to payment. You can choose from Instant, Pre-Book, or Customized booking types." },
+    { q: "How do I book a service?", a: "To book a service, go to the Home or Explore page, select your desired service, pick a date and time slot, and proceed to payment. You can choose from Booked, Pre-Book, or Customized booking types." },
     { q: "What should I prepare for a home service?", a: "Please ensure a clean area for the service and access to water/electricity if needed. Our professionals bring all necessary products and kits." },
     { q: "How do I cancel or reschedule?", a: "You can manage your bookings in the 'My Bookings' section. Cancellation is free up to 4 hours before the service time." },
     { q: "Are your professionals certified?", a: "Yes, all our beauticians and stylists are 100% background-verified, certified, and trained to follow strict hygiene protocols." },

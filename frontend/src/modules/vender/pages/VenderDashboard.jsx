@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
     Users, CalendarRange, IndianRupee, TrendingUp, AlertTriangle,
-    ArrowUpRight, CheckCircle, Clock, UserCheck, Shield,
+    ArrowUpRight, CheckCircle, Clock, UserCheck, Shield, Star
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/modules/user/components/ui/card";
 import { Button } from "@/modules/user/components/ui/button";
@@ -17,10 +17,13 @@ export default function VenderDashboard() {
     const { getServiceProviders, getAllBookings, getSOSAlerts, vendor } = useVenderAuth();
     const [stats, setStats] = useState({ sps: 0, pendingSPs: 0, bookings: 0, activeBookings: 0, revenue: 0, sosAlerts: 0 });
 
+    const [topSPs, setTopSPs] = useState([]);
     useEffect(() => {
         const sps = getServiceProviders();
         const bookings = getAllBookings();
         const sos = getSOSAlerts();
+        const feedback = JSON.parse(localStorage.getItem('muskan-feedback') || '[]');
+
         setStats({
             sps: sps.length,
             pendingSPs: sps.filter(s => s.approvalStatus === "pending").length,
@@ -29,6 +32,14 @@ export default function VenderDashboard() {
             revenue: bookings.filter(b => b.status === "completed").reduce((sum, b) => sum + (b.totalAmount || 0), 0),
             sosAlerts: sos.filter(s => s.status !== "resolved").length,
         });
+
+        // Calculate top SPs
+        const spRatings = sps.map(sp => {
+            const spFeedback = feedback.filter(f => (f.providerName === sp.name || f.assignedProvider === sp.id) && f.type === 'customer_to_provider');
+            const rating = spFeedback.length > 0 ? (spFeedback.reduce((a, b) => a + b.rating, 0) / spFeedback.length) : 0;
+            return { ...sp, rating };
+        }).sort((a, b) => b.rating - a.rating).slice(0, 3);
+        setTopSPs(spRatings);
     }, []);
 
     const statCards = [
@@ -122,40 +133,36 @@ export default function VenderDashboard() {
                     </Card>
                 </motion.div>
 
-                {/* Recent Activity */}
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                {/* Top Rated SPs */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
                     <Card className="shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg font-bold">Recent Activity</CardTitle>
-                            <CardDescription>Latest updates from your city</CardDescription>
+                            <CardTitle className="text-lg font-bold">Top Performing SPs</CardTitle>
+                            <CardDescription>Highest rated providers this month</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                {[
-                                    { icon: CheckCircle, text: "SP 'Priya K.' completed Bridal Makeup", time: "2 min ago", color: "text-green-500" },
-                                    { icon: Clock, text: "New SP registration from 'Anita S.'", time: "15 min ago", color: "text-blue-500" },
-                                    { icon: Shield, text: "Booking #PB1001 reassigned successfully", time: "1 hr ago", color: "text-purple-500" },
-                                    { icon: TrendingUp, text: "Daily revenue target reached: ₹12,500", time: "3 hrs ago", color: "text-emerald-500" },
-                                ].map((activity, i) => {
-                                    const AIcon = activity.icon;
-                                    return (
-                                        <motion.div
-                                            key={i}
-                                            initial={{ opacity: 0, x: -10 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: 0.5 + i * 0.08 }}
-                                            className="flex items-center gap-3 pb-3 border-b border-border/50 last:border-0 last:pb-0"
-                                        >
-                                            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                                                <AIcon className={`h-4 w-4 ${activity.color}`} />
+                                {topSPs.length > 0 ? topSPs.map((sp, i) => (
+                                    <div key={i} className="flex items-center gap-4 pb-3 border-b border-border/50 last:border-0 last:pb-0">
+                                        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center font-black text-primary">
+                                            {sp.name?.charAt(0)}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-bold truncate">{sp.name}</p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <div className="flex items-center gap-0.5">
+                                                    {[1, 2, 3, 4, 5].map(s => (
+                                                        <Star key={s} className={`h-2.5 w-2.5 ${s <= sp.rating ? "text-amber-500 fill-amber-500" : "text-slate-200"}`} />
+                                                    ))}
+                                                </div>
+                                                <span className="text-[10px] text-muted-foreground font-bold">{sp.rating.toFixed(1)}</span>
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[12px] font-semibold text-foreground truncate">{activity.text}</p>
-                                                <p className="text-[10px] text-muted-foreground font-medium">{activity.time}</p>
-                                            </div>
-                                        </motion.div>
-                                    );
-                                })}
+                                        </div>
+                                        <Badge className="bg-emerald-50 text-emerald-600 border-none text-[10px] font-black">TOP PRO</Badge>
+                                    </div>
+                                )) : (
+                                    <p className="text-sm text-center text-muted-foreground py-4">No performance data yet</p>
+                                )}
                             </div>
                         </CardContent>
                     </Card>

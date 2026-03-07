@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Card,
     CardContent,
@@ -13,14 +13,23 @@ import { AlertCircle, Star, XCircle, Clock, ShieldCheck, PauseCircle, Briefcase,
 import { Link } from "react-router-dom";
 
 export default function PerformanceDashboard() {
-    // Mock data for the provider
-    const [metrics] = useState({
-        rating: 4.6, // Falls below 4.7 for testing the Pause banner
+    const [metrics, setMetrics] = useState({
+        rating: 4.8,
         responseRate: 98,
         cancellations: 4,
         grade: "A+",
-        isActive: true, // But jobs are paused due to rating
+        isActive: true,
     });
+
+    useEffect(() => {
+        const feedback = JSON.parse(localStorage.getItem('muskan-feedback') || '[]');
+        const spFeedback = feedback.filter(f => f.type === 'customer_to_provider');
+        if (spFeedback.length > 0) {
+            const sum = spFeedback.reduce((a, b) => a + b.rating, 0);
+            const avg = sum / spFeedback.length;
+            setMetrics(prev => ({ ...prev, rating: avg }));
+        }
+    }, []);
 
     const isPaused = metrics.rating < 4.7 || !metrics.isActive;
 

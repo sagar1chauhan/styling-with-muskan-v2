@@ -118,7 +118,6 @@ export const CartProvider = ({ children }) => {
             }
             return [...prevItems, { ...serviceWithType, quantity: 1 }];
         });
-        setIsFloatingSummaryOpen(true);
     };
 
     const updateQuantity = (serviceId, amount) => {

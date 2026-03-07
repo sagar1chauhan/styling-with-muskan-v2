@@ -73,6 +73,23 @@ export default function ProviderProfile() {
         navigate("/provider/login");
     };
 
+    const handleCategoryRequest = () => {
+        if (!provider) return;
+        const requests = JSON.parse(localStorage.getItem("muskan-category-requests") || "[]");
+        const newRequest = {
+            id: `REQ${Date.now()}`,
+            providerId: provider.id,
+            providerName: provider.name,
+            providerPhone: provider.phone,
+            currentCategory: providerDetails.category,
+            status: "pending",
+            createdAt: new Date().toISOString()
+        };
+        requests.unshift(newRequest);
+        localStorage.setItem("muskan-category-requests", JSON.stringify(requests));
+        setCategoryRequested(true);
+    };
+
     return (
         <div className="flex flex-1 w-full flex-col bg-white -m-4 md:m-0 min-h-screen">
             {/* Top Header Section */}
@@ -147,7 +164,7 @@ export default function ProviderProfile() {
                                                     variant="outline"
                                                     size="sm"
                                                     className={`h-7 px-2 text-[10px] uppercase font-black tracking-widest ${categoryRequested ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50'}`}
-                                                    onClick={() => setCategoryRequested(true)}
+                                                    onClick={handleCategoryRequest}
                                                     disabled={categoryRequested}
                                                 >
                                                     {categoryRequested ? "Requested" : "+ Request New"}

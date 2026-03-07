@@ -5,7 +5,7 @@ import {
   ArrowLeft, Star, Clock, ShieldCheck, Plus, Minus,
   Calendar, ChevronRight, ShoppingCart,
   Heart, Share2, Check, Timer, Sparkles, Camera,
-  UserCheck
+  UserCheck, MessageSquare
 } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
@@ -21,13 +21,13 @@ const ServiceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { gender } = useGenderTheme();
-  const { addToCart, setIsCartOpen, selectedSlot: globalSlot, setSelectedSlot: setGlobalSlot } = useCart();
-  const { isLoggedIn, setIsLoginModalOpen } = useAuth();
-  const { services, providers: mockProviders } = useUserModuleData();
+  const { cartItems, addToCart, setIsCartOpen, selectedSlot: globalSlot, setSelectedSlot: setGlobalSlot } = useCart();
+  const { isLoggedIn, setIsLoginModalOpen, user } = useAuth();
+  const { services, categories, serviceTypes, providers: mockProviders, checkAvailability } = useUserModuleData();
   const service = services.find((s) => s.id === id);
 
   const [qty, setQty] = useState(1);
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [activeStep, setActiveStep] = useState(0);
@@ -35,6 +35,19 @@ const ServiceDetail = () => {
   const isFav = isInWishlist(id);
   const [addedToCart, setAddedToCart] = useState(false);
   const stepsRef = useRef(null);
+
+  const userCity = user?.address?.city || null;
+  const isAvailable = useMemo(() => {
+    return checkAvailability(service, userCity, selectedDate, selectedSlot?.split(' ')[0]);
+  }, [service, userCity, selectedDate, selectedSlot, checkAvailability]);
+
+  const { realRating, realReviews } = useMemo(() => {
+    const allFeedback = JSON.parse(localStorage.getItem('muskan-feedback') || '[]');
+    const serviceReviews = allFeedback.filter(f => f.serviceName === service.name && f.type === 'customer_to_provider');
+    if (serviceReviews.length === 0) return { realRating: service.rating, realReviews: service.reviews };
+    const sum = serviceReviews.reduce((a, b) => a + b.rating, 0);
+    return { realRating: (sum / serviceReviews.length).toFixed(1), realReviews: serviceReviews.length };
+  }, [service]);
 
   // Filter providers based on the service category/type
   const availableProviders = useMemo(() => {
@@ -161,18 +174,21 @@ const ServiceDetail = () => {
               </h1>
               <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground flex-wrap">
                 <span className="flex items-center gap-1">
-                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" /> {service.rating}
+                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" /> {realRating}
                 </span>
-                <span>({service.reviews} reviews)</span>
+                <span>({realReviews} reviews)</span>
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
                   <Clock className="w-3.5 h-3.5" /> {service.duration}
                 </span>
               </div>
             </div>
             <div className="text-right flex-shrink-0">
-              <p className="text-2xl md:text-3xl font-bold text-primary">₹{service.price.toLocaleString()}</p>
+              <p className={`text-2xl md:text-3xl font-bold ${isAvailable ? "text-primary" : "text-muted-foreground/50"}`}>₹{service.price.toLocaleString()}</p>
               {service.originalPrice && (
                 <p className="text-sm text-muted-foreground line-through">₹{service.originalPrice.toLocaleString()}</p>
+              )}
+              {!isAvailable && (
+                <p className="text-[10px] text-red-500 font-bold mt-1 max-w-[120px]">Not available at selected location/time</p>
               )}
             </div>
           </div>
@@ -419,47 +435,152 @@ const ServiceDetail = () => {
           </div>
         </motion.div>
 
+        {/* ===== CUSTOMER REVIEWS ===== */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18 }}
+          className="mt-6 mb-12"
+        >
+          <div className="flex items-center justify-between mb-4 px-1">
+            <h3 className={`font-semibold text-base flex items-center gap-2 ${gender === "women" ? "font-display" : "font-heading-men"}`}>
+              <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+              Customer Reviews
+            </h3>
+            <span className="text-xs font-bold text-primary">All Reviews ({
+              JSON.parse(localStorage.getItem('muskan-feedback') || '[]')
+                .filter(f => f.serviceName === service.name && f.type === 'customer_to_provider').length
+            })</span>
+          </div>
 
+          <div className="space-y-3">
+            {(() => {
+              const allFeedback = JSON.parse(localStorage.getItem('muskan-feedback') || '[]');
+              const serviceReviews = allFeedback
+                .filter(f => f.serviceName === service.name && f.type === 'customer_to_provider')
+                .reverse()
+                .slice(0, 5);
+
+              if (serviceReviews.length === 0) {
+                return (
+                  <div className="glass-strong rounded-2xl p-6 text-center border border-dashed border-border/60">
+                    <MessageSquare className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-sm font-bold text-muted-foreground">No real reviews yet</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Be the first to review this service!</p>
+                  </div>
+                );
+              }
+
+              return serviceReviews.map((rev, i) => (
+                <motion.div
+                  key={rev.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="glass-strong rounded-2xl p-4 border border-border/40"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-black text-primary text-[10px]">
+                        {rev.customerName?.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold">{rev.customerName}</p>
+                        <div className="flex items-center gap-0.5 mt-0.5">
+                          {[1, 2, 3, 4, 5].map(s => (
+                            <Star key={s} className={`w-2.5 h-2.5 ${s <= rev.rating ? "text-amber-500 fill-amber-500" : "text-slate-200"}`} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(rev.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  {rev.comment && (
+                    <p className="text-xs text-muted-foreground leading-relaxed mt-1 italic">
+                      "{rev.comment}"
+                    </p>
+                  )}
+
+                  {rev.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {rev.tags.map(tag => (
+                        <span key={tag} className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-accent text-accent-foreground border border-border/30">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              ));
+            })()}
+          </div>
+        </motion.div>
       </div>
 
       {/* ===== STICKY BOTTOM BAR ===== */}
       <motion.div
         initial={{ y: 100 }}
         animate={{ y: 0 }}
-        className="fixed bottom-0 left-0 right-0 glass-strong border-t border-border p-4 z-40"
+        className="fixed bottom-0 left-0 right-0 glass-strong border-t border-border p-4 z-40 bg-background/80 backdrop-blur-xl"
       >
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
           <div className="flex-shrink-0">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">Total</p>
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-black uppercase tracking-tighter border border-primary/20">
+                {serviceTypes.find(t => t.id === categories.find(c => c.id === service.category)?.serviceType)?.label || "Service"}
+              </span>
+            </div>
             <motion.p
               key={qty}
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
-              className="text-xl md:text-2xl font-bold text-primary"
+              className="text-xl md:text-2xl font-black text-primary"
             >
               ₹{(service.price * qty).toLocaleString()}
             </motion.p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Add to Cart Button */}
-            <Button
-              onClick={handleAddToCart}
-              className={`flex-1 h-12 gap-2 rounded-xl transition-all duration-300 font-bold ${addedToCart
-                ? "bg-green-500 text-white hover:bg-green-600"
-                : "bg-primary text-primary-foreground glow-primary"
-                }`}
-            >
-              {addedToCart ? (
-                <>
-                  <Check className="w-5 h-5" /> Added to Cart
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="w-5 h-5" />
-                  Add to Cart
-                </>
-              )}
-            </Button>
+            {/* Conditional Button: Add to Cart or View Cart */}
+            {!isAvailable ? (
+              <Button
+                disabled
+                className="flex-1 h-12 gap-2 rounded-xl font-bold bg-muted text-muted-foreground px-6 min-w-[140px]"
+              >
+                Currently Unavailable
+              </Button>
+            ) : cartItems.some(item => item.id === service.id) ? (
+              <Button
+                onClick={() => setIsCartOpen(true)}
+                className="flex-1 h-12 gap-2 rounded-xl transition-all duration-300 font-bold bg-primary text-primary-foreground hover:opacity-90 glow-primary px-6 min-w-[140px]"
+              >
+                <ShoppingCart className="w-5 h-5" />
+                View Cart
+              </Button>
+            ) : (
+              <Button
+                onClick={handleAddToCart}
+                className={`flex-1 h-12 gap-2 rounded-xl transition-all duration-300 font-bold ${addedToCart
+                  ? "bg-green-500 text-white hover:bg-green-600"
+                  : "bg-primary text-primary-foreground glow-primary px-6 min-w-[140px]"
+                  }`}
+              >
+                {addedToCart ? (
+                  <>
+                    <Check className="w-5 h-5" /> Added to Cart
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart className="w-5 h-5" />
+                    Add to Cart
+                  </>
+                )
+                }
+              </Button>
+            )}
           </div>
         </div>
       </motion.div>

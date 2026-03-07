@@ -56,19 +56,28 @@ export default function AdminDashboard() {
     }, []);
 
     const getZones = (bookings) => {
-        const zonesMap = new Map();
-        bookings.forEach(b => {
-            const z = b.address?.area || b.address?.city;
-            if (z) zonesMap.set(z, (zonesMap.get(z) || 0) + 1);
-        });
-        if (zonesMap.size === 0) {
-            zonesMap.set("Andheri West", 145);
-            zonesMap.set("Powai", 112);
-            zonesMap.set("Bandra", 98);
-            zonesMap.set("Navi Mumbai", 12);
-            zonesMap.set("Thane", 8);
+        const zonesMap = {};
+        if (Array.isArray(bookings)) {
+            bookings.forEach(b => {
+                const z = b.address?.area || b.address?.city;
+                if (z) {
+                    zonesMap[z] = (zonesMap[z] || 0) + 1;
+                }
+            });
         }
-        return Array.from(zonesMap.entries()).sort((a, b) => b[1] - a[1]);
+
+        let zonesArray = Object.entries(zonesMap);
+
+        if (zonesArray.length === 0) {
+            zonesArray = [
+                ["Andheri West", 145],
+                ["Powai", 112],
+                ["Bandra", 98],
+                ["Navi Mumbai", 12],
+                ["Thane", 8]
+            ];
+        }
+        return zonesArray.sort((a, b) => b[1] - a[1]);
     };
 
     const statCards = [

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Users, Search, CheckCircle, XCircle, Ban, UserCheck, Phone, RefreshCw, CreditCard, AlertTriangle } from "lucide-react";
+import { Users, Search, CheckCircle, XCircle, Ban, UserCheck, Phone, RefreshCw, CreditCard, AlertTriangle, Star } from "lucide-react";
 import { Card, CardContent } from "@/modules/user/components/ui/card";
 import { Button } from "@/modules/user/components/ui/button";
 import { Badge } from "@/modules/user/components/ui/badge";
@@ -17,9 +17,11 @@ export default function CustomerOversight() {
     const [search, setSearch] = useState("");
     const [tab, setTab] = useState("all");
 
+    const [feedback, setFeedback] = useState([]);
     // Mocking customer data based on bookings since we don't have a dedicated getCustomers API
     const load = () => {
         const bookings = getUserBookings() || [];
+        setFeedback(JSON.parse(localStorage.getItem('muskan-feedback') || '[]'));
         // Extract unique customers from bookings
         const customerMap = new Map();
         bookings.forEach(b => {
@@ -52,6 +54,13 @@ export default function CustomerOversight() {
         }
 
         setCustomers(Array.from(customerMap.values()));
+    };
+
+    const getCustomerRating = (idOrPhone) => {
+        const cFeedback = feedback.filter(f => (f.customerName === idOrPhone || f.customerId === idOrPhone) && f.type === 'provider_to_customer');
+        if (cFeedback.length === 0) return null;
+        const sum = cFeedback.reduce((a, b) => a + b.rating, 0);
+        return (sum / cFeedback.length).toFixed(1);
     };
 
     useEffect(() => { load(); }, []);
@@ -137,8 +146,10 @@ export default function CustomerOversight() {
                                                     <p className={`text-sm font-black mt-0.5 ${c.cancelledBookings > 2 ? 'text-red-500' : ''}`}>{c.cancelledBookings}</p>
                                                 </div>
                                                 <div className="bg-muted/30 p-2 rounded-xl">
-                                                    <p className="text-[9px] font-bold text-muted-foreground flex items-center gap-1"><CreditCard className="h-3 w-3" /> Payment Fails</p>
-                                                    <p className={`text-sm font-black mt-0.5 ${c.paymentFailures > 0 ? 'text-amber-500' : ''}`}>{c.paymentFailures}</p>
+                                                    <p className="text-[9px] font-bold text-muted-foreground flex items-center gap-1"><Star className="h-3 w-3" /> User Rating</p>
+                                                    <p className={`text-sm font-black mt-0.5 ${getCustomerRating(c.name) ? 'text-amber-500' : 'text-slate-400'}`}>
+                                                        {getCustomerRating(c.name) ? `${getCustomerRating(c.name)} ★` : 'No Data'}
+                                                    </p>
                                                 </div>
                                             </div>
 

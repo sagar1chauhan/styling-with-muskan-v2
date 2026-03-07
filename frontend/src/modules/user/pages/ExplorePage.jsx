@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    ArrowLeft, Search, Filter, RefreshCcw, Heart, Share2, Plus, Star, MapPin, Menu, X
+    ArrowLeft, Search, Filter, RefreshCcw, Heart, Share2, Plus, Star, MapPin, Menu, X, ShoppingBag
 } from "lucide-react";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
@@ -14,6 +14,7 @@ import { shareContent } from "@/modules/user/lib/utils";
 import FloatingCart from "@/modules/user/components/salon/FloatingCart";
 import ExpressCheckout from "@/modules/user/components/salon/ExpressCheckout";
 import FilterModal from "@/modules/user/components/salon/FilterModal";
+import BottomNav from "@/modules/user/components/salon/BottomNav";
 
 const ExplorePage = () => {
     const { categoryId } = useParams();
@@ -21,9 +22,16 @@ const ExplorePage = () => {
     const location = useLocation();
     const { gender } = useGenderTheme();
     const { totalItems, addToCart, bookingType: contextBookingType, setBookingType } = useCart();
-    const { isLoggedIn, setIsLoginModalOpen } = useAuth();
+    const { isLoggedIn, setIsLoginModalOpen, user } = useAuth();
     const { toggleWishlist, isInWishlist } = useWishlist();
-    const { services, categories, serviceTypes: SERVICE_TYPES } = useUserModuleData();
+    const { services, categories, serviceTypes: SERVICE_TYPES, checkAvailability } = useUserModuleData();
+
+    const userCity = user?.address?.city || null;
+
+    const availableServiceTypes = useMemo(() =>
+        SERVICE_TYPES.filter(t => checkAvailability(t, userCity)),
+        [SERVICE_TYPES, userCity, checkAvailability]
+    );
 
     const searchParams = new URLSearchParams(location.search);
     const queryParam = searchParams.get('q') || "";
@@ -71,9 +79,10 @@ const ExplorePage = () => {
         categories.filter(c =>
             c.gender === gender &&
             c.serviceType === activeType &&
-            c.bookingType === activeBooking
+            c.bookingType === activeBooking &&
+            checkAvailability(c, userCity)
         ),
-        [gender, activeType, activeBooking]
+        [gender, activeType, activeBooking, categories, checkAvailability, userCity]
     );
 
     // If activeCategory is not in the filtered list (e.g. after type change), reset it
@@ -93,14 +102,15 @@ const ExplorePage = () => {
             const matchesGender = s.gender === gender;
             const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesCategory = searchQuery.length > 0 ? true : s.category === activeCategory;
+            const isAvailable = checkAvailability(s, userCity);
 
             let matchesFilter = true;
             if (activeFilter === "Top Selling") matchesFilter = s.rating >= 4.7;
             else if (activeFilter === "Premium") matchesFilter = s.price > 2000;
 
-            return matchesCategory && matchesGender && matchesSearch && matchesFilter;
+            return matchesCategory && matchesGender && matchesSearch && matchesFilter && isAvailable;
         });
-    }, [activeCategory, gender, searchQuery, activeFilter]);
+    }, [activeCategory, gender, searchQuery, activeFilter, services, checkAvailability, userCity]);
 
     const handleTypeChange = (typeId) => {
         const firstCat = categories.find(c =>
@@ -137,8 +147,20 @@ const ExplorePage = () => {
                             className="w-full h-10 pl-10 bg-accent/50 rounded-xl border-none text-sm focus:ring-2 focus:ring-primary/20 transition-all"
                         />
                     </div>
-                    <button className="w-10 h-10 rounded-2xl bg-accent flex items-center justify-center">
-                        <Filter className="w-4 h-4" onClick={() => setIsFilterModalOpen(true)} />
+                    <button onClick={() => setIsFilterModalOpen(true)} className="w-10 h-10 rounded-2xl bg-accent flex items-center justify-center transition-all hover:bg-primary/10">
+                        <Filter className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => navigate("/cart")}
+                        className="w-10 h-10 rounded-2xl flex items-center justify-center relative transition-all active:scale-90 bg-accent hover:bg-primary/10 hover:text-primary"
+                        title="Cart"
+                    >
+                        <ShoppingBag className="w-4 h-4" />
+                        {totalItems > 0 && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center border-2 animate-in zoom-in bg-primary text-white border-background">
+                                {totalItems}
+                            </span>
+                        )}
                     </button>
                 </div>
             </header>
@@ -171,7 +193,7 @@ const ExplorePage = () => {
                         </div>
                     )}
 
-                    {SERVICE_TYPES.map((type) => (
+                    {availableServiceTypes.map((type) => (
                         <button
                             key={type.id}
                             onClick={() => {
@@ -281,9 +303,9 @@ const ExplorePage = () => {
                 </main>
             </div>
 
-            <FloatingCart isVisible={!isFilterModalOpen} />
             <ExpressCheckout />
             <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} />
+            <BottomNav />
         </div >
     );
 };

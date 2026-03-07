@@ -43,9 +43,6 @@ const ExpressCheckout = () => {
 
             const category = categories?.find(c => c.id === item.category);
 
-            // Instant bookings don't have advance payments
-            if ((category?.bookingType || item.bookingType || "").toLowerCase() === "instant") return;
-
             const advancePercent = category?.advancePercentage || 0;
 
             if (advancePercent > 0) {

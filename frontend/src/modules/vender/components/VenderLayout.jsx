@@ -14,6 +14,7 @@ import {
     X,
     ChevronRight,
     Store,
+    MessageSquare,
 } from "lucide-react";
 import { cn } from "@/modules/user/lib/utils";
 import { useVenderAuth } from "@/modules/vender/contexts/VenderAuthContext";
@@ -36,6 +37,7 @@ const VenderLayout = () => {
         { name: "Bookings", path: "/vender/bookings", icon: CalendarRange },
         { name: "Payouts", path: "/vender/payouts", icon: Wallet },
         { name: "SOS Monitor", path: "/vender/sos", icon: ShieldAlert },
+        { name: "Feedback", path: "/vender/feedback", icon: MessageSquare },
         { name: "Profile", path: "/vender/profile", icon: User },
     ];
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
@@ -10,16 +11,20 @@ const CategoryGrid = () => {
   const { gender } = useGenderTheme();
   const navigate = useNavigate();
   const { setBookingType } = useCart();
-  const { categories, serviceTypes: SERVICE_TYPES } = useUserModuleData();
+  const { user } = useAuth();
+  const { categories, serviceTypes: SERVICE_TYPES, checkAvailability } = useUserModuleData();
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
 
+  const userCity = user?.address?.city || null;
 
   // Group categories into Main Service Types for the home page
   const mainServiceTypes = SERVICE_TYPES.map(type => ({
     ...type,
     // Find the first category in this type to use as the entry point
     entryCategory: categories.find(c => c.serviceType === type.id && (c.gender === gender || !c.gender))?.id
-  })).filter(t => t.entryCategory);
+  }))
+    .filter(t => t.entryCategory)
+    .filter(t => checkAvailability(t, userCity));
 
   const handleServiceSelect = (type) => {
     // Default to instant for home page selections, but it will be overridden by explore page if needed

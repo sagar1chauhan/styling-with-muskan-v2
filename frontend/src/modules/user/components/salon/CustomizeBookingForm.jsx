@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, User, Phone, PartyPopper, Users, Calendar, Clock, CheckCircle2, Sparkles } from "lucide-react";
+import { X, Send, User, Phone, PartyPopper, Users, Calendar, Clock, CheckCircle2, Sparkles, LayoutGrid, CheckSquare, Square } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 
 const EVENT_TYPES = ["Bridal Event", "Birthday Party", "Kitty Party", "Corporate Event", "Festival Gathering", "Engagement", "Other"];
 
 const CustomizeBookingForm = ({ isOpen, onClose }) => {
     const { gender } = useGenderTheme();
+    const { categories, services } = useUserModuleData();
     const [formData, setFormData] = useState({
         name: "",
         phone: "",
@@ -15,6 +17,8 @@ const CustomizeBookingForm = ({ isOpen, onClose }) => {
         noOfPeople: "",
         date: "",
         timeSlot: "",
+        selectedCategoryId: "",
+        selectedServiceIds: [],
         notes: ""
     });
     const [submitted, setSubmitted] = useState(false);
@@ -42,6 +46,8 @@ const CustomizeBookingForm = ({ isOpen, onClose }) => {
         if (!formData.phone.trim() || formData.phone.length < 10) newErrors.phone = "Valid phone number required";
         if (!formData.eventType) newErrors.eventType = "Select event type";
         if (!formData.noOfPeople) newErrors.noOfPeople = "Enter number of people";
+        if (!formData.selectedCategoryId) newErrors.selectedCategoryId = "Select a service category";
+        if (formData.selectedServiceIds.length === 0) newErrors.selectedServiceIds = "Select at least one service";
         if (!formData.date) newErrors.date = "Select date";
         if (!formData.timeSlot) newErrors.timeSlot = "Select time slot";
         setErrors(newErrors);
@@ -53,9 +59,14 @@ const CustomizeBookingForm = ({ isOpen, onClose }) => {
 
         // Store enquiry (in production this would be an API call to admin)
         const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
+        const category = categories.find(c => c.id === formData.selectedCategoryId);
+        const selectedServices = services.filter(s => formData.selectedServiceIds.includes(s.id));
+
         enquiries.push({
             ...formData,
             id: `ENQ${Date.now()}`,
+            categoryName: category?.name,
+            selectedServices: selectedServices.map(s => ({ id: s.id, name: s.name })),
             status: "pending",
             createdAt: new Date().toISOString()
         });
@@ -66,7 +77,7 @@ const CustomizeBookingForm = ({ isOpen, onClose }) => {
 
     const handleClose = () => {
         setSubmitted(false);
-        setFormData({ name: "", phone: "", eventType: "", noOfPeople: "", date: "", timeSlot: "", notes: "" });
+        setFormData({ name: "", phone: "", eventType: "", noOfPeople: "", date: "", timeSlot: "", selectedCategoryId: "", selectedServiceIds: [], notes: "" });
         setErrors({});
         onClose();
     };
@@ -243,6 +254,63 @@ const CustomizeBookingForm = ({ isOpen, onClose }) => {
                                                 ))}
                                             </div>
                                             {errors.noOfPeople && <p className="text-[10px] text-destructive mt-1 font-bold">{errors.noOfPeople}</p>}
+                                        </div>
+
+                                        {/* Service Selection */}
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2 mb-2">
+                                                    <LayoutGrid className="w-3.5 h-3.5 text-purple-500" /> Service Category
+                                                </label>
+                                                <select
+                                                    value={formData.selectedCategoryId}
+                                                    onChange={e => {
+                                                        handleChange("selectedCategoryId", e.target.value);
+                                                        handleChange("selectedServiceIds", []); // Reset services when category changes
+                                                    }}
+                                                    className={`w-full h-12 px-3 rounded-xl bg-accent text-xs font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all border appearance-none ${errors.selectedCategoryId ? "border-destructive" : "border-border"}`}
+                                                >
+                                                    <option value="">Select Category</option>
+                                                    {categories.filter(c => c.gender === gender || c.gender === "unisex").map(c => (
+                                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                                    ))}
+                                                </select>
+                                                {errors.selectedCategoryId && <p className="text-[10px] text-destructive mt-1 font-bold">{errors.selectedCategoryId}</p>}
+                                            </div>
+
+                                            {formData.selectedCategoryId && (
+                                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="space-y-2">
+                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2 mb-2">
+                                                        <CheckSquare className="w-3.5 h-3.5 text-purple-500" /> Select Sub-Services
+                                                    </label>
+                                                    <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-1 hide-scrollbar">
+                                                        {services.filter(s => s.category === formData.selectedCategoryId).map(s => (
+                                                            <button
+                                                                key={s.id}
+                                                                onClick={() => {
+                                                                    const current = formData.selectedServiceIds;
+                                                                    const updated = current.includes(s.id)
+                                                                        ? current.filter(id => id !== s.id)
+                                                                        : [...current, s.id];
+                                                                    handleChange("selectedServiceIds", updated);
+                                                                }}
+                                                                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[10px] font-bold text-left transition-all border-2 ${formData.selectedServiceIds.includes(s.id)
+                                                                    ? "bg-purple-500/10 border-purple-500/30 text-purple-600"
+                                                                    : "glass border-border hover:border-purple-500/20"
+                                                                    }`}
+                                                            >
+                                                                {formData.selectedServiceIds.includes(s.id) ? (
+                                                                    <CheckSquare className="w-3 h-3 shrink-0" />
+                                                                ) : (
+                                                                    <Square className="w-3 h-3 shrink-0" />
+                                                                )}
+                                                                <span className="truncate">{s.name}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    {errors.selectedServiceIds && <p className="text-[10px] text-destructive mt-1 font-bold">{errors.selectedServiceIds}</p>}
+                                                </motion.div>
+                                            )}
                                         </div>
 
                                         {/* Date & Time */}

@@ -1,13 +1,23 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { Scissors, Sparkles, User, UserCheck } from "lucide-react";
 
 const GenderSelect = () => {
   const { setGender } = useGenderTheme();
   const navigate = useNavigate();
+  const [showPopup, setShowPopup] = useState(false);
 
   const handleSelect = (g) => {
+    if (g === "men") {
+        const isMenEnabled = JSON.parse(localStorage.getItem('swm_men_enabled') ?? 'false');
+        if (!isMenEnabled) {
+            setShowPopup(true);
+            setTimeout(() => setShowPopup(false), 2500);
+            return;
+        }
+    }
     setGender(g);
     navigate("/home");
   };
@@ -94,6 +104,20 @@ const GenderSelect = () => {
             <span className="font-bold text-xl text-white">Men</span>
             <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Hair & Grooming</p>
           </div>
+          <AnimatePresence>
+              {showPopup && (
+                  <motion.div 
+                      initial={{ opacity: 0, scale: 0.8 }} 
+                      animate={{ opacity: 1, scale: 1 }} 
+                      exit={{ opacity: 0, scale: 0.8 }} 
+                      className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 p-4 rounded-3xl"
+                  >
+                      <span className="text-2xl mb-2">🚧</span>
+                      <p className="font-bold text-white text-base">Currently Unavailable</p>
+                      <p className="text-[10px] text-white/80 mt-1 text-center font-medium">This service category is launching soon!</p>
+                  </motion.div>
+              )}
+          </AnimatePresence>
         </motion.button>
       </div>
 

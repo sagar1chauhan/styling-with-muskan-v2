@@ -9,7 +9,7 @@ import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext
 const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
     const { selectedSlot, setSelectedSlot, cartItems } = useCart();
     const { gender } = useGenderTheme();
-    const { providers: mockProviders } = useUserModuleData();
+    const { providers: mockProviders, bookingTypeConfig, categories } = useUserModuleData();
 
     const [tempDate, setTempDate] = useState(selectedSlot?.date || null);
     const [tempSlot, setTempSlot] = useState(selectedSlot?.time || null);
@@ -30,16 +30,39 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
         }
     }, [isOpen, availableProviders]);
 
-    const dates = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() + i);
-        return {
-            label: d.toLocaleDateString("en-IN", { weekday: "short" }),
-            date: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
-            key: d.toISOString().split("T")[0],
-            isToday: i === 0,
-        };
-    });
+    const dates = useMemo(() => {
+        let maxDays = 7; // Default
+
+        // Find if cart has scheduled or instant items
+        const hasScheduled = cartItems.some(item => {
+            const cat = categories?.find(c => c.id === item.category);
+            return (cat?.bookingType) === "scheduled";
+        });
+
+        // Config block defaults
+        const schedConfig = bookingTypeConfig?.find(b => b.id === "scheduled");
+        const instConfig = bookingTypeConfig?.find(b => b.id === "instant");
+
+        if (hasScheduled) {
+            maxDays = schedConfig?.maxAdvanceDays || 30;
+        } else {
+            // For Instant, take the max of allowedAdvanceDays array, default to 7
+            let allowedArray = instConfig?.allowedAdvanceDays || [2, 5, 7];
+            if (!Array.isArray(allowedArray)) allowedArray = [allowedArray];
+            maxDays = Math.max(...allowedArray, 7);
+        }
+
+        return Array.from({ length: maxDays }, (_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() + i);
+            return {
+                label: d.toLocaleDateString("en-IN", { weekday: "short" }),
+                date: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+                key: d.toISOString().split("T")[0],
+                isToday: i === 0,
+            };
+        });
+    }, [cartItems, categories, bookingTypeConfig]);
 
     const slots = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"];
 

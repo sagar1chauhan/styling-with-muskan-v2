@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, MapPin, Calendar, Clock, Tag, ChevronRight, CheckCircle2, ShoppingBag } from "lucide-react";
@@ -37,14 +37,26 @@ const BookingSummary = () => {
   const [couponError, setCouponError] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const handleApplyCoupon = () => {
+  // Auto apply coupon if redirected from CouponsPage
+  useEffect(() => {
+    const urlCoupon = searchParams.get('coupon');
+    if (urlCoupon) {
+      setCoupon(urlCoupon);
+      handleApplyCoupon(urlCoupon);
+    }
+  }, [location.search]);
+
+  const handleApplyCoupon = (codeToApply) => {
+    const targetCode = typeof codeToApply === 'string' ? codeToApply : coupon;
+    if (!targetCode) return;
+
     const adminCouponsRaw = localStorage.getItem("muskan-admin-coupons");
     const adminCoupons = adminCouponsRaw ? JSON.parse(adminCouponsRaw) : [];
 
-    // Convert both to uppercase for case-insensitive comparison
+    // Check code and status (in coupon system isActive is used but sometimes absent so check truthiness)
     const foundCoupon = adminCoupons.find(c =>
-      c.code.toUpperCase() === coupon.toUpperCase() &&
-      c.status === "ACTIVE"
+      c.code.toUpperCase() === targetCode.toUpperCase() &&
+      c.isActive !== false
     );
 
     if (!foundCoupon) {
@@ -63,14 +75,29 @@ const BookingSummary = () => {
     setCouponApplied(foundCoupon);
   };
 
-  const discount = couponApplied
-    ? (couponApplied.type === "FIXED" ? Number(couponApplied.value) : Math.round(displayTotalPrice * (Number(couponApplied.value) / 100)))
-    : 0;
+  let discount = 0;
+  if (couponApplied) {
+    if (couponApplied.discountType === "flat") {
+      discount = Number(couponApplied.discountValue);
+    } else {
+      discount = Math.round(displayTotalPrice * (Number(couponApplied.discountValue) / 100));
+      if (couponApplied.maxDiscount && couponApplied.maxDiscount > 0) {
+        discount = Math.min(discount, couponApplied.maxDiscount);
+      }
+    }
+  }
+
   const passedBookingData = location.state;
   const finalTotal = displayTotalPrice - discount;
 
   // Calculate advance based on passed data or fallback
-  const advanceAmount = passedBookingData?.advanceAmount || 0;
+  let advanceAmount = passedBookingData?.advanceAmount || 0;
+  
+  // Safeguard: Advance cannot exceed the final discounted total
+  if (advanceAmount > finalTotal) {
+      advanceAmount = finalTotal;
+  }
+  
   const remainingAfterAdvance = finalTotal - advanceAmount;
 
   const handlePay = () => {
@@ -243,8 +270,16 @@ const BookingSummary = () => {
 
         {/* Coupon */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="glass-strong rounded-2xl p-5 border border-border/50">
-          <div className="flex items-center gap-2 text-xs font-bold mb-4 uppercase tracking-wider text-muted-foreground">
-            <Tag className="w-4 h-4 text-primary" /> Offers & Benefits
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Tag className="w-4 h-4 text-primary" /> Offers & Benefits
+            </div>
+            <button
+              onClick={() => navigate(`/coupons?checkoutType=${checkoutType || ''}`)}
+              className="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider"
+            >
+              See All Offers
+            </button>
           </div>
           <div className="flex gap-2">
             <Input

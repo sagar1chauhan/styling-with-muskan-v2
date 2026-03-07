@@ -9,7 +9,6 @@ import SpotlightStories from "@/modules/user/components/salon/SpotlightStories";
 import OurGallery from "@/modules/user/components/salon/OurGallery";
 import Testimonials from "@/modules/user/components/salon/Testimonials";
 import BottomNav from "@/modules/user/components/salon/BottomNav";
-import FloatingCart from "@/modules/user/components/salon/FloatingCart";
 import ExpressCheckout from "@/modules/user/components/salon/ExpressCheckout";
 
 const HomePage = () => {
@@ -38,7 +37,6 @@ const HomePage = () => {
         </AnimatePresence>
       </main>
 
-      <FloatingCart />
       <ExpressCheckout />
       <BottomNav />
     </div>

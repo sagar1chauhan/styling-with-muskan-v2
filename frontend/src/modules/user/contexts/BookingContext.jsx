@@ -96,6 +96,17 @@ export const BookingProvider = ({ children }) => {
             }).join(", ")
             : "General";
 
+        let responseTimeMins = 20;
+        try {
+            const configRaw = localStorage.getItem("swm_bookingTypeConfig");
+            if (configRaw) {
+                const config = JSON.parse(configRaw);
+                const firstFound = config.find(c => c.providerResponseTime);
+                if (firstFound) responseTimeMins = firstFound.providerResponseTime;
+            }
+        } catch(e) {}
+        const expiresAt = assignedProvider ? new Date(Date.now() + responseTimeMins * 60 * 1000).toISOString() : null;
+
         setBookings(prev => {
             const next = [
                 {
@@ -108,7 +119,8 @@ export const BookingProvider = ({ children }) => {
                     serviceType: serviceTypeLabel,
                     customerName: newBooking.customerName || newBooking.address?.name || "Customer",
                     otp: Math.floor(1000 + Math.random() * 9000).toString(),
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    expiresAt: expiresAt
                 },
                 ...prev
             ];
@@ -125,8 +137,47 @@ export const BookingProvider = ({ children }) => {
         setBookings(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
     };
 
+    const acceptCustomizedBooking = (bookingData) => {
+        // 1. Add to user's local bookings
+        const newBooking = {
+            ...bookingData,
+            status: "accepted",
+            paymentStatus: "PAID", // Assume payment is done upon acceptance
+            acceptedAt: new Date().toISOString()
+        };
+        setBookings(prev => [newBooking, ...prev]);
+
+        // 2. Update global SP bookings
+        const spBookings = JSON.parse(localStorage.getItem("muskan-bookings") || "[]");
+        const updatedSpBookings = spBookings.map(b =>
+            b.id === bookingData.id ? { ...b, status: "accepted", paymentStatus: "PAID" } : b
+        );
+        localStorage.setItem("muskan-bookings", JSON.stringify(updatedSpBookings));
+
+        // 3. Remove from enquiries
+        const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
+        const filteredEnquiries = enquiries.filter(e => e.id !== bookingData.id);
+        localStorage.setItem("muskan-enquiries", JSON.stringify(filteredEnquiries));
+    };
+
+    const rejectCustomizedBooking = (bookingData) => {
+        // 1. Update global SP bookings
+        const spBookings = JSON.parse(localStorage.getItem("muskan-bookings") || "[]");
+        const updatedSpBookings = spBookings.map(b =>
+            b.id === bookingData.id ? { ...b, status: "rejected" } : b
+        );
+        localStorage.setItem("muskan-bookings", JSON.stringify(updatedSpBookings));
+
+        // 2. Remove from enquiries
+        const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
+        const filteredEnquiries = enquiries.filter(e => e.id !== bookingData.id);
+        localStorage.setItem("muskan-enquiries", JSON.stringify(filteredEnquiries));
+
+        // Ensure local list triggers an update basically by filtering rawEnquiries on next render
+    };
+
     return (
-        <BookingContext.Provider value={{ bookings, addBooking, cancelBooking, updateBooking }}>
+        <BookingContext.Provider value={{ bookings, addBooking, cancelBooking, updateBooking, acceptCustomizedBooking, rejectCustomizedBooking }}>
             {children}
         </BookingContext.Provider>
     );

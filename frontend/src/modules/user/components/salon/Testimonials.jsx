@@ -1,15 +1,10 @@
 import { motion } from "framer-motion";
 import { Star, Quote, ChevronLeft, ChevronRight, Facebook, Instagram, Twitter, Linkedin } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
-
-const testimonials = [
-    { id: 1, name: "Kabita Debnath", rating: 5, feedback: "My experience was fabulous. I used this app for the first time and loved it. This was a very wonderful experience from beginning. I would highly recommend her.", image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&crop=face" },
-    { id: 2, name: "Sneha Roy", rating: 4, feedback: "The beautician was very professional and skilled. I've tried other salon services, but this is the best. Their prices are reasonable and service is top-notch.", image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&crop=face" },
-    { id: 3, name: "Priya Sharma", rating: 5, feedback: "Excellent service at my doorstep! The team is always on time and maintain great hygiene. Highly recommend for bridal makeup.", image: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&crop=face" },
-    { id: 4, name: "Anjali Gupta", rating: 5, feedback: "Absolutely loved the facial! My skin feels so much better. The professional was very informative about skin types.", image: "https://images.unsplash.com/photo-1554151228-14d9def656e4?w=100&h=100&crop=face" },
-];
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 
 const Testimonials = () => {
+    const { testimonials } = useUserModuleData();
     const scrollRef = useRef(null);
     const [isHovered, setIsHovered] = useState(false);
 
@@ -41,6 +36,8 @@ const Testimonials = () => {
             scrollRef.current.scrollTo({ left: scrollTo, behavior: 'smooth' });
         }
     };
+
+    if (!testimonials || testimonials.length === 0) return null;
 
     return (
         <section className="py-8 md:py-16 px-4 bg-white border-t border-border/50 overflow-hidden">

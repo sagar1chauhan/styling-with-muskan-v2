@@ -23,9 +23,28 @@ export default function SPOversight() {
     const [providers, setProviders] = useState([]);
     const [search, setSearch] = useState("");
     const [tab, setTab] = useState("all");
+    const [categoryRequests, setCategoryRequests] = useState([]);
 
-    const load = () => setProviders(getAllServiceProviders());
+    const [feedback, setFeedback] = useState([]);
+    const load = () => {
+        setProviders(getAllServiceProviders());
+        setFeedback(JSON.parse(localStorage.getItem("muskan-feedback") || "[]"));
+        setCategoryRequests(JSON.parse(localStorage.getItem("muskan-category-requests") || "[]"));
+    };
     useEffect(() => { load(); }, []);
+
+    const getSPRating = (nameOrId) => {
+        const spFeedback = feedback.filter(f => (f.providerName === nameOrId || f.assignedProvider === nameOrId) && f.type === "customer_to_provider");
+        if (spFeedback.length === 0) return (4.0 + (nameOrId?.length || 0) % 10 / 10).toFixed(1);
+        const sum = spFeedback.reduce((a, b) => a + b.rating, 0);
+        return (sum / spFeedback.length).toFixed(1);
+    };
+
+    const getSPBookingCount = (nameOrId) => {
+        const bookings = JSON.parse(localStorage.getItem("muskan-bookings") || "[]");
+        const count = bookings.filter(b => b.assignedProvider === nameOrId || b.providerName === nameOrId).length;
+        return count || (nameOrId?.length || 5) * 12; // Fallback to mock
+    };
 
     const filtered = providers.filter(sp => {
         const ms = sp.name?.toLowerCase().includes(search.toLowerCase()) || sp.phone?.includes(search);
@@ -37,6 +56,13 @@ export default function SPOversight() {
     });
 
     const handleAction = (phone, status) => { updateSPStatus(phone, status); load(); };
+
+    const handleCategoryAction = (id, status) => {
+        const requests = JSON.parse(localStorage.getItem("muskan-category-requests") || "[]");
+        const updated = requests.map(req => req.id === id ? { ...req, status } : req);
+        localStorage.setItem("muskan-category-requests", JSON.stringify(updated));
+        load();
+    };
 
     return (
         <div className="space-y-6">
@@ -54,6 +80,7 @@ export default function SPOversight() {
                         <TabsTrigger value="all" className="rounded-lg text-xs font-bold">All ({providers.length})</TabsTrigger>
                         <TabsTrigger value="pending" className="rounded-lg text-xs font-bold">Pending</TabsTrigger>
                         <TabsTrigger value="approved" className="rounded-lg text-xs font-bold">Active</TabsTrigger>
+                        <TabsTrigger value="category-requests" className="rounded-lg text-xs font-bold bg-amber-500/10 text-amber-600">Cat. Requests ({categoryRequests.filter(r => r.status === 'pending').length})</TabsTrigger>
                         <TabsTrigger value="blocked" className="rounded-lg text-xs font-bold">Blocked</TabsTrigger>
                     </TabsList>
                     <div className="relative flex-1 max-w-sm">
@@ -113,11 +140,11 @@ export default function SPOversight() {
                                                 <div className="grid grid-cols-3 md:grid-cols-6 gap-2 pt-3 border-t border-border/50">
                                                     <div className="bg-muted/30 p-2 rounded-xl">
                                                         <p className="text-[9px] font-bold text-muted-foreground flex items-center gap-1"><Star className="h-3 w-3" /> Rating</p>
-                                                        <p className="text-sm font-black mt-0.5">{(4.0 + (sp.name?.length || 0) % 10 / 10).toFixed(1)}</p>
+                                                        <p className="text-sm font-black mt-0.5 text-amber-500">{getSPRating(sp.name || sp.id)}</p>
                                                     </div>
                                                     <div className="bg-muted/30 p-2 rounded-xl">
                                                         <p className="text-[9px] font-bold text-muted-foreground flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Bookings</p>
-                                                        <p className="text-sm font-black mt-0.5">{(sp.name?.length || 5) * 12}</p>
+                                                        <p className="text-sm font-black mt-0.5 text-blue-500">{getSPBookingCount(sp.name || sp.id)}</p>
                                                     </div>
                                                     <div className="bg-muted/30 p-2 rounded-xl">
                                                         <p className="text-[9px] font-bold text-muted-foreground flex items-center gap-1"><XCircle className="h-3 w-3" /> Cancelled</p>
@@ -142,6 +169,49 @@ export default function SPOversight() {
                                 </motion.div>
                             ))}
                         </motion.div>
+                    )}
+                </TabsContent>
+
+                <TabsContent value="category-requests" className="mt-0">
+                    {categoryRequests.length === 0 ? (
+                        <Card className="border-border/50"><CardContent className="py-16 text-center">
+                            <RefreshCw className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                            <p className="text-sm font-bold text-muted-foreground">No category requests found</p>
+                        </CardContent></Card>
+                    ) : (
+                        <div className="space-y-2">
+                            {categoryRequests.map(req => (
+                                <Card key={req.id} className="border-border/50 shadow-none hover:border-primary/30 transition-all">
+                                    <CardContent className="p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                                                <Award className="h-5 w-5 text-amber-600" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-sm font-bold">{req.providerName}</h3>
+                                                    <Badge className={req.status === 'pending' ? 'bg-amber-100 text-amber-700' : req.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                                                        {req.status.toUpperCase()}
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground mt-0.5">Current: <span className="font-bold text-foreground">{req.currentCategory}</span> • Requesting <span className="font-bold text-primary">New Category Access</span></p>
+                                                <p className="text-[10px] text-muted-foreground font-medium mt-1">Ref ID: {req.id} • {new Date(req.createdAt).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {req.status === 'pending' ? (
+                                                <>
+                                                    <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700 font-bold" onClick={() => handleCategoryAction(req.id, 'approved')}>Approve</Button>
+                                                    <Button size="sm" variant="outline" className="h-8 border-red-500/30 text-red-400 font-bold" onClick={() => handleCategoryAction(req.id, 'rejected')}>Reject</Button>
+                                                </>
+                                            ) : (
+                                                <Button size="sm" variant="ghost" className="h-8 text-xs font-bold" disabled>Handled</Button>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
                     )}
                 </TabsContent>
             </Tabs>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
     Card,
@@ -30,10 +30,24 @@ import { useProviderAuth } from "../contexts/ProviderAuthContext";
 const ProviderDashboard = () => {
     const { activeBookings, completedBookings, incomingBookings } = useProviderBookings();
     const { provider } = useProviderAuth();
+    const [realRating, setRealRating] = useState(provider?.rating || 4.5);
+
+    useEffect(() => {
+        const feedback = JSON.parse(localStorage.getItem('muskan-feedback') || '[]');
+        const spFeedback = feedback.filter(f =>
+            (f.providerName === provider?.name || f.assignedProvider === provider?.id) &&
+            f.type === 'customer_to_provider'
+        );
+
+        if (spFeedback.length > 0) {
+            const sum = spFeedback.reduce((a, b) => a + b.rating, 0);
+            setRealRating(sum / spFeedback.length);
+        }
+    }, [provider]);
 
     const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
     const activeJobsCount = activeBookings.length;
-    const providerGrade = provider?.rating >= 4.5 ? "Elite Pro" : (provider?.rating >= 4.0 ? "Pro" : "New");
+    const providerGrade = realRating >= 4.5 ? "Elite Pro" : (realRating >= 4.0 ? "Pro" : "New");
 
     return (
         <div className="flex flex-1 w-full flex-col gap-4 md:gap-8 pt-4 md:pt-0">
@@ -152,7 +166,7 @@ const ProviderDashboard = () => {
                                         </span>
                                         {(!job.customerBookingCount || job.customerBookingCount <= 1) ? (
                                             <span className="text-[9px] w-fit font-black uppercase px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-200 mt-1">
-                                                UnVerify
+                                                Newly
                                             </span>
                                         ) : (
                                             <span className="text-[9px] w-fit font-black uppercase px-2 py-0.5 flex items-center gap-1 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 mt-1">

@@ -12,11 +12,13 @@ import { Heart } from "lucide-react";
 const PopularServices = () => {
   const { gender } = useGenderTheme();
   const { addToCart } = useCart();
-  const { isLoggedIn, setIsLoginModalOpen } = useAuth();
+  const { isLoggedIn, setIsLoginModalOpen, user } = useAuth();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const navigate = useNavigate();
-  const { services } = useUserModuleData();
-  const filtered = services.filter((s) => s.gender === gender);
+  const { services, checkAvailability } = useUserModuleData();
+
+  const userCity = user?.address?.city || null;
+  const filtered = services.filter((s) => s.gender === gender && checkAvailability(s, userCity));
 
   const handleAddToCart = (service) => {
     if (!isLoggedIn) {

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Plus, Edit2, Trash2, Search, X, Camera, Image as ImageIcon } from "lucide-react";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
@@ -96,11 +96,266 @@ const ImageUpload = ({ label, value, onChange, className = "" }) => {
     );
 };
 
+const BookingRulesConfig = ({ config, onUpdate }) => {
+    const [localConfig, setLocalConfig] = useState(config || []);
+
+    useEffect(() => {
+        setLocalConfig(config || []);
+    }, [config]);
+
+    const handleSave = () => {
+        onUpdate(localConfig);
+        alert("Booking rules updated successfully!");
+    };
+
+    const updateItem = (id, key, value) => {
+        setLocalConfig(prev => prev.map(item => item.id === id ? { ...item, [key]: value } : item));
+    };
+
+    return (
+        <div className="bg-background rounded-2xl border border-border shadow-sm overflow-hidden p-6 space-y-6">
+            <h2 className="text-lg font-bold text-foreground">Configure Booking Rules</h2>
+
+            <div className="grid md:grid-cols-2 gap-6">
+                {localConfig.map(item => (
+                    <div key={item.id} className="p-4 rounded-xl border border-border/60 bg-muted/20 space-y-4">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="text-2xl">{item.icon}</span>
+                            <div>
+                                <h3 className="font-bold text-foreground">{item.label}</h3>
+                                <p className="text-xs text-muted-foreground">{item.description}</p>
+                            </div>
+                        </div>
+
+                        {item.id === "scheduled" && (
+                            <div>
+                                <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Max Advance Booking Days</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={item.maxAdvanceDays || 30}
+                                    onChange={(e) => updateItem(item.id, 'maxAdvanceDays', Number(e.target.value))}
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
+                                />
+                                <p className="text-[10px] text-muted-foreground mt-1">Users can book slots up to this many days in advance (e.g., 20, 30).</p>
+                            </div>
+                        )}
+
+                        {item.id === "instant" && (
+                            <div>
+                                <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Allowed Advance Days (Comma Separated)</label>
+                                <input
+                                    type="text"
+                                    value={Array.isArray(item.allowedAdvanceDays) ? item.allowedAdvanceDays.join(', ') : (item.allowedAdvanceDays || "2, 5, 7")}
+                                    onChange={(e) => {
+                                        const values = e.target.value.split(',').map(v => Number(v.trim())).filter(v => !isNaN(v) && v > 0);
+                                        updateItem(item.id, 'allowedAdvanceDays', values);
+                                    }}
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
+                                />
+                                <p className="text-[10px] text-muted-foreground mt-1">Specific days available before slot booking (e.g., 2, 5, 7).</p>
+                            </div>
+                        )}
+
+                        {(item.id !== "scheduled" && item.id !== "instant") && (
+                            <p className="text-xs text-muted-foreground italic">No custom rules configured yet for this type.</p>
+                        )}
+                        
+                        <div className="pt-2 border-t border-border/40 mt-4">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Provider Response Time (Mins)</label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={item.providerResponseTime || 20}
+                                onChange={(e) => updateItem(item.id, 'providerResponseTime', Number(e.target.value))}
+                                className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
+                            />
+                            <p className="text-[10px] text-muted-foreground mt-1">Time allowed for the provider to accept before it vanishes.</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="pt-2 flex justify-end">
+                <Button onClick={handleSave} className="bg-primary text-primary-foreground font-bold">
+                    Save Booking Rules
+                </Button>
+            </div>
+        </div>
+    );
+};
+
+const SystemSettingsConfig = () => {
+    const [menEnabled, setMenEnabled] = useState(() => {
+        return JSON.parse(localStorage.getItem('swm_men_enabled') ?? 'false');
+    });
+
+    const handleToggle = () => {
+        const newValue = !menEnabled;
+        setMenEnabled(newValue);
+        localStorage.setItem('swm_men_enabled', JSON.stringify(newValue));
+        alert(newValue ? "Men Category is now Enabled!" : "Men Category has been Disabled.");
+    };
+
+    return (
+        <div className="bg-background rounded-2xl border border-border shadow-sm overflow-hidden p-6 space-y-6">
+            <h2 className="text-lg font-bold text-foreground">Global System Settings</h2>
+            <div className="p-4 rounded-xl border border-border/60 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h3 className="font-bold text-foreground">Enable Men Section</h3>
+                    <p className="text-xs text-muted-foreground mt-1">If disabled, users cannot access the Men panel. They will see a 'coming soon' message.</p>
+                </div>
+                <button 
+                    onClick={handleToggle}
+                    title={menEnabled ? 'Disable' : 'Enable'}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 shadow-inner border border-black/10 ${menEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                    <span className={`${menEnabled ? 'translate-x-[22px]' : 'translate-x-[2px]'} inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow`} />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const AvailabilityEditor = ({ formData, setFormData }) => {
+    const handleAddZone = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = e.target.value.trim();
+            if (val && !(formData.zones || []).includes(val)) {
+                setFormData({ ...formData, zones: [...(formData.zones || []), val] });
+            }
+            e.target.value = '';
+        }
+    };
+
+    const removeZone = (idx) => {
+        setFormData({ ...formData, zones: formData.zones.filter((_, i) => i !== idx) });
+    };
+
+    const addDisabledDate = () => {
+        setFormData({
+            ...formData,
+            disabledDates: [...(formData.disabledDates || []), { date: '', startTime: '09:00', endTime: '21:00', fullDay: true }]
+        });
+    };
+
+    const updateDisabledDate = (idx, key, value) => {
+        const newDates = [...(formData.disabledDates || [])];
+        newDates[idx] = { ...newDates[idx], [key]: value };
+        // Clean up times if fullDay
+        if (key === 'fullDay' && value) {
+            newDates[idx].startTime = '00:00';
+            newDates[idx].endTime = '23:59';
+        }
+        setFormData({ ...formData, disabledDates: newDates });
+    };
+
+    const removeDisabledDate = (idx) => {
+        setFormData({ ...formData, disabledDates: formData.disabledDates.filter((_, i) => i !== idx) });
+    };
+
+    return (
+        <div className="space-y-4 p-4 border border-border bg-muted/20 rounded-xl">
+            <h4 className="text-sm font-bold text-foreground">Availability Rules</h4>
+
+            {/* Zones */}
+            <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Available Zones (Cities)</label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                    {(formData.zones || []).map((zone, idx) => (
+                        <span key={idx} className="bg-primary/10 text-primary px-2 py-1 rounded-md text-xs flex items-center gap-1 font-bold">
+                            {zone}
+                            <button type="button" onClick={() => removeZone(idx)} className="text-primary hover:text-red-500"><X className="w-3 h-3" /></button>
+                        </span>
+                    ))}
+                    {!(formData.zones || []).length && (
+                        <span className="text-[10px] text-muted-foreground italic">Available in all zones</span>
+                    )}
+                </div>
+                <input
+                    type="text"
+                    placeholder="Type city name and press Enter (e.g. Indore)..."
+                    onKeyDown={handleAddZone}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
+                />
+            </div>
+
+            {/* Disabled Dates/Times */}
+            <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase">Disable specific dates & times</label>
+                    <button type="button" onClick={addDisabledDate} className="text-[10px] bg-primary text-primary-foreground px-2 py-1 rounded hover:opacity-90 transition-opacity">
+                        + Add Exception
+                    </button>
+                </div>
+
+                <div className="space-y-3">
+                    {(formData.disabledDates || []).map((dateObj, idx) => (
+                        <div key={idx} className="flex flex-col gap-2 p-3 bg-background border border-border rounded-xl relative">
+                            <button type="button" onClick={() => removeDisabledDate(idx)} className="absolute top-2 right-2 text-red-500 hover:text-red-600">
+                                <Trash2 className="w-3 h-3" />
+                            </button>
+
+                            <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                                <input
+                                    type="date"
+                                    value={dateObj.date}
+                                    onChange={e => updateDisabledDate(idx, 'date', e.target.value)}
+                                    className="w-full px-2 py-1 bg-muted/50 border border-border rounded text-xs text-foreground focus:outline-none"
+                                />
+                                <label className="flex items-center gap-1 text-[10px] text-foreground font-medium">
+                                    <input
+                                        type="checkbox"
+                                        checked={dateObj.fullDay}
+                                        onChange={e => updateDisabledDate(idx, 'fullDay', e.target.checked)}
+                                        className="w-3 h-3 rounded text-primary"
+                                    />
+                                    Full Day
+                                </label>
+                            </div>
+
+                            {!dateObj.fullDay && (
+                                <div className="grid grid-cols-2 gap-2 mt-1">
+                                    <div>
+                                        <p className="text-[9px] text-muted-foreground mb-0.5">Start Time</p>
+                                        <input
+                                            type="time"
+                                            value={dateObj.startTime}
+                                            onChange={e => updateDisabledDate(idx, 'startTime', e.target.value)}
+                                            className="w-full px-2 py-1 bg-muted/50 border border-border rounded text-xs text-foreground focus:outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] text-muted-foreground mb-0.5">End Time</p>
+                                        <input
+                                            type="time"
+                                            value={dateObj.endTime}
+                                            onChange={e => updateDisabledDate(idx, 'endTime', e.target.value)}
+                                            className="w-full px-2 py-1 bg-muted/50 border border-border rounded text-xs text-foreground focus:outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                    {!(formData.disabledDates || []).length && (
+                        <p className="text-[10px] text-muted-foreground italic">No exceptions added. Item is fully available within its zone.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const UserModuleManagement = () => {
     const {
         categories, addCategory, updateCategory, deleteCategory,
         services, addService, updateService, deleteService,
-        serviceTypes, bookingTypeConfig, addServiceType, updateServiceType, deleteServiceType
+        serviceTypes, bookingTypeConfig, updateBookingTypeConfig, addServiceType, updateServiceType, deleteServiceType,
+        spotlights, addSpotlight, updateSpotlight, deleteSpotlight,
+        gallery, addGallery, updateGallery, deleteGallery,
+        testimonials, addTestimonial, updateTestimonial, deleteTestimonial
     } = useUserModuleData();
 
     const [activeTab, setActiveTab] = useState("parent_categories");
@@ -115,9 +370,15 @@ const UserModuleManagement = () => {
     const handleOpenAdd = () => {
         setEditingItem(null);
         if (activeTab === "parent_categories") {
-            setFormData({ label: "", description: "", image: "", color: "from-gray-400 to-gray-500", textColor: "text-gray-600", bgColor: "bg-gray-100" });
+            setFormData({ label: "", description: "", image: "", color: "from-gray-400 to-gray-500", textColor: "text-gray-600", bgColor: "bg-gray-100", zones: [], disabledDates: [] });
         } else if (activeTab === "categories") {
-            setFormData({ name: "", gender: "women", bookingType: "instant", serviceType: "skin", image: "", icon: "", advancePercentage: 0 });
+            setFormData({ name: "", gender: "women", bookingType: "instant", serviceType: "skin", image: "", icon: "", advancePercentage: 0, zones: [], disabledDates: [] });
+        } else if (activeTab === "spotlights") {
+            setFormData({ title: "", category: "Makeup", video: "", poster: "" });
+        } else if (activeTab === "gallery") {
+            setFormData({ title: "", image: "" });
+        } else if (activeTab === "testimonials") {
+            setFormData({ name: "", rating: 5, feedback: "", image: "" });
         } else {
             setFormData({
                 name: "",
@@ -130,7 +391,9 @@ const UserModuleManagement = () => {
                 image: "",
                 includes: "",
                 steps: [],
-                gallery: [] // New field
+                gallery: [],
+                zones: [],
+                disabledDates: []
             });
         }
         setIsAddModalOpen(true);
@@ -153,6 +416,9 @@ const UserModuleManagement = () => {
         if (activeTab === "parent_categories") deleteServiceType(id);
         else if (activeTab === "categories") deleteCategory(id);
         else if (activeTab === "services") deleteService(id);
+        else if (activeTab === "spotlights") deleteSpotlight(id);
+        else if (activeTab === "gallery") deleteGallery(id);
+        else if (activeTab === "testimonials") deleteTestimonial(id);
     };
 
     const handleSave = (e) => {
@@ -169,10 +435,16 @@ const UserModuleManagement = () => {
             if (activeTab === "parent_categories") addServiceType(payload);
             else if (activeTab === "categories") addCategory(payload);
             else if (activeTab === "services") addService(payload);
+            else if (activeTab === "spotlights") addSpotlight(payload);
+            else if (activeTab === "gallery") addGallery(payload);
+            else if (activeTab === "testimonials") addTestimonial(payload);
         } else {
             if (activeTab === "parent_categories") updateServiceType(payload.id, payload);
             else if (activeTab === "categories") updateCategory(payload.id, payload);
             else if (activeTab === "services") updateService(payload.id, payload);
+            else if (activeTab === "spotlights") updateSpotlight(payload.id, payload);
+            else if (activeTab === "gallery") updateGallery(payload.id, payload);
+            else if (activeTab === "testimonials") updateTestimonial(payload.id, payload);
         }
         setIsAddModalOpen(false);
     };
@@ -180,11 +452,14 @@ const UserModuleManagement = () => {
     const getDataForTab = () => {
         if (activeTab === "parent_categories") return serviceTypes || [];
         if (activeTab === "categories") return categories || [];
+        if (activeTab === "spotlights") return spotlights || [];
+        if (activeTab === "gallery") return gallery || [];
+        if (activeTab === "testimonials") return testimonials || [];
         return services || [];
     };
 
     const filteredData = getDataForTab().filter(item =>
-        (item.name || item.label || "").toLowerCase().includes(searchTerm.toLowerCase())
+        (item.name || item.label || item.title || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const handleGalleryUpload = (e) => {
@@ -210,98 +485,136 @@ const UserModuleManagement = () => {
 
             <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
                 <div className="flex bg-muted p-1 rounded-xl w-full sm:w-auto overflow-x-auto hide-scrollbar text-foreground border border-border">
-                    {["parent_categories", "categories", "services"].map(tab => (
+                    {["parent_categories", "categories", "services", "spotlights", "gallery", "testimonials", "booking_rules", "system_settings"].map(tab => (
                         <button key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`flex-1 sm:px-6 py-2 px-3 whitespace-nowrap rounded-lg text-sm font-medium transition-all ${activeTab === tab ? "bg-background text-foreground shadow" : "text-muted-foreground hover:text-foreground"}`}>
-                            {tab === "parent_categories" ? "Parent Categories" : tab === "categories" ? "Subcategories" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                            {tab === "parent_categories" ? "Parent Categories" : tab === "categories" ? "Subcategories" : tab === "booking_rules" ? "Booking Rules" : tab === "system_settings" ? "System Core" : tab.charAt(0).toUpperCase() + tab.slice(1)}
                         </button>
                     ))}
                 </div>
 
-                <div className="flex w-full sm:w-auto gap-3">
-                    <div className="relative flex-1 sm:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <input type="text" placeholder={`Search ${activeTab}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground" />
+                {activeTab !== "booking_rules" && activeTab !== "system_settings" && (
+                    <div className="flex w-full sm:w-auto gap-3">
+                        <div className="relative flex-1 sm:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <input type="text" placeholder={`Search ${activeTab}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground" />
+                        </div>
+                        <Button onClick={handleOpenAdd} className="bg-primary text-primary-foreground rounded-xl">
+                            <Plus className="h-4 w-4 mr-2" /> Add New
+                        </Button>
                     </div>
-                    <Button onClick={handleOpenAdd} className="bg-primary text-primary-foreground rounded-xl">
-                        <Plus className="h-4 w-4 mr-2" /> Add New
-                    </Button>
-                </div>
+                )}
             </div>
 
-            <div className="bg-background rounded-2xl border border-border shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-                            <tr>
-                                <th className="px-6 py-4 text-left font-semibold">Image/Icon</th>
-                                <th className="px-6 py-4 text-left font-semibold">Name</th>
-                                {activeTab !== "parent_categories" && <th className="px-6 py-4 text-left font-semibold hidden md:table-cell">Details</th>}
-                                {activeTab === "parent_categories" && <th className="px-6 py-4 text-left font-semibold hidden md:table-cell">Description</th>}
-                                {activeTab === "services" && <th className="px-6 py-4 text-left font-semibold hidden sm:table-cell">Price</th>}
-                                <th className="px-6 py-4 text-right font-semibold">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/50">
-                            {filteredData.map((item, i) => (
-                                <motion.tr key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                                    className="hover:bg-accent/5 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden border border-border">
-                                            {item.image ? (
-                                                <img src={item.image} alt={item.name || item.label} className="h-full w-full object-cover" />
-                                            ) : (
-                                                <span className="text-xl">{item.icon || "📄"}</span>
+            {activeTab !== "booking_rules" && activeTab !== "system_settings" ? (
+                <div className="bg-background rounded-2xl border border-border shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                                <tr>
+                                    <th className="px-3 py-3 md:px-4 text-left font-semibold w-20">Image/Icon</th>
+                                    <th className="px-3 py-3 md:px-4 text-left font-semibold">Name/Title</th>
+                                    {activeTab !== "parent_categories" && activeTab !== "spotlights" && activeTab !== "gallery" && activeTab !== "testimonials" && <th className="px-3 py-3 md:px-4 text-left font-semibold hidden md:table-cell">Details</th>}
+                                    {activeTab === "parent_categories" && <th className="px-3 py-3 md:px-4 text-left font-semibold hidden md:table-cell">Description</th>}
+                                    {activeTab === "testimonials" && <th className="px-3 py-3 md:px-4 text-left font-semibold hidden md:table-cell">Feedback</th>}
+                                    {activeTab === "services" && <th className="px-3 py-3 md:px-4 text-left font-semibold hidden sm:table-cell">Price</th>}
+                                    {(activeTab !== "spotlights" && activeTab !== "gallery" && activeTab !== "testimonials") && <th className="px-3 py-3 md:px-4 text-left font-semibold">Availability</th>}
+                                    <th className="px-3 py-3 md:px-4 text-right font-semibold">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/50">
+                                {filteredData.map((item, i) => (
+                                    <motion.tr key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                                        className="hover:bg-accent/5 transition-colors">
+                                        <td className="px-3 py-3 md:px-4">
+                                            <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden border border-border">
+                                                {(item.image || item.poster) ? (
+                                                    <img src={item.image || item.poster} alt={item.name || item.label || item.title} className="h-full w-full object-cover" />
+                                                ) : (
+                                                    <span className="text-xl">{item.icon || "📄"}</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-3 md:px-4">
+                                            <p className="font-semibold text-sm text-foreground line-clamp-1">{item.name || item.label || item.title}</p>
+                                            {(activeTab !== "parent_categories" && activeTab !== "spotlights" && activeTab !== "gallery" && activeTab !== "testimonials") && (
+                                                <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1 ${item.gender === 'women' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                    {item.gender}
+                                                </span>
                                             )}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <p className="font-semibold text-sm text-foreground">{item.name || item.label}</p>
-                                        {activeTab !== "parent_categories" && (
-                                            <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1 ${item.gender === 'women' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                {item.gender}
-                                            </span>
+                                            {activeTab === "spotlights" && (
+                                                 <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1 bg-purple-100 text-purple-700">
+                                                    {item.category}
+                                                </span>
+                                            )}
+                                        </td>
+                                        {(activeTab !== "parent_categories" && activeTab !== "spotlights" && activeTab !== "gallery" && activeTab !== "testimonials") && (
+                                            <td className="px-3 py-3 md:px-4 hidden md:table-cell">
+                                                {activeTab === "categories" ? (
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-xs text-muted-foreground">Parent: <span className="font-medium text-foreground capitalize">{serviceTypes?.find(st => st.id === item.serviceType)?.label || item.serviceType || 'Unknown'}</span></span>
+                                                        <span className="text-xs text-muted-foreground">Type: <span className="font-medium text-foreground">{bookingTypeConfig?.find(bt => bt.id === item.bookingType)?.label || item.bookingType || 'Unknown'}</span></span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[11px] text-muted-foreground capitalize">{item.category}</span>
+                                                )}
+                                            </td>
                                         )}
-                                    </td>
-                                    {activeTab !== "parent_categories" && (
-                                        <td className="px-6 py-4 hidden md:table-cell">
-                                            {activeTab === "categories" ? (
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-xs text-muted-foreground">Parent: <span className="font-medium text-foreground capitalize">{serviceTypes?.find(st => st.id === item.serviceType)?.label || item.serviceType || 'Unknown'}</span></span>
-                                                    <span className="text-xs text-muted-foreground">Type: <span className="font-medium text-foreground">{bookingTypeConfig?.find(bt => bt.id === item.bookingType)?.label || item.bookingType || 'Unknown'}</span></span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-[11px] text-muted-foreground capitalize">{item.category}</span>
-                                            )}
+                                        {activeTab === "parent_categories" && (
+                                            <td className="px-3 py-3 md:px-4 hidden md:table-cell text-xs text-muted-foreground">
+                                                <div className="line-clamp-2 max-w-[250px]">{item.description}</div>
+                                            </td>
+                                        )}
+                                        {activeTab === "testimonials" && (
+                                            <td className="px-3 py-3 md:px-4 hidden md:table-cell text-xs text-muted-foreground">
+                                                <div className="line-clamp-2 max-w-[250px]">{item.feedback}</div>
+                                            </td>
+                                        )}
+                                        {activeTab === "services" && (
+                                            <td className="px-3 py-3 md:px-4 hidden sm:table-cell font-medium text-sm text-foreground">
+                                                ₹{item.price}
+                                            </td>
+                                        )}
+                                        {(activeTab !== "spotlights" && activeTab !== "gallery" && activeTab !== "testimonials") && (
+                                            <td className="px-3 py-3 md:px-4">
+                                            <div className="flex flex-col gap-1">
+                                                {item.zones && item.zones.length > 0 ? (
+                                                    <span className="inline-flex w-fit px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold uppercase tracking-tight">
+                                                        {item.zones.length} Zones
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex w-fit px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[9px] font-bold uppercase tracking-tight">Global</span>
+                                                )}
+                                                {item.disabledDates && item.disabledDates.length > 0 && (
+                                                    <span className="inline-flex w-fit px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 text-[9px] font-bold uppercase tracking-tight">
+                                                        {item.disabledDates.length} Exceptions
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
-                                    )}
-                                    {activeTab === "parent_categories" && (
-                                        <td className="px-6 py-4 hidden md:table-cell text-xs text-muted-foreground">
-                                            {item.description}
+                                        )}
+                                        <td className="px-3 py-3 md:px-4 whitespace-nowrap text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 className="h-4 w-4" /></button>
+                                                <button onClick={() => handleDelete(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="h-4 w-4" /></button>
+                                            </div>
                                         </td>
-                                    )}
-                                    {activeTab === "services" && (
-                                        <td className="px-6 py-4 hidden sm:table-cell font-medium text-sm text-foreground">
-                                            ₹{item.price}
-                                        </td>
-                                    )}
-                                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 className="h-4 w-4" /></button>
-                                            <button onClick={() => handleDelete(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="h-4 w-4" /></button>
-                                        </div>
-                                    </td>
-                                </motion.tr>
-                            ))}
-                            {filteredData.length === 0 && (
-                                <tr><td colSpan={10} className="px-6 py-12 text-center text-muted-foreground text-sm">No {activeTab} found matching your search.</td></tr>
-                            )}
-                        </tbody>
-                    </table>
+                                    </motion.tr>
+                                ))}
+                                {filteredData.length === 0 && (
+                                    <tr><td colSpan={10} className="px-6 py-12 text-center text-muted-foreground text-sm">No {activeTab} found matching your search.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
+            ) : activeTab === "system_settings" ? (
+                <SystemSettingsConfig />
+            ) : (
+                <BookingRulesConfig config={bookingTypeConfig} onUpdate={updateBookingTypeConfig} />
+            )}
 
             {/* Modal for Add/Edit */}
             {isAddModalOpen && (
@@ -309,12 +622,70 @@ const UserModuleManagement = () => {
                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                         className="bg-background w-full max-w-lg rounded-2xl shadow-xl border border-border overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
-                            <h3 className="font-bold text-lg text-foreground">{editingItem ? `Edit ${activeTab === 'categories' ? 'Subcategory' : activeTab === 'parent_categories' ? 'Parent Category' : 'Service'}` : `Add ${activeTab === 'categories' ? 'Subcategory' : activeTab === 'parent_categories' ? 'Parent Category' : 'Service'}`}</h3>
+                            <h3 className="font-bold text-lg text-foreground">{editingItem ? `Edit ${activeTab.replace("_", " ")}` : `Add ${activeTab.replace("_", " ")}`}</h3>
                             <button type="button" onClick={() => setIsAddModalOpen(false)} className="p-2 text-muted-foreground hover:bg-muted rounded-full"><X className="h-5 w-5" /></button>
                         </div>
 
                         <form onSubmit={handleSave} className="p-4 space-y-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
-                            {activeTab === "parent_categories" ? (
+                            {activeTab === "spotlights" || activeTab === "gallery" || activeTab === "testimonials" ? (
+                                <div className="space-y-4">
+                                     <div className="space-y-4 text-foreground">
+                                        {(activeTab === "spotlights" || activeTab === "gallery") && (
+                                            <div>
+                                                <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Title</label>
+                                                <input required type="text" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })}
+                                                    className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground" />
+                                            </div>
+                                        )}
+                                        {activeTab === "testimonials" && (
+                                            <div>
+                                                <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Customer Name</label>
+                                                <input required type="text" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                                    className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground" />
+                                            </div>
+                                        )}
+                                        {activeTab === "spotlights" && (
+                                            <div>
+                                                <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Category</label>
+                                                <input required type="text" value={formData.category || ''} onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                                    className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground" />
+                                            </div>
+                                        )}
+                                        {activeTab === "testimonials" && (
+                                            <div>
+                                                <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Rating (Out of 5)</label>
+                                                <input required type="number" min="1" max="5" value={formData.rating || ''} onChange={e => setFormData({ ...formData, rating: Number(e.target.value) })}
+                                                    className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground" />
+                                            </div>
+                                        )}
+                                        {activeTab === "testimonials" && (
+                                            <div>
+                                                <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Feedback</label>
+                                                <textarea required rows={4} value={formData.feedback || ''} onChange={e => setFormData({ ...formData, feedback: e.target.value })}
+                                                    className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground" />
+                                            </div>
+                                        )}
+                                        {activeTab === "spotlights" && (
+                                            <div>
+                                                <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Video URL (mp4)</label>
+                                                <input required type="text" value={formData.video || ''} onChange={e => setFormData({ ...formData, video: e.target.value })}
+                                                    className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground" />
+                                            </div>
+                                        )}
+                                        <ImageUpload
+                                            label={activeTab === "spotlights" ? "Video Poster Image" : activeTab === "gallery" ? "Gallery Image" : "Customer Image"}
+                                            value={activeTab === "spotlights" ? formData.poster : formData.image}
+                                            onChange={(val) => {
+                                                if (activeTab === "spotlights") {
+                                                    setFormData({ ...formData, poster: val });
+                                                } else {
+                                                    setFormData({ ...formData, image: val });
+                                                }
+                                            }}
+                                        />
+                                     </div>
+                                </div>
+                            ) : activeTab === "parent_categories" ? (
                                 <div className="space-y-4">
                                     <div>
                                         <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Label / Name</label>
@@ -537,6 +908,12 @@ const UserModuleManagement = () => {
                                             )}
                                         </div>
                                     </div>
+                                </div>
+                            )}
+
+                            {(activeTab !== "spotlights" && activeTab !== "gallery" && activeTab !== "testimonials") && (
+                                <div className="pt-2">
+                                    <AvailabilityEditor formData={formData} setFormData={setFormData} />
                                 </div>
                             )}
 

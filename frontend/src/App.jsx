@@ -30,6 +30,7 @@ import SupportPage from "@/modules/user/pages/SupportPage";
 import NotFound from "@/modules/user/pages/NotFound";
 import UserRegisterPage from "@/modules/user/pages/UserRegisterPage";
 import WishlistPage from "@/modules/user/pages/WishlistPage";
+import CartPage from "@/modules/user/pages/CartPage";
 
 // Service Provider Module
 import ProviderLayout from "@/modules/serviceprovider/components/ProviderLayout";
@@ -66,6 +67,7 @@ import SPManagement from "@/modules/vender/pages/SPManagement";
 import VenderBookings from "@/modules/vender/pages/VenderBookings";
 import VenderPayouts from "@/modules/vender/pages/VenderPayouts";
 import VenderSOSMonitor from "@/modules/vender/pages/VenderSOSMonitor";
+import VenderFeedback from "@/modules/vender/pages/VenderFeedback";
 import VenderProfile from "@/modules/vender/pages/VenderProfile";
 
 // Admin Module
@@ -83,6 +85,7 @@ import CouponSystem from "@/modules/admin/pages/CouponSystem";
 import ReferralSystem from "@/modules/admin/pages/ReferralSystem";
 import SOSMonitor from "@/modules/admin/pages/SOSMonitor";
 import UserModuleManagement from "@/modules/admin/pages/UserModuleManagement";
+import FeedbackManagement from "@/modules/admin/pages/FeedbackManagement";
 
 const queryClient = new QueryClient();
 
@@ -123,6 +126,7 @@ const App = () => {
                                 <Route path="/coupons" element={<CouponsPage />} />
                                 <Route path="/support" element={<SupportPage />} />
                                 <Route path="/wishlist" element={<WishlistPage />} />
+                                <Route path="/cart" element={<CartPage />} />
 
                                 {/* Service Provider Module */}
                                 <Route path="/provider/login" element={<ProviderLoginPage />} />
@@ -157,6 +161,7 @@ const App = () => {
                                   <Route path="bookings" element={<VenderBookings />} />
                                   <Route path="payouts" element={<VenderPayouts />} />
                                   <Route path="sos" element={<VenderSOSMonitor />} />
+                                  <Route path="feedback" element={<VenderFeedback />} />
                                   <Route path="profile" element={<VenderProfile />} />
                                 </Route>
 
@@ -175,6 +180,7 @@ const App = () => {
                                   <Route path="referrals" element={<ReferralSystem />} />
                                   <Route path="sos" element={<SOSMonitor />} />
                                   <Route path="user-data" element={<UserModuleManagement />} />
+                                  <Route path="feedback" element={<FeedbackManagement />} />
                                 </Route>
 
                                 {/* Common Typos / Legacy Redirects */}

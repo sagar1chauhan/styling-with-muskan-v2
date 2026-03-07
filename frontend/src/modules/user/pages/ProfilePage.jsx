@@ -1,8 +1,10 @@
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { ArrowLeft, ChevronRight, Wallet, MapPin, Gift, Ticket, HelpCircle, LogOut, User, Calendar, Edit2, ShieldCheck } from "lucide-react";
+import BottomNav from "@/modules/user/components/salon/BottomNav";
 
 /**
  * ProfilePage Component
@@ -12,6 +14,19 @@ const ProfilePage = () => {
   const navigate = useNavigate();
   const { gender, setGender } = useGenderTheme();
   const { user, logout } = useAuth();
+  const [showPopup, setShowPopup] = useState(false);
+
+  const handleGenderSwitch = (g) => {
+    if (g === "men") {
+        const isMenEnabled = JSON.parse(localStorage.getItem('swm_men_enabled') ?? 'false');
+        if (!isMenEnabled) {
+            setShowPopup(true);
+            setTimeout(() => setShowPopup(false), 2500);
+            return;
+        }
+    }
+    setGender(g);
+  };
 
   const handleLogout = () => {
     logout();
@@ -80,14 +95,14 @@ const ProfilePage = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="glass-strong rounded-2xl p-4 border border-border/50"
+          className="glass-strong rounded-2xl p-4 border border-border/50 relative overflow-hidden"
         >
           <p className="text-[10px] font-bold mb-3 uppercase tracking-widest text-muted-foreground">Service Category</p>
-          <div className="flex gap-3">
+          <div className="flex gap-3 relative z-10">
             {["women", "men"].map((g) => (
               <button
                 key={g}
-                onClick={() => setGender(g)}
+                onClick={() => handleGenderSwitch(g)}
                 className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all border-2 ${gender === g
                   ? "bg-primary text-primary-foreground border-primary glow-primary shadow-lg"
                   : "bg-accent text-accent-foreground border-transparent opacity-60"
@@ -97,6 +112,20 @@ const ProfilePage = () => {
               </button>
             ))}
           </div>
+
+          <AnimatePresence>
+              {showPopup && (
+                  <motion.div 
+                      initial={{ opacity: 0, y: 10 }} 
+                      animate={{ opacity: 1, y: 0 }} 
+                      exit={{ opacity: 0, y: 10 }} 
+                      className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm p-4"
+                  >
+                      <p className="font-bold text-foreground text-sm">🚧 Currently Unavailable</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 text-center font-medium">This service category is launching soon!</p>
+                  </motion.div>
+              )}
+          </AnimatePresence>
         </motion.div>
 
         {/* Menu Items */}
@@ -133,6 +162,7 @@ const ProfilePage = () => {
           <span className="text-sm font-bold">Logout</span>
         </button>
       </div>
+      <BottomNav />
     </div>
   );
 };
