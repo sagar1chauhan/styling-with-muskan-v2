@@ -33,7 +33,7 @@ const findBestProvider = (booking, providers) => {
     const scored = providers
         .filter(p => p.specialties && p.specialties.length > 0)
         .map(p => {
-            const matchCount = serviceTypes.filter(st => p.specialties.includes(st)).length;
+            const matchCount = serviceTypes.filter(st => p.specialties?.includes(st)).length;
             return { ...p, matchScore: matchCount, rating: p.rating || 0 };
         })
         .filter(p => p.matchScore > 0) // must match at least one service type

@@ -277,6 +277,7 @@ export const mockProviders = [
         rating: 4.6,
         experience: "4+ Years",
         totalJobs: 420,
+        specialties: ["skin", "hair"]
     }
 ];
 

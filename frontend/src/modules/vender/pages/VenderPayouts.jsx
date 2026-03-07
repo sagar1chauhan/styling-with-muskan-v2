@@ -44,7 +44,7 @@ export default function VenderPayouts() {
         }
     };
 
-    const filteredPayouts = payouts.filter(p => p.spName.toLowerCase().includes(search.toLowerCase()) || p.id.includes(search));
+    const filteredPayouts = payouts.filter(p => p.spName.toLowerCase().includes(search.toLowerCase()) || p.id?.includes(search));
 
     const statusConfig = {
         completed: { label: "Paid", icon: CheckCircle, color: "bg-green-100 text-green-700 border-green-200" },

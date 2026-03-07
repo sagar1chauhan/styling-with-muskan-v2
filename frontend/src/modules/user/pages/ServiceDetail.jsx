@@ -52,7 +52,7 @@ const ServiceDetail = () => {
   // Filter providers based on the service category/type
   const availableProviders = useMemo(() => {
     if (!service) return [];
-    return mockProviders.filter(p => p.specialties.includes(service.serviceType));
+    return mockProviders.filter(p => p.specialties?.includes(service.serviceType));
   }, [service]);
 
   useEffect(() => {

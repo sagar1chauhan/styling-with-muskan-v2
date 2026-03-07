@@ -86,6 +86,7 @@ import ReferralSystem from "@/modules/admin/pages/ReferralSystem";
 import SOSMonitor from "@/modules/admin/pages/SOSMonitor";
 import UserModuleManagement from "@/modules/admin/pages/UserModuleManagement";
 import FeedbackManagement from "@/modules/admin/pages/FeedbackManagement";
+import TrainingManagement from "@/modules/admin/pages/TrainingManagement";
 
 const queryClient = new QueryClient();
 
@@ -180,6 +181,7 @@ const App = () => {
                                   <Route path="referrals" element={<ReferralSystem />} />
                                   <Route path="sos" element={<SOSMonitor />} />
                                   <Route path="user-data" element={<UserModuleManagement />} />
+                                  <Route path="training" element={<TrainingManagement />} />
                                   <Route path="feedback" element={<FeedbackManagement />} />
                                 </Route>
 

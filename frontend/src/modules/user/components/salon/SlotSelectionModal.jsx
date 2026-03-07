@@ -18,7 +18,7 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
     // Filter providers based on the items in cart (specialties)
     const availableProviders = useMemo(() => {
         const cartTypes = [...new Set(cartItems.map(item => item.serviceType))];
-        return mockProviders.filter(p => cartTypes.some(type => p.specialties.includes(type)));
+        return mockProviders.filter(p => cartTypes.some(type => p.specialties?.includes(type)));
     }, [cartItems]);
 
     useEffect(() => {

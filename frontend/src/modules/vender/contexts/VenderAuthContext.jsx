@@ -102,7 +102,9 @@ export const VenderAuthProvider = ({ children }) => {
             bookingType: "customized",
             serviceType: enq.eventType || "Event Services",
             slot: { date: enq.date || "TBD", time: enq.timeSlot || "TBD" },
-            items: [{ name: `${enq.eventType || "Event Enquiry"}` }],
+            items: enq.selectedServices?.length > 0 
+                ? enq.selectedServices.map(s => ({ name: `${s.name} (x${s.quantity})`, category: s.categoryName }))
+                : [{ name: `${enq.eventType || "Event Enquiry"}` }],
             address: typeof enq.address === 'object' ? enq.address : { area: enq.address || "Enquiry Area" },
             status: enq.status || "unassigned"
         }));
