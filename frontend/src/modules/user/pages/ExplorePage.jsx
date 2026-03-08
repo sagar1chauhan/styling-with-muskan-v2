@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    ArrowLeft, Search, Filter, RefreshCcw, Heart, Share2, Plus, Star, MapPin, Menu, X, ShoppingBag
+    ArrowLeft, Search, Filter, RefreshCcw, Heart, Share2, Plus, Star, MapPin, Menu, X
 } from "lucide-react";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
@@ -11,17 +11,14 @@ import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useWishlist } from "@/modules/user/contexts/WishlistContext";
 import { Button } from "@/modules/user/components/ui/button";
 import { shareContent } from "@/modules/user/lib/utils";
-import FloatingCart from "@/modules/user/components/salon/FloatingCart";
-import ExpressCheckout from "@/modules/user/components/salon/ExpressCheckout";
 import FilterModal from "@/modules/user/components/salon/FilterModal";
-import BottomNav from "@/modules/user/components/salon/BottomNav";
 
 const ExplorePage = () => {
     const { categoryId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
     const { gender } = useGenderTheme();
-    const { totalItems, addToCart, bookingType: contextBookingType, setBookingType } = useCart();
+    const { totalItems, cartItems, addToCart, bookingType: contextBookingType, setBookingType, isFloatingSummaryOpen, setIsFloatingSummaryOpen } = useCart();
     const { isLoggedIn, setIsLoginModalOpen, user } = useAuth();
     const { toggleWishlist, isInWishlist } = useWishlist();
     const { services, categories, serviceTypes: SERVICE_TYPES, checkAvailability } = useUserModuleData();
@@ -149,18 +146,6 @@ const ExplorePage = () => {
                     </div>
                     <button onClick={() => setIsFilterModalOpen(true)} className="w-10 h-10 rounded-2xl bg-accent flex items-center justify-center transition-all hover:bg-primary/10">
                         <Filter className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => navigate("/cart")}
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center relative transition-all active:scale-90 bg-accent hover:bg-primary/10 hover:text-primary"
-                        title="Cart"
-                    >
-                        <ShoppingBag className="w-4 h-4" />
-                        {totalItems > 0 && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center border-2 animate-in zoom-in bg-primary text-white border-background">
-                                {totalItems}
-                            </span>
-                        )}
                     </button>
                 </div>
             </header>
@@ -291,9 +276,15 @@ const ExplorePage = () => {
                                         </div>
                                         <Button
                                             onClick={(e) => { e.stopPropagation(); if (!isLoggedIn) setIsLoginModalOpen(true); else addToCart(service); }}
-                                            className="h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider bg-white text-primary border-2 border-primary/20 hover:bg-primary hover:text-white transition-all shadow-sm"
+                                            className={`h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm ${(() => {
+                                                const inCart = cartItems.find(item => item.id === service.id);
+                                                return inCart ? 'bg-primary text-white border-2 border-primary hover:bg-primary/90' : 'bg-white text-primary border-2 border-primary/20 hover:bg-primary hover:text-white';
+                                            })()}`}
                                         >
-                                            Add
+                                            {(() => {
+                                                const inCart = cartItems.find(item => item.id === service.id);
+                                                return inCart ? `${inCart.quantity} Added` : 'Add';
+                                            })()}
                                         </Button>
                                     </div>
                                 </div>
@@ -303,9 +294,7 @@ const ExplorePage = () => {
                 </main>
             </div>
 
-            <ExpressCheckout />
             <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} />
-            <BottomNav />
         </div >
     );
 };

@@ -13,7 +13,6 @@ import CallingOverlay from "@/modules/user/components/salon/CallingOverlay";
 import BookingDetailsModal from "@/modules/user/components/salon/BookingDetailsModal";
 import SlotSelectionModal from "@/modules/user/components/salon/SlotSelectionModal";
 import FeedbackModal from "@/modules/user/components/salon/FeedbackModal";
-import BottomNav from "@/modules/user/components/salon/BottomNav";
 import ProviderProfileModal from "@/modules/user/components/salon/ProviderProfileModal";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 
@@ -465,7 +464,6 @@ const BookingsPage = () => {
                 provider={providerModalData} 
             />
             
-            <BottomNav />
         </div>
     );
 };

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, MapPin, Calendar, Clock, Tag, ChevronRight, CheckCircle2, ShoppingBag } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, Clock, Tag, ChevronRight, CheckCircle2, ShoppingBag, Zap } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
 import { Input } from "@/modules/user/components/ui/input";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
@@ -75,6 +75,13 @@ const BookingSummary = () => {
     setCouponApplied(foundCoupon);
   };
 
+  // SWM Plus member auto-discount (10% off on orders >= ₹499)
+  const isPlusMember = user?.isPlusMember;
+  let plusDiscount = 0;
+  if (isPlusMember && displayTotalPrice >= 499) {
+    plusDiscount = Math.round(displayTotalPrice * 0.10);
+  }
+
   let discount = 0;
   if (couponApplied) {
     if (couponApplied.discountType === "flat") {
@@ -88,7 +95,7 @@ const BookingSummary = () => {
   }
 
   const passedBookingData = location.state;
-  const finalTotal = displayTotalPrice - discount;
+  const finalTotal = displayTotalPrice - discount - plusDiscount;
 
   // Calculate advance based on passed data or fallback
   let advanceAmount = passedBookingData?.advanceAmount || 0;
@@ -104,6 +111,7 @@ const BookingSummary = () => {
     navigate("/payment", {
       state: {
         discount,
+        plusDiscount,
         finalTotal,
         totalSavings: displayTotalSavings,
         checkoutType,
@@ -305,6 +313,26 @@ const BookingSummary = () => {
           {couponApplied && <p className="text-[10px] text-green-600 mt-2 ml-1 font-bold">Coupon applied successfully!</p>}
         </motion.div>
 
+        {/* SWM Plus Banner (for non-members) */}
+        {!isPlusMember && displayTotalPrice >= 499 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18 }}
+            onClick={() => navigate('/plus-subscription')}
+            className="bg-accent/40 rounded-2xl p-4 border border-amber-400/20 flex items-center gap-3 cursor-pointer hover:border-amber-400/40 transition-all shadow-sm"
+          >
+            <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center shrink-0 shadow-lg shadow-amber-400/20">
+              <Zap className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-black text-amber-600 dark:text-amber-400">SWM Plus Members save 10% on this order!</p>
+              <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Join from ₹299/quarter → Save ₹{Math.round(displayTotalPrice * 0.10)} now</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-amber-500 shrink-0" />
+          </motion.div>
+        )}
+
         {/* Price Breakdown */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-strong rounded-2xl p-5 border border-border/50 space-y-3">
           <div className="flex justify-between text-sm">
@@ -323,6 +351,24 @@ const BookingSummary = () => {
               <span className="text-primary font-bold">-₹{discount.toLocaleString()}</span>
             </div>
           )}
+          {plusDiscount > 0 && (
+            <div className="flex justify-between text-sm items-center">
+              <span className="text-amber-600 font-medium flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5" /> SWM Plus Discount (10%)
+              </span>
+              <span className="text-amber-600 font-bold">-₹{plusDiscount.toLocaleString()}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground font-medium">Convenience Fee</span>
+            {isPlusMember ? (
+              <span className="font-bold text-emerald-600 flex items-center gap-1">
+                <span className="line-through text-muted-foreground/50 text-xs">₹49</span> FREE
+              </span>
+            ) : (
+              <span className="font-bold">₹0</span>
+            )}
+          </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground font-medium">Taxes & Fees</span>
             <span className="font-bold">₹0</span>
@@ -346,9 +392,9 @@ const BookingSummary = () => {
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Total Value</span>
               <span className="text-primary mt-1">₹{finalTotal.toLocaleString()}</span>
             </div>
-            {displayTotalSavings + discount > 0 && (
+            {displayTotalSavings + discount + plusDiscount > 0 && (
               <div className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded-lg">
-                SAVED ₹{displayTotalSavings + discount}
+                SAVED ₹{(displayTotalSavings + discount + plusDiscount).toLocaleString()}
               </div>
             )}
           </div>

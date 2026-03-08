@@ -29,7 +29,8 @@ export const AuthProvider = ({ children }) => {
             id: userData.id || `U${Date.now()}`,
             isVerified: userData.isVerified || false,
             referralCode: userData.referralCode || "",
-            address: userData.address || null
+            address: userData.address || null,
+            isPlusMember: userData.isPlusMember || false,
         };
         setIsLoggedIn(true);
         setUser(user);
@@ -59,6 +60,17 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('smd_user', JSON.stringify(updatedUser));
     };
 
+    const joinPlus = () => {
+        if (!user) return;
+        const updatedUser = { 
+            ...user, 
+            isPlusMember: true,
+            plusExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
+        };
+        setUser(updatedUser);
+        localStorage.setItem('smd_user', JSON.stringify(updatedUser));
+    };
+
     return (
         <AuthContext.Provider value={{
             isLoggedIn,
@@ -72,7 +84,8 @@ export const AuthProvider = ({ children }) => {
             setIsAddressModalOpen,
             hasAddress,
             setHasAddress,
-            updateAddress
+            updateAddress,
+            joinPlus
         }}>
             {children}
         </AuthContext.Provider>

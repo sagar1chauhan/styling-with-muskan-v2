@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Bell, MapPin, ChevronDown, Home, Compass, Calendar, User, Heart, MessageSquare, ShoppingBag } from "lucide-react";
+import { Search, Bell, MapPin, ChevronDown, Home, Compass, Calendar, User, Heart, MessageSquare } from "lucide-react";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useWishlist } from "@/modules/user/contexts/WishlistContext";
@@ -88,21 +88,6 @@ const Header = () => {
             {wishlistCount > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-[10px] font-bold text-white flex items-center justify-center border-2 border-background animate-in zoom-in">
                 {wishlistCount}
-              </span>
-            )}
-          </button>
-
-
-
-          <button
-            onClick={() => navigate("/cart")}
-            className={`w-9 h-9 rounded-full flex items-center justify-center relative transition-all active:scale-90 ${location.pathname === "/cart" ? 'bg-primary text-white shadow-lg' : 'bg-accent hover:bg-primary/10 hover:text-primary'}`}
-            title="Cart"
-          >
-            <ShoppingBag className="w-4 h-4" />
-            {totalItems > 0 && (
-              <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center border-2 animate-in zoom-in ${location.pathname === "/cart" ? 'bg-white text-primary border-primary' : 'bg-primary text-white border-background'}`}>
-                {totalItems}
               </span>
             )}
           </button>

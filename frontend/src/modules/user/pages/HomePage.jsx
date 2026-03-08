@@ -8,8 +8,6 @@ import WhyChooseUs from "@/modules/user/components/salon/WhyChooseUs";
 import SpotlightStories from "@/modules/user/components/salon/SpotlightStories";
 import OurGallery from "@/modules/user/components/salon/OurGallery";
 import Testimonials from "@/modules/user/components/salon/Testimonials";
-import BottomNav from "@/modules/user/components/salon/BottomNav";
-import ExpressCheckout from "@/modules/user/components/salon/ExpressCheckout";
 
 const HomePage = () => {
   const { gender } = useGenderTheme();
@@ -36,9 +34,6 @@ const HomePage = () => {
           </motion.div>
         </AnimatePresence>
       </main>
-
-      <ExpressCheckout />
-      <BottomNav />
     </div>
   );
 };

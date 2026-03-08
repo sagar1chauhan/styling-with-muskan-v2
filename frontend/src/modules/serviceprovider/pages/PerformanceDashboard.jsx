@@ -211,7 +211,7 @@ export default function PerformanceDashboard() {
                                             { day: "Thu", score: 94, quality: 96, jobs: 8 },
                                             { day: "Fri", score: 88, quality: 92, jobs: 7 },
                                             { day: "Sat", score: 98, quality: 99, jobs: 12 },
-                                            { day: "Sun", score: 90, score: 92, jobs: 9 },
+                                            { day: "Sun", score: 90, quality: 92, jobs: 9 },
                                         ]}
                                         margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                                     >

@@ -30,7 +30,10 @@ import SupportPage from "@/modules/user/pages/SupportPage";
 import NotFound from "@/modules/user/pages/NotFound";
 import UserRegisterPage from "@/modules/user/pages/UserRegisterPage";
 import WishlistPage from "@/modules/user/pages/WishlistPage";
-import CartPage from "@/modules/user/pages/CartPage";
+import SubscriptionPlans from "@/modules/user/pages/SubscriptionPlans";
+import FloatingCart from "@/modules/user/components/salon/FloatingCart";
+import BottomNav from "@/modules/user/components/salon/BottomNav";
+import ExpressCheckout from "@/modules/user/components/salon/ExpressCheckout";
 
 // Service Provider Module
 import ProviderLayout from "@/modules/serviceprovider/components/ProviderLayout";
@@ -39,6 +42,7 @@ import LeadCreditManager from "@/modules/serviceprovider/pages/LeadCreditManager
 import AvailabilityCalendar from "@/modules/serviceprovider/pages/AvailabilityCalendar";
 import PerformanceDashboard from "@/modules/serviceprovider/pages/PerformanceDashboard";
 import ProviderProfile from "@/modules/serviceprovider/pages/ProviderProfile";
+import ProviderSubscription from "@/modules/serviceprovider/pages/ProviderSubscription";
 import AdminFinanceSuite from "@/modules/serviceprovider/pages/AdminFinanceSuite";
 import JobHistory from "@/modules/serviceprovider/pages/JobHistory";
 import TrainingHub from "@/modules/serviceprovider/pages/TrainingHub";
@@ -69,6 +73,7 @@ import VenderPayouts from "@/modules/vender/pages/VenderPayouts";
 import VenderSOSMonitor from "@/modules/vender/pages/VenderSOSMonitor";
 import VenderFeedback from "@/modules/vender/pages/VenderFeedback";
 import VenderProfile from "@/modules/vender/pages/VenderProfile";
+import VenderSubscription from "@/modules/vender/pages/VenderSubscription";
 
 // Admin Module
 import { AdminAuthProvider } from "@/modules/admin/contexts/AdminAuthContext";
@@ -127,7 +132,7 @@ const App = () => {
                                 <Route path="/coupons" element={<CouponsPage />} />
                                 <Route path="/support" element={<SupportPage />} />
                                 <Route path="/wishlist" element={<WishlistPage />} />
-                                <Route path="/cart" element={<CartPage />} />
+                                <Route path="/plus-subscription" element={<SubscriptionPlans />} />
 
                                 {/* Service Provider Module */}
                                 <Route path="/provider/login" element={<ProviderLoginPage />} />
@@ -142,6 +147,7 @@ const App = () => {
                                   <Route path="availability" element={<AvailabilityCalendar />} />
                                   <Route path="performance" element={<PerformanceDashboard />} />
                                   <Route path="profile" element={<ProviderProfile />} />
+                                  <Route path="subscription" element={<ProviderSubscription />} />
                                   <Route path="admin" element={<AdminFinanceSuite />} />
                                   <Route path="history" element={<JobHistory />} />
                                   <Route path="training" element={<TrainingHub />} />
@@ -161,6 +167,7 @@ const App = () => {
                                   <Route path="service-providers" element={<SPManagement />} />
                                   <Route path="bookings" element={<VenderBookings />} />
                                   <Route path="payouts" element={<VenderPayouts />} />
+                                  <Route path="subscription" element={<VenderSubscription />} />
                                   <Route path="sos" element={<VenderSOSMonitor />} />
                                   <Route path="feedback" element={<VenderFeedback />} />
                                   <Route path="profile" element={<VenderProfile />} />
@@ -193,6 +200,9 @@ const App = () => {
                                 <Route path="*" element={<NotFound />} />
                               </Routes>
                               <LoginModal />
+                              <FloatingCart />
+                              <ExpressCheckout />
+                              <BottomNav />
                             </AdminAuthProvider>
                           </VenderAuthProvider>
                         </ProviderBookingProvider>

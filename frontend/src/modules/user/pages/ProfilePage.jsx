@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
-import { ArrowLeft, ChevronRight, Wallet, MapPin, Gift, Ticket, HelpCircle, LogOut, User, Calendar, Edit2, ShieldCheck } from "lucide-react";
-import BottomNav from "@/modules/user/components/salon/BottomNav";
+import { ArrowLeft, ChevronRight, Wallet, MapPin, Gift, Ticket, HelpCircle, LogOut, User, Calendar, Edit2, ShieldCheck, Zap, Sparkles } from "lucide-react";
 
 /**
  * ProfilePage Component
@@ -90,11 +89,62 @@ const ProfilePage = () => {
           </button>
         </motion.div>
 
+        {/* SWM Plus Subscription Banner */}
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            onClick={() => navigate('/plus-subscription')}
+            className={`rounded-2xl p-4 md:p-5 relative overflow-hidden flex items-center justify-between cursor-pointer border shadow-sm transition-all hover:shadow-md
+                ${user?.isPlusMember 
+                    ? 'bg-slate-900 text-white border-slate-800' 
+                    : 'bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border-indigo-500/20'}`}
+        >
+            <div className={`absolute top-0 right-0 p-8 opacity-10 ${user?.isPlusMember ? 'text-amber-400' : 'text-indigo-600'}`}>
+                <Zap className="w-32 h-32" />
+            </div>
+            
+            <div className="relative z-10 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                    <h3 className={`font-black tracking-tight ${user?.isPlusMember ? 'text-amber-400' : 'text-indigo-900'} text-lg leading-none`}>
+                        SWM Plus
+                    </h3>
+                    {user?.isPlusMember && (
+                        <span className="bg-amber-400 text-slate-900 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">
+                            Active
+                        </span>
+                    )}
+                </div>
+                {user?.isPlusMember ? (
+                    <p className="text-xs font-medium text-slate-400 mt-1 max-w-[200px]">
+                        Enjoying 10% off and zero convenience fees.
+                    </p>
+                ) : (
+                    <p className="text-xs font-bold text-indigo-700/80 mt-1">
+                        Get flat 10% off on all bookings
+                    </p>
+                )}
+            </div>
+
+            <div className="relative z-10 shrink-0">
+                {user?.isPlusMember ? (
+                    <div className="flex flex-col items-end">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Valid Till</span>
+                        <span className="text-sm font-black text-white">{new Date(user.plusExpiry).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
+                    </div>
+                ) : (
+                    <div className="bg-indigo-600 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg shadow-indigo-500/30 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" /> Join Now
+                    </div>
+                )}
+            </div>
+        </motion.div>
+
         {/* Gender Switch */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
+          transition={{ delay: 0.15 }}
           className="glass-strong rounded-2xl p-4 border border-border/50 relative overflow-hidden"
         >
           <p className="text-[10px] font-bold mb-3 uppercase tracking-widest text-muted-foreground">Service Category</p>
@@ -135,7 +185,7 @@ const ProfilePage = () => {
               key={item.label}
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 + i * 0.03 }}
+              transition={{ delay: 0.2 + i * 0.03 }}
               onClick={() => navigate(item.path)}
               className="w-full glass-strong rounded-[20px] p-3 flex items-center gap-4 hover:bg-accent/50 transition-all border border-border/40 hover:scale-[1.01] active:scale-[0.99]"
             >
@@ -162,7 +212,6 @@ const ProfilePage = () => {
           <span className="text-sm font-bold">Logout</span>
         </button>
       </div>
-      <BottomNav />
     </div>
   );
 };

@@ -55,6 +55,13 @@ export const VenderAuthProvider = ({ children }) => {
             status: "approved", // auto-approved for demo
             businessName: data.businessName || "",
             createdAt: new Date().toISOString(),
+            subscription: {
+                name: "SWM City Manager Enterprise",
+                status: "active",
+                isTrial: true,
+                expiresAt: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
+                fee: 4999
+            }
         };
         setVendor(newVendor);
         return { success: true };

@@ -13,8 +13,6 @@ import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useWishlist } from "@/modules/user/contexts/WishlistContext";
-import FloatingCart from "@/modules/user/components/salon/FloatingCart";
-import ExpressCheckout from "@/modules/user/components/salon/ExpressCheckout";
 import { shareContent } from "@/modules/user/lib/utils";
 
 const ServiceDetail = () => {
@@ -584,9 +582,6 @@ const ServiceDetail = () => {
           </div>
         </div>
       </motion.div>
-
-      <FloatingCart />
-      <ExpressCheckout />
     </div>
   );
 };

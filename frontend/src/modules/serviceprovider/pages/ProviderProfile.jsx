@@ -21,6 +21,7 @@ import {
     Mail,
     Phone,
     MapPin,
+    Crown,
     Briefcase
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/modules/user/components/ui/avatar";
@@ -35,6 +36,7 @@ import { Button } from "@/modules/user/components/ui/button";
 
 const menuItems = [
     { icon: Trophy, label: "Weekly performance", path: "/provider/performance" },
+    { icon: Crown, label: "SWM Pro Partner", path: "/provider/subscription", color: "text-amber-500 font-bold" },
     { icon: Calendar, label: "Calendar", path: "/provider/availability" },
     { icon: Map, label: "My Hub", path: "/provider/hub" },
     { icon: Wallet, label: "Credits", path: "/provider/credits" },
@@ -44,7 +46,6 @@ const menuItems = [
     { icon: ShoppingBag, label: "stylingwithmuskan shop", path: "/provider/shop" },
     { icon: LifeBuoy, label: "stylingwithmuskan support", path: "/provider/support" },
     { icon: AlertTriangle, label: "SOS", path: "/provider/sos", color: "text-red-500 font-bold" },
-    { icon: MessageSquare, label: "Raise a ticket", path: "/provider/tickets" },
     { icon: RefreshCw, label: "Check for updates", path: "#", version: "v2.1.0" },
 ];
 
