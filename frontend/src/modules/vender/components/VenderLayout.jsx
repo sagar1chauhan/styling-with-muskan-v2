@@ -21,7 +21,7 @@ import { useVenderAuth } from "@/modules/vender/contexts/VenderAuthContext";
 const VenderLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { vendor, logout } = useVenderAuth();
+    const { vendor, logout, hydrated, isLoggedIn } = useVenderAuth();
     const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
     useEffect(() => {
@@ -29,6 +29,14 @@ const VenderLayout = () => {
         document.documentElement.classList.add("theme-vendor");
         return () => document.documentElement.classList.remove("theme-vendor");
     }, []);
+
+    if (!hydrated) {
+        return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+    }
+    if (!isLoggedIn) {
+        navigate("/vender/login", { replace: true });
+        return null;
+    }
 
     const navLinks = [
         { name: "Dashboard", path: "/vender/dashboard", icon: LayoutDashboard },

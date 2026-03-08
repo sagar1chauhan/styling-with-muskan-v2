@@ -1,24 +1,28 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { ArrowLeft, Gift, Share2, Copy, Trophy, Users, Star } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
+import { api } from "@/modules/user/lib/api";
+import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { shareContent } from "@/modules/user/lib/utils";
 
 const ReferralPage = () => {
     const navigate = useNavigate();
-    const { gender } = useGenderTheme();
-    const referralCode = "MUSKAN450";
-
-    // Dynamic referral settings from Admin
-    const adminReferralRaw = localStorage.getItem("muskan-admin-referral");
-    const adminReferral = adminReferralRaw ? JSON.parse(adminReferralRaw) : {
-        bonusReferrer: 150,
-        bonusReferee: 100
-    };
-
-    const giveAmt = adminReferral.bonusReferee;
-    const getAmt = adminReferral.bonusReferrer;
+    const { user } = useAuth();
+    const [settings, setSettings] = useState({ referrerBonus: 100, refereeBonus: 50, maxReferrals: 10, isActive: true });
+    const referralCode = user?.referralCode || "";
+    const giveAmt = settings.refereeBonus;
+    const getAmt = settings.referrerBonus;
+    useEffect(() => {
+        let cancelled = false;
+        api.referralInfo().then(({ settings }) => {
+            if (cancelled) return;
+            if (settings) setSettings(settings);
+        }).catch(() => {});
+        return () => { cancelled = true; };
+    }, []);
 
     const handleCopy = () => {
         if (navigator.clipboard) {

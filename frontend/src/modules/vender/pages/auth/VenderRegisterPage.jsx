@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useVenderAuth } from "@/modules/vender/contexts/VenderAuthContext";
 import { useNavigate, Link } from "react-router-dom";
 
-const CITIES = ["Delhi", "Mumbai", "Bangalore", "Hyderabad", "Chennai", "Pune", "Kolkata", "Jaipur", "Gurgaon", "Noida", "Lucknow", "Chandigarh"];
+const CITIES = ["Delhi", "Mumbai", "Bangalore", "Hyderabad", "Chennai", "Pune", "Kolkata", "Jaipur", "Gurgaon", "Noida", "Lucknow", "Chandigarh", "Indore"];
 
 export default function VenderRegisterPage() {
     const { register, isLoggedIn } = useVenderAuth();
@@ -24,10 +24,14 @@ export default function VenderRegisterPage() {
         if (isLoggedIn) navigate("/vender/dashboard", { replace: true });
     }, [isLoggedIn]);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        register(form);
-        navigate("/vender/dashboard");
+        try {
+            const res = await register(form);
+            if (res?.success) navigate("/vender/dashboard", { replace: true });
+        } catch (err) {
+            // keep UI unchanged; vendor can retry
+        }
     };
 
     const update = (key, val) => setForm(prev => ({ ...prev, [key]: val }));

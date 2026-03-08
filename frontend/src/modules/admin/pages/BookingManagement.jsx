@@ -40,12 +40,18 @@ export default function BookingManagement() {
     const [showSettings, setShowSettings] = useState(false);
     const [tempSettings, setTempSettings] = useState(officeSettings);
 
-    const load = () => {
-        setBookings(getAllBookings());
-        const spFromDb = getAllServiceProviders().filter(sp => sp.approvalStatus === "approved");
-        // Merge module providers with SP database providers
-        const allSPs = spFromDb.length > 0 ? spFromDb : moduleProviders || [];
-        setProviders(allSPs);
+    const load = async () => {
+        try {
+            const bks = await getAllBookings();
+            setBookings(Array.isArray(bks) ? bks : []);
+            const spRaw = await getAllServiceProviders();
+            const spFromDb = Array.isArray(spRaw) ? spRaw.filter(sp => sp.approvalStatus === "approved") : [];
+            const allSPs = spFromDb.length > 0 ? spFromDb : (moduleProviders || []);
+            setProviders(allSPs);
+        } catch {
+            setBookings([]);
+            setProviders(moduleProviders || []);
+        }
     };
     useEffect(() => { load(); }, []);
 

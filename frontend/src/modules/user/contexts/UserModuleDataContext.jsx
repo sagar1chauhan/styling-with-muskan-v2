@@ -1,89 +1,56 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import {
-    SERVICE_TYPES as initialServiceTypes,
-    BOOKING_TYPE_CONFIG as initialBookingTypeConfig,
-    categories as initialCategories,
-    services as initialServices,
-    banners as initialBanners,
-    mockProviders as initialProviders,
-} from "../data/services";
+import { api } from "@/modules/user/lib/api";
+import { SERVICE_TYPES as FALLBACK_SERVICE_TYPES, BOOKING_TYPE_CONFIG as FALLBACK_BOOKING_TYPES, categories as FALLBACK_CATEGORIES, services as FALLBACK_SERVICES, banners as FALLBACK_BANNERS, mockProviders as FALLBACK_PROVIDERS } from "@/modules/user/data/services";
 
 const UserModuleDataContext = createContext(null);
 
 export const UserModuleDataProvider = ({ children }) => {
-    // Initialize state from localStorage or fallback to static data
-    const [serviceTypes, setServiceTypes] = useState(() => {
-        const saved = localStorage.getItem("swm_serviceTypes");
-        return saved ? JSON.parse(saved) : initialServiceTypes;
-    });
+    const [serviceTypes, setServiceTypes] = useState([]);
 
-    const [bookingTypeConfig, setBookingTypeConfig] = useState(() => {
-        const saved = localStorage.getItem("swm_bookingTypeConfig");
-        return saved ? JSON.parse(saved) : initialBookingTypeConfig;
-    });
+    const [bookingTypeConfig, setBookingTypeConfig] = useState([]);
 
-    const [categories, setCategories] = useState(() => {
-        const saved = localStorage.getItem("swm_categories");
-        return saved ? JSON.parse(saved) : initialCategories;
-    });
+    const [categories, setCategories] = useState([]);
 
-    const [services, setServices] = useState(() => {
-        const saved = localStorage.getItem("swm_services");
-        return saved ? JSON.parse(saved) : initialServices;
-    });
+    const [services, setServices] = useState([]);
 
-    const [banners, setBanners] = useState(() => {
-        const saved = localStorage.getItem("swm_banners");
-        return saved ? JSON.parse(saved) : initialBanners;
-    });
+    const [banners, setBanners] = useState({ women: [], men: [] });
 
-    const [providers, setProviders] = useState(() => {
-        const saved = localStorage.getItem("swm_providers");
-        return saved ? JSON.parse(saved) : initialProviders;
-    });
+    const [providers, setProviders] = useState([]);
 
-    const [officeSettings, setOfficeSettings] = useState(() => {
-        const saved = localStorage.getItem("swm_officeSettings");
-        return saved ? JSON.parse(saved) : { startTime: "09:00", endTime: "21:00", autoAssign: true, notificationMessage: "Our pros are sleeping. Service starts at 9:00 AM" };
-    });
-
-    // Safe Save Helper
-    const safeSave = (key, value) => {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch (e) {
-            console.error(`Storage failed for ${key}`, e);
-        }
-    }
-
-    // Save to localStorage whenever state changes
-    useEffect(() => {
-        safeSave("swm_serviceTypes", serviceTypes);
-    }, [serviceTypes]);
+    const [officeSettings, setOfficeSettings] = useState({ startTime: "09:00", endTime: "21:00", autoAssign: true, notificationMessage: "Our pros are sleeping. Service starts at 9:00 AM" });
 
     useEffect(() => {
-        safeSave("swm_bookingTypeConfig", bookingTypeConfig);
-    }, [bookingTypeConfig]);
-
-    useEffect(() => {
-        safeSave("swm_categories", categories);
-    }, [categories]);
-
-    useEffect(() => {
-        safeSave("swm_services", services);
-    }, [services]);
-
-    useEffect(() => {
-        safeSave("swm_banners", banners);
-    }, [banners]);
-
-    useEffect(() => {
-        safeSave("swm_providers", providers);
-    }, [providers]);
-
-    useEffect(() => {
-        safeSave("swm_officeSettings", officeSettings);
-    }, [officeSettings]);
+        let cancelled = false;
+        (async () => {
+            try {
+                const [st, bt, cats, srv, ban, prov, off] = await Promise.all([
+                    api.content.serviceTypes(),
+                    api.content.bookingTypes(),
+                    api.content.categories(),
+                    api.content.services(),
+                    api.content.banners(),
+                    api.content.providers(),
+                    api.content.officeSettings(),
+                ]);
+                if (cancelled) return;
+                setServiceTypes(st.data || []);
+                setBookingTypeConfig(bt.data || []);
+                setCategories(cats.data || []);
+                setServices(srv.data || []);
+                setBanners(ban.data || { women: [], men: [] });
+                setProviders(prov.data || []);
+                setOfficeSettings(off.data || officeSettings);
+            } catch (e) {
+                setServiceTypes(FALLBACK_SERVICE_TYPES);
+                setBookingTypeConfig(FALLBACK_BOOKING_TYPES);
+                setCategories(FALLBACK_CATEGORIES);
+                setServices(FALLBACK_SERVICES);
+                setBanners(FALLBACK_BANNERS);
+                setProviders(FALLBACK_PROVIDERS);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
 
     // CRUD operations
     const addCategory = (category) => setCategories(prev => [...prev, category]);

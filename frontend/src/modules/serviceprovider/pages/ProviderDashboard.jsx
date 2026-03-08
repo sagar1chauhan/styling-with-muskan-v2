@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
     Card,
@@ -26,14 +26,33 @@ import {
 } from "lucide-react";
 import { useProviderBookings } from "../contexts/ProviderBookingContext";
 import { useProviderAuth } from "../contexts/ProviderAuthContext";
+import { api } from "@/modules/user/lib/api";
 
 const ProviderDashboard = () => {
     const { activeBookings, completedBookings, incomingBookings } = useProviderBookings();
     const { provider } = useProviderAuth();
+    const [summary, setSummary] = useState(null);
+    useEffect(() => {
+        let cancelled = false;
+        if (provider?.phone) {
+            api.provider.summary(provider.phone).then((s) => {
+                if (!cancelled) setSummary(s);
+            }).catch(() => {});
+        }
+        return () => { cancelled = true; };
+    }, [provider?.phone]);
 
     const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
     const activeJobsCount = activeBookings.length;
     const providerGrade = provider?.rating >= 4.5 ? "Elite Pro" : (provider?.rating >= 4.0 ? "Pro" : "New");
+    const availableHours = summary?.calendar?.availableHoursWeek ?? null;
+    const nextDates = (() => {
+        const today = new Date();
+        const d1 = new Date(today); d1.setDate(today.getDate() + 0);
+        const d2 = new Date(today); d2.setDate(today.getDate() + 1);
+        const fmt = (d) => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "2-digit" });
+        return [fmt(d1), fmt(d2)];
+    })();
 
     return (
         <div className="flex flex-1 w-full flex-col gap-4 md:gap-8 pt-4 md:pt-0">
@@ -41,17 +60,17 @@ const ProviderDashboard = () => {
             <div className="bg-white rounded-[20px] p-4 shadow-sm shadow-violet-100 flex items-center justify-between border border-violet-50 mx-1 md:mx-0">
                 <div className="flex gap-8">
                     <div>
-                        <p className="font-extrabold text-[13px] sm:text-sm text-gray-900 tracking-tight">Sat, Feb 28</p>
+                        <p className="font-extrabold text-[13px] sm:text-sm text-gray-900 tracking-tight">{nextDates[0]}</p>
                         <div className="flex items-center gap-1.5 mt-1">
                             <div className="h-1 w-1 bg-green-500 rounded-full"></div>
-                            <span className="text-[9px] font-black tracking-widest text-green-600 uppercase">Available</span>
+                            <span className="text-[9px] font-black tracking-widest text-green-600 uppercase">{availableHours ? "Available" : "Check"}</span>
                         </div>
                     </div>
                     <div>
-                        <p className="font-extrabold text-[13px] sm:text-sm text-gray-900 tracking-tight">Sun, Mar 01</p>
+                        <p className="font-extrabold text-[13px] sm:text-sm text-gray-900 tracking-tight">{nextDates[1]}</p>
                         <div className="flex items-center gap-1.5 mt-1">
                             <div className="h-1 w-1 bg-green-500 rounded-full"></div>
-                            <span className="text-[9px] font-black tracking-widest text-green-600 uppercase">Available</span>
+                            <span className="text-[9px] font-black tracking-widest text-green-600 uppercase">{availableHours ? "Available" : "Check"}</span>
                         </div>
                     </div>
                 </div>
@@ -100,7 +119,9 @@ const ProviderDashboard = () => {
                                 <Clock className="h-5 w-5 text-orange-600" />
                             </div>
                             <div>
-                                <div className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">8h</div>
+                                <div className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
+                                    {availableHours !== null ? `${availableHours}h` : "--"}
+                                </div>
                                 <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Availability</p>
                             </div>
                         </div>

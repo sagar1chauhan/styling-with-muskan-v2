@@ -6,6 +6,7 @@ import { useWishlist } from "@/modules/user/contexts/WishlistContext";
 import AddressModal from "@/modules/user/components/salon/AddressModal";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useLocation, useNavigate } from "react-router-dom";
+import { api } from "@/modules/user/lib/api";
 import { motion } from "framer-motion";
 
 const desktopNavItems = [
@@ -97,20 +98,9 @@ const Header = () => {
           <button
             onClick={() => {
               if (window.confirm("EMERGENCY: Do you want to trigger SOS alert?")) {
-                const sosAlertsRaw = localStorage.getItem("muskan-admin-sos");
-                const sosAlerts = sosAlertsRaw ? JSON.parse(sosAlertsRaw) : [];
-                const newAlert = {
-                  id: Date.now(),
-                  userId: user?.id || 'guest',
-                  userName: user?.name || 'Guest User',
-                  userPhone: user?.phone || 'Unknown',
-                  type: 'CUSTOMER',
-                  status: 'PENDING',
-                  location: user?.address?.area || 'Current Location',
-                  timestamp: new Date().toISOString()
-                };
-                localStorage.setItem("muskan-admin-sos", JSON.stringify([newAlert, ...sosAlerts]));
-                alert("SOS Alert Sent! Our team is contacting you.");
+                api.sos.create({ userType: "customer", userId: user?.id || "guest", message: "", source: "user-app" })
+                  .then(() => alert("SOS Alert Sent! Our team is contacting you."))
+                  .catch(() => alert("Failed to send SOS"));
               }
             }}
             className="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center relative hover:bg-red-200 transition-all active:scale-90"

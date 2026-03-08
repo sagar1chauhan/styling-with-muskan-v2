@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { api } from "@/modules/user/lib/api";
 
 const ProviderAuthContext = createContext(undefined);
 
@@ -8,29 +9,44 @@ export const useProviderAuth = () => {
     return context;
 };
 
-const STORAGE_KEY = "muskan-provider";
-const DB_KEY = "muskan-provider-db";
+const STORAGE_KEY = "swm_provider";
 
 export const ProviderAuthProvider = ({ children }) => {
-    const [provider, setProvider] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved) : null;
-    });
+    const [provider, setProviderState] = useState(null);
+    const [hydrated, setHydrated] = useState(false);
+    const setProvider = (p) => {
+        setProviderState(p);
+        try {
+            if (p) localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+            else localStorage.removeItem(STORAGE_KEY);
+        } catch {}
+    };
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+                const p = JSON.parse(raw);
+                setProviderState(p);
+            }
+        } catch {}
+        setHydrated(true);
+    }, []);
 
     useEffect(() => {
-        if (provider) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(provider));
-
-            // Save to mock DB
-            if (provider.phone) {
-                const db = JSON.parse(localStorage.getItem(DB_KEY) || "{}");
-                db[provider.phone] = provider;
-                localStorage.setItem(DB_KEY, JSON.stringify(db));
-            }
-        } else {
-            localStorage.removeItem(STORAGE_KEY);
-        }
-    }, [provider]);
+        let cancelled = false;
+        (async () => {
+            try {
+                const phone = provider?.phone || "";
+                if (phone && !provider?.profilePhoto) {
+                    const { provider: rec } = await api.provider.me(phone);
+                    if (!cancelled && rec?.profilePhoto) {
+                        setProvider({ ...(provider || {}), ...rec });
+                    }
+                }
+            } catch {}
+        })();
+        return () => { cancelled = true; };
+    }, [provider?.phone]);
 
     const isLoggedIn = !!provider;
     const isApproved = provider?.approvalStatus === "approved";
@@ -38,57 +54,77 @@ export const ProviderAuthProvider = ({ children }) => {
     const isRejected = provider?.approvalStatus === "rejected";
     const isRegistered = provider?.registrationComplete === true;
 
-    const register = (data) => {
-        const newProvider = {
-            id: `PRO${Date.now()}`,
-            phone: data.phone || provider?.phone || "9999999999",
-            name: data.name,
-            email: data.email || "",
-            gender: data.gender || "",
-            dob: data.dob || "",
-            experience: data.experience || "0-1",
-            profilePhoto: data.profilePhoto || null,
-            documents: {
-                aadharFront: data.aadharFront || null,
-                aadharBack: data.aadharBack || null,
-                panCard: data.panCard || null,
-                bankName: data.bankName || "",
-                accountNumber: data.accountNumber || "",
-                ifscCode: data.ifscCode || "",
-                primaryCategory: data.primaryCategory || [],
-                specializations: data.specializations || [],
-            },
-            approvalStatus: "pending", // pending | approved | rejected | blocked
-            registrationComplete: true,
-            isOnline: false,
-            rating: 0,
-            totalJobs: 0,
-            credits: 100,
-            createdAt: new Date().toISOString(),
+    const register = async (data) => {
+        const payload = { ...data };
+        if (!payload.phone && provider?.phone) payload.phone = provider.phone;
+        const safe = {
+            phone: payload.phone,
+            name: payload.name,
+            email: payload.email,
+            address: payload.address || [payload.addressLine1, payload.area].filter(Boolean).join(", ").trim(),
+            city: payload.city,
+            gender: payload.gender,
+            dob: payload.dob,
+            experience: payload.experience,
+            profilePhoto: typeof payload.profilePhoto === "string" && !payload.profilePhoto?.startsWith("data:") ? payload.profilePhoto : "",
+            aadharFront: typeof payload.aadharFront === "string" && !payload.aadharFront?.startsWith("data:") ? payload.aadharFront : "",
+            aadharBack: typeof payload.aadharBack === "string" && !payload.aadharBack?.startsWith("data:") ? payload.aadharBack : "",
+            panCard: typeof payload.panCard === "string" && !payload.panCard?.startsWith("data:") ? payload.panCard : "",
+            primaryCategory: payload.primaryCategory,
+            specializations: payload.specializations,
         };
-        setProvider(newProvider);
-    };
-
-    const login = (phone) => {
-        // Check if provider exists in mock DB
-        const db = JSON.parse(localStorage.getItem(DB_KEY) || "{}");
-        const existingProvider = db[phone];
-
-        if (existingProvider) {
-            setProvider(existingProvider);
-            return { success: true, registered: existingProvider.registrationComplete };
+        const { provider: regProvider } = await api.provider.register(safe);
+        let nextProvider = regProvider;
+        const hasFiles =
+            payload.profilePhoto instanceof File ||
+            payload.aadharFront instanceof File ||
+            payload.aadharBack instanceof File ||
+            payload.panCard instanceof File ||
+            (typeof payload.profilePhoto === "string" && payload.profilePhoto.startsWith("data:")) ||
+            (typeof payload.aadharFront === "string" && payload.aadharFront.startsWith("data:")) ||
+            (typeof payload.aadharBack === "string" && payload.aadharBack.startsWith("data:")) ||
+            (typeof payload.panCard === "string" && payload.panCard.startsWith("data:"));
+        if (hasFiles && safe.phone) {
+            const form = new FormData();
+            form.append("phone", safe.phone);
+            const toBlob = (dataUrl) => {
+                try {
+                    const arr = dataUrl.split(",");
+                    const mime = arr[0].match(/:(.*?);/)?.[1] || "image/png";
+                    const bstr = atob(arr[1]);
+                    let n = bstr.length;
+                    const u8arr = new Uint8Array(n);
+                    while (n--) u8arr[n] = bstr.charCodeAt(n);
+                    return new Blob([u8arr], { type: mime });
+                } catch { return null; }
+            };
+            const appendIf = (key, val) => {
+                if (val instanceof File) form.append(key, val, val.name || `${key}.png`);
+                else if (typeof val === "string" && val.startsWith("data:")) {
+                    const blob = toBlob(val);
+                    if (blob) form.append(key, blob, `${key}.png`);
+                }
+            };
+            appendIf("profilePhoto", payload.profilePhoto);
+            appendIf("aadharFront", payload.aadharFront);
+            appendIf("aadharBack", payload.aadharBack);
+            appendIf("panCard", payload.panCard);
+            try {
+                const { provider: upProvider } = await api.provider.uploadDocs(form);
+                nextProvider = upProvider || nextProvider;
+            } catch {}
         }
-
-        // Mock: treat as new user
-        const newProvider = { phone, registrationComplete: false, approvalStatus: null };
-        setProvider(newProvider);
-        return { success: true, registered: false };
+        setProvider(nextProvider);
     };
 
-    const logout = () => {
-        setProvider(null);
-        localStorage.removeItem(STORAGE_KEY);
+    const requestOtp = async (phone) => { await api.provider.requestOtp(phone); };
+    const verifyOtp = async (phone, otp) => {
+        const { provider } = await api.provider.verifyOtp(phone, otp);
+        setProvider(provider);
+        return { success: true, registered: provider.registrationComplete };
     };
+
+    const logout = () => { setProvider(null); api.provider.logout(); };
 
     const adminApprove = () => {
         setProvider(prev => ({ ...prev, approvalStatus: "approved" }));
@@ -101,13 +137,15 @@ export const ProviderAuthProvider = ({ children }) => {
     return (
         <ProviderAuthContext.Provider value={{
             provider,
+            hydrated,
             isLoggedIn,
             isApproved,
             isPending,
             isRejected,
             isRegistered,
             register,
-            login,
+            requestOtp,
+            verifyOtp,
             logout,
             adminApprove,
             adminReject,

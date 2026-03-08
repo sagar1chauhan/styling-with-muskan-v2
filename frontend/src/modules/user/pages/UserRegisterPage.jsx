@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, ChevronRight, ArrowLeft, CheckCircle2, Star, Smartphone, Apple } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { api } from "@/modules/user/lib/api";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { Button } from "@/modules/user/components/ui/button";
 
@@ -11,7 +12,7 @@ import { Button } from "@/modules/user/components/ui/button";
  */
 const UserRegisterPage = () => {
     const navigate = useNavigate();
-    const { isLoggedIn, login } = useAuth();
+    const { isLoggedIn, loginWithOtp } = useAuth();
     const [step, setStep] = useState(1); // 1: Phone, 2: OTP, 3: Profile Setup
     const [phone, setPhone] = useState("");
     const [name, setName] = useState("");
@@ -31,9 +32,21 @@ const UserRegisterPage = () => {
         return () => clearInterval(interval);
     }, [step, timer]);
 
-    const handlePhoneSubmit = (e) => {
+    const handlePhoneSubmit = async (e) => {
         e.preventDefault();
-        if (phone.length === 10) setStep(2);
+        if (phone.length !== 10) return;
+        try {
+            const res = await api.requestOtp(phone, "register");
+            console.log("[UserRegister] request-otp response", res);
+            setStep(2);
+            setTimer(30);
+        } catch (err) {
+             console.error("[UserRegister] request-otp error", err);
+            alert(err.message || "Failed to send OTP");
+            if ((err.message || "").toLowerCase().includes("already")) {
+                navigate("/login");
+            }
+        }
     };
 
     const handleOtpChange = (index, value) => {
@@ -52,10 +65,18 @@ const UserRegisterPage = () => {
         }
     };
 
-    const handleProfileSubmit = (e) => {
+    const handleProfileSubmit = async (e) => {
         e.preventDefault();
-        login({ phone, name, referralCode });
-        navigate("/home");
+        const enteredOtp = otp.join("");
+        try {
+            await loginWithOtp({ phone, otp: enteredOtp, name, referralCode, intent: "register" });
+            console.log("[UserRegister] login success", { phone });
+            navigate("/home");
+        } catch (err) {
+            console.error("[UserRegister] login error", err);
+            alert(err.message || "Verification failed");
+            setStep(2);
+        }
     };
 
     const StoreButton = ({ icon: Icon, label, sublabel, dark }) => (
@@ -144,6 +165,12 @@ const UserRegisterPage = () => {
 
                                     <p className="text-[11px] text-muted-foreground text-center leading-relaxed font-medium px-4">
                                         By signing up, you agree to our <span className="text-primary font-bold cursor-pointer hover:underline">Terms of Service</span> and <span className="text-primary font-bold cursor-pointer hover:underline">Privacy Policy</span>.
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground text-center leading-relaxed font-medium px-4 mt-2">
+                                        Already have an account?{" "}
+                                        <button type="button" onClick={() => navigate("/login")} className="text-primary font-bold hover:underline">
+                                            Login
+                                        </button>
                                     </p>
                                 </form>
                             </motion.div>

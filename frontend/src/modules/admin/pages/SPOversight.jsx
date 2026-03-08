@@ -7,6 +7,7 @@ import { Badge } from "@/modules/user/components/ui/badge";
 import { Input } from "@/modules/user/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/modules/user/components/ui/tabs";
 import { useAdminAuth } from "@/modules/admin/contexts/AdminAuthContext";
+import { toast } from "sonner";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } };
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
@@ -24,7 +25,12 @@ export default function SPOversight() {
     const [search, setSearch] = useState("");
     const [tab, setTab] = useState("all");
 
-    const load = () => setProviders(getAllServiceProviders());
+    const load = async () => {
+        try {
+            const items = await getAllServiceProviders();
+            setProviders(Array.isArray(items) ? items : []);
+        } catch {}
+    };
     useEffect(() => { load(); }, []);
 
     const filtered = providers.filter(sp => {
@@ -36,7 +42,15 @@ export default function SPOversight() {
         return ms;
     });
 
-    const handleAction = (phone, status) => { updateSPStatus(phone, status); load(); };
+    const handleAction = async (id, status) => {
+        try {
+            await updateSPStatus(id, status);
+            toast.success(`Status updated to ${status}`);
+            load();
+        } catch {
+            toast.error("Status update failed");
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -70,7 +84,7 @@ export default function SPOversight() {
                     ) : (
                         <motion.div variants={container} initial="hidden" animate="show" className="space-y-2">
                             {filtered.map(sp => (
-                                <motion.div key={sp.phone || sp.id} variants={item}>
+                                <motion.div key={sp._id || sp.id || sp.phone} variants={item}>
                                     <Card className="border-border/50 shadow-none hover:border-primary/30 transition-all">
                                         <CardContent className="p-4 flex items-center gap-4">
                                             <div className="h-10 w-10 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
@@ -88,15 +102,15 @@ export default function SPOversight() {
                                             <div className="flex gap-1.5">
                                                 {sp.approvalStatus === "pending" && (
                                                     <>
-                                                        <Button size="sm" className="h-7 text-[10px] font-bold bg-green-600 hover:bg-green-700 rounded-lg px-2" onClick={() => handleAction(sp.phone, "approved")}><CheckCircle className="h-3 w-3 mr-1" />Approve</Button>
-                                                        <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-red-500/30 text-red-400 rounded-lg px-2" onClick={() => handleAction(sp.phone, "rejected")}><XCircle className="h-3 w-3 mr-1" />Reject</Button>
+                                                        <Button size="sm" className="h-7 text-[10px] font-bold bg-green-600 hover:bg-green-700 rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "approved")}><CheckCircle className="h-3 w-3 mr-1" />Approve</Button>
+                                                        <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-red-500/30 text-red-400 rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "rejected")}><XCircle className="h-3 w-3 mr-1" />Reject</Button>
                                                     </>
                                                 )}
                                                 {sp.approvalStatus === "approved" && (
-                                                    <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-red-500/30 text-red-400 rounded-lg px-2" onClick={() => handleAction(sp.phone, "blocked")}><Ban className="h-3 w-3 mr-1" />Block</Button>
+                                                    <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-red-500/30 text-red-400 rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "blocked")}><Ban className="h-3 w-3 mr-1" />Block</Button>
                                                 )}
                                                 {(sp.approvalStatus === "blocked" || sp.approvalStatus === "rejected") && (
-                                                    <Button size="sm" className="h-7 text-[10px] font-bold bg-primary rounded-lg px-2" onClick={() => handleAction(sp.phone, "approved")}><UserCheck className="h-3 w-3 mr-1" />Unblock</Button>
+                                                    <Button size="sm" className="h-7 text-[10px] font-bold bg-primary rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "approved")}><UserCheck className="h-3 w-3 mr-1" />Unblock</Button>
                                                 )}
                                             </div>
                                         </CardContent>

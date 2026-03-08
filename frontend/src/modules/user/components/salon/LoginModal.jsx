@@ -4,10 +4,11 @@ import { X, Phone, ShieldCheck, ChevronRight } from "lucide-react";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { Button } from "@/modules/user/components/ui/button";
+import { api } from "@/modules/user/lib/api";
 
 const LoginModal = () => {
     const { gender } = useGenderTheme();
-    const { isLoggedIn, isLoginModalOpen, setIsLoginModalOpen, login } = useAuth();
+    const { isLoggedIn, isLoginModalOpen, setIsLoginModalOpen, loginWithOtp } = useAuth();
     const [step, setStep] = useState(1); // 1: Phone, 2: OTP, 3: Profile Setup
     const [phone, setPhone] = useState("");
     const [name, setName] = useState("");
@@ -32,9 +33,28 @@ const LoginModal = () => {
         }
     }, [isLoginModalOpen]);
 
-    const handlePhoneSubmit = (e) => {
+    const handlePhoneSubmit = async (e) => {
         e.preventDefault();
-        if (phone.length === 10) setStep(2);
+        if (phone.length !== 10) return;
+        try {
+            const res = await api.requestOtp(phone, "login");
+            console.log("[User] request-otp response", res);
+            setStep(2);
+            setTimer(30);
+        } catch (err) {
+            console.error("[User] request-otp error", err);
+            alert(err.message || "Failed to send OTP");
+        }
+    };
+    const handleResend = async () => {
+        try {
+            const res = await api.requestOtp(phone, "login");
+            console.log("[User] resend-otp response", res);
+            setTimer(30);
+        } catch (err) {
+            console.error("[User] resend-otp error", err);
+            alert(err.message || "Failed to resend OTP");
+        }
     };
 
     const handleOtpChange = (index, value) => {
@@ -51,15 +71,23 @@ const LoginModal = () => {
 
         if (newOtp.every(v => v !== "")) {
             setTimeout(() => {
-                setStep(3); // Move to Profile Setup
-            }, 500);
+                setStep(3);
+            }, 300);
         }
     };
 
-    const handleProfileSubmit = (e) => {
+    const handleProfileSubmit = async (e) => {
         e.preventDefault();
-        login({ phone, name, referralCode });
-        setIsLoginModalOpen(false);
+        const enteredOtp = otp.join("");
+        try {
+            await loginWithOtp({ phone, otp: enteredOtp, name, referralCode });
+            console.log("[User] login success", { phone });
+            setIsLoginModalOpen(false);
+        } catch (err) {
+            console.error("[User] login error", err);
+            alert(err.message || "Login failed");
+            setStep(2);
+        }
     };
 
     if (!isLoginModalOpen || isLoggedIn) return null;
@@ -170,7 +198,7 @@ const LoginModal = () => {
                                         {timer > 0 ? (
                                             <p className="text-xs text-muted-foreground">Resend OTP in {timer}s</p>
                                         ) : (
-                                            <button onClick={() => setTimer(30)} className="text-xs font-bold text-primary hover:underline">
+                                            <button onClick={handleResend} className="text-xs font-bold text-primary hover:underline">
                                                 RESEND OTP
                                             </button>
                                         )}
@@ -239,9 +267,14 @@ const LoginModal = () => {
                             </Button>
                         )}
                         {step === 2 && (
-                            <div className="h-14 flex items-center justify-center">
-                                <p className="text-[11px] text-muted-foreground font-medium italic">Auto-verifying your OTP...</p>
-                            </div>
+                            <Button
+                                type="button"
+                                disabled={otp.some(d => d === "")}
+                                onClick={() => setStep(3)}
+                                className="w-full h-14 rounded-2xl text-base font-bold shadow-xl shadow-primary/20 bg-black text-white hover:bg-black/90"
+                            >
+                                VERIFY OTP
+                            </Button>
                         )}
                     </div>
                 </motion.div>

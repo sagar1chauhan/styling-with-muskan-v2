@@ -10,14 +10,17 @@ import AddressModal from "@/modules/user/components/salon/AddressModal";
 const AddressesPage = () => {
     const navigate = useNavigate();
     const { gender } = useGenderTheme();
-    const { user } = useAuth();
+    const { user, deleteAddress } = useAuth();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editAddress, setEditAddress] = useState(null);
 
-    // Mock saved addresses (in a real app, these would be in the backend/auth context)
-    const savedAddresses = [
-        { id: 1, type: "home", houseNo: "B-12, 4th Floor", area: "Sector 15, Noida", landmark: "Near Central Park" },
-        { id: 2, type: "work", houseNo: "Plot No. 45, Cyber Hub", area: "DLF Phase 3, Gurgaon", landmark: "Opposite Google Building" },
-    ];
+    const savedAddresses = (user?.addresses || []).map(a => ({
+        id: a._id || a.id,
+        type: a.type,
+        houseNo: a.houseNo,
+        area: a.area,
+        landmark: a.landmark
+    }));
 
     const getIcon = (type) => {
         switch (type) {
@@ -56,7 +59,7 @@ const AddressesPage = () => {
                                     <div className="flex-1">
                                         <div className="flex items-center justify-between">
                                             <h3 className="font-bold text-sm uppercase tracking-wider">{addr.type}</h3>
-                                            <button className="w-8 h-8 rounded-full hover:bg-black/5 flex items-center justify-center">
+                                    <button className="w-8 h-8 rounded-full hover:bg-black/5 flex items-center justify-center">
                                                 <MoreVertical className="w-4 h-4 text-muted-foreground" />
                                             </button>
                                         </div>
@@ -72,11 +75,15 @@ const AddressesPage = () => {
 
                                 {/* Quick Actions */}
                                 <div className="flex gap-2 mt-4 pt-4 border-t border-border/50">
-                                    <button className="flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors">
+                                    <button
+                                        onClick={() => { setEditAddress(a => ({ _id: addr.id, type: addr.type, houseNo: addr.houseNo, area: addr.area, landmark: addr.landmark })); setIsModalOpen(true); }}
+                                        className="flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors">
                                         <Edit2 className="w-3.5 h-3.5" /> Edit
                                     </button>
                                     <div className="w-px h-4 bg-border self-center" />
-                                    <button className="flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold text-destructive hover:opacity-80 transition-opacity">
+                                    <button
+                                        onClick={() => deleteAddress(addr.id)}
+                                        className="flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold text-destructive hover:opacity-80 transition-opacity">
                                         <Trash2 className="w-3.5 h-3.5" /> Remove
                                     </button>
                                 </div>
@@ -96,9 +103,8 @@ const AddressesPage = () => {
             <AddressModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onSave={() => {
-                    // Logic to refresh addresses
-                }}
+                onSave={() => {}}
+                initialAddress={editAddress}
             />
         </div>
     );

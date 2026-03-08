@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useProviderAuth } from "../contexts/ProviderAuthContext";
 import {
@@ -52,19 +52,31 @@ export default function ProviderProfile() {
     const { provider, logout } = useProviderAuth();
     const navigate = useNavigate();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [summary, setSummary] = useState(null);
+    useEffect(() => {
+        let cancelled = false;
+        if (provider?.phone) {
+            import("@/modules/user/lib/api").then(({ api }) => {
+                api.provider.summary(provider.phone).then((s) => {
+                    if (!cancelled) setSummary(s);
+                }).catch(() => {});
+            });
+        }
+        return () => { cancelled = true; };
+    }, [provider?.phone]);
 
     // Provide default fallbacks if provider context is missing somehow
     const safeProvider = provider || {};
-    const name = safeProvider.name || "Muskan Poswal";
-    const profileImage = safeProvider.profilePhoto || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&h=240";
+    const name = (summary?.provider?.name || safeProvider.name || "").trim() || "Provider";
+    const profileImage = summary?.provider?.profilePhoto || safeProvider.profilePhoto || "";
 
     const providerDetails = {
-        email: safeProvider.email || "muskan.poswal@swm.com",
-        phone: safeProvider.phone || "+91 98765 43210",
-        city: "New Delhi", // Hardcoded for now unless added to registration
-        category: safeProvider.documents?.primaryCategory?.[0] || "Beautician",
-        joiningDate: safeProvider.createdAt ? new Date(safeProvider.createdAt).toLocaleDateString() : "Jan 12, 2024",
-        experience: safeProvider.experience || "4+ Years"
+        email: safeProvider.email || "",
+        phone: safeProvider.phone || "",
+        city: summary?.provider?.city || "",
+        category: safeProvider.documents?.primaryCategory?.[0] || "",
+        joiningDate: safeProvider.createdAt ? new Date(safeProvider.createdAt).toLocaleDateString() : "",
+        experience: safeProvider.experience || ""
     };
 
     const handleLogout = () => {
@@ -81,7 +93,7 @@ export default function ProviderProfile() {
                         <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">{name}</h1>
                         <div className="flex items-center gap-1 text-sm font-bold text-gray-600">
                             <Star className="h-4 w-4 fill-gray-600" />
-                            <span>4.63</span>
+                            <span>{(summary?.provider?.rating ?? safeProvider.rating ?? 0).toFixed ? (summary?.provider?.rating ?? safeProvider.rating ?? 0).toFixed(2) : summary?.provider?.rating ?? safeProvider.rating ?? 0}</span>
                         </div>
                     </div>
 
@@ -170,7 +182,11 @@ export default function ProviderProfile() {
 
                 <div className="relative group">
                     <Avatar className="h-28 w-24 rounded-2xl border-2 border-gray-100 shadow-sm overflow-hidden relative">
-                        <AvatarImage src={profileImage} className="object-cover" />
+                        <AvatarImage
+                            src={profileImage || "https://via.placeholder.com/200x240"}
+                            className="object-cover"
+                            onError={(e) => { e.currentTarget.src = "https://via.placeholder.com/200x240"; }}
+                        />
                         <AvatarFallback className="rounded-2xl">{name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                     </Avatar>
                 </div>

@@ -11,7 +11,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } };
 const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 
-const revenueData = [
+const defaultRevenueData = [
     { month: "Jan", revenue: 45000, commission: 6750 },
     { month: "Feb", revenue: 62000, commission: 9300 },
     { month: "Mar", revenue: 58000, commission: 8700 },
@@ -20,39 +20,98 @@ const revenueData = [
     { month: "Jun", revenue: 95000, commission: 14250 },
 ];
 
-const bookingTrend = [
+const defaultBookingTrend = [
     { day: "Mon", bookings: 28 }, { day: "Tue", bookings: 35 }, { day: "Wed", bookings: 42 },
     { day: "Thu", bookings: 38 }, { day: "Fri", bookings: 55 }, { day: "Sat", bookings: 68 }, { day: "Sun", bookings: 45 },
 ];
 
 export default function AdminDashboard() {
-    const { getAllVendors, getAllServiceProviders, getAllBookings, getUserBookings, getSOSAlerts, admin } = useAdminAuth();
+    const { getAllVendors, getAllServiceProviders, getAllBookings, getUserBookings, getSOSAlerts, getRevenueByMonth, getBookingTrend } = useAdminAuth();
     const [stats, setStats] = useState({});
+    const [revenueSeries, setRevenueSeries] = useState(defaultRevenueData);
+    const [bookingSeries, setBookingSeries] = useState(defaultBookingTrend);
+    const [allBookings, setAllBookings] = useState([]);
 
     useEffect(() => {
-        const vendors = getAllVendors();
-        const sps = getAllServiceProviders();
-        const providerBookings = getAllBookings();
-        const userBookings = getUserBookings();
-        const sos = getSOSAlerts();
-        const allBookings = [...providerBookings, ...userBookings];
-        const completed = providerBookings.filter(b => b.status === "completed");
-        const cancelled = providerBookings.filter(b => ["cancelled", "rejected"].includes(b.status));
-
-        setStats({
-            totalVendors: vendors.length,
-            totalSPs: sps.length,
-            activeSPs: sps.filter(sp => sp.approvalStatus === "approved").length,
-            pendingSPs: sps.filter(sp => sp.approvalStatus === "pending").length,
-            totalBookings: providerBookings.length,
-            activeBookings: providerBookings.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes(b.status)).length,
-            totalRevenue: completed.reduce((s, b) => s + (b.totalAmount || 0), 0),
-            commissionEarned: Math.round(completed.reduce((s, b) => s + (b.totalAmount || 0), 0) * 0.15),
-            cancellationRate: providerBookings.length > 0 ? Math.round((cancelled.length / providerBookings.length) * 100) : 0,
-            customerCount: new Set(providerBookings.map(b => b.customerId)).size,
-            sosAlerts: sos.filter(s => s.status !== "resolved").length,
-        });
+        let cancelled = false;
+        (async () => {
+            try {
+                const [vendors, sps, providerBookings, userBookings, sos] = await Promise.all([
+                    getAllVendors(),
+                    getAllServiceProviders(),
+                    getAllBookings(),
+                    getUserBookings(),
+                    getSOSAlerts(),
+                ]);
+                if (cancelled) return;
+                const pBookings = Array.isArray(providerBookings) ? providerBookings : [];
+                const uBookings = Array.isArray(userBookings) ? userBookings : [];
+                const allBookings = [...pBookings, ...uBookings];
+                setAllBookings(allBookings);
+                const completed = pBookings.filter(b => b.status === "completed");
+                const cancelledBookings = pBookings.filter(b => ["cancelled", "rejected"].includes(b.status));
+                setStats({
+                    totalVendors: (vendors || []).length,
+                    totalSPs: (sps || []).length,
+                    activeSPs: (sps || []).filter(sp => sp.approvalStatus === "approved").length,
+                    pendingSPs: (sps || []).filter(sp => sp.approvalStatus === "pending").length,
+                    totalBookings: pBookings.length,
+                    activeBookings: pBookings.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes(b.status)).length,
+                    totalRevenue: completed.reduce((s, b) => s + (b.totalAmount || 0), 0),
+                    commissionEarned: Math.round(completed.reduce((s, b) => s + (b.totalAmount || 0), 0) * 0.15),
+                    cancellationRate: pBookings.length > 0 ? Math.round((cancelledBookings.length / pBookings.length) * 100) : 0,
+                    customerCount: new Set(pBookings.map(b => b.customerId)).size,
+                    sosAlerts: (sos || []).filter(s => s.status !== "resolved").length,
+                });
+            } catch {
+                if (cancelled) return;
+                setStats({
+                    totalVendors: 0, totalSPs: 0, activeSPs: 0, pendingSPs: 0,
+                    totalBookings: 0, activeBookings: 0, totalRevenue: 0,
+                    commissionEarned: 0, cancellationRate: 0, customerCount: 0, sosAlerts: 0,
+                });
+            }
+        })();
+        return () => { cancelled = true; };
     }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const [rev, trend] = await Promise.all([
+                    getRevenueByMonth?.(),
+                    getBookingTrend?.(),
+                ]);
+                if (cancelled) return;
+                let appliedRevenue = false;
+                if (Array.isArray(rev) && rev.length) {
+                    setRevenueSeries(rev);
+                    appliedRevenue = true;
+                }
+                if (!appliedRevenue && Array.isArray(allBookings) && allBookings.length) {
+                    // Fallback: compute monthly revenue from local bookings
+                    const map = new Map();
+                    (allBookings || []).filter(b => (b.status || "").toLowerCase() === "completed").forEach(b => {
+                        const d = new Date(b.createdAt || Date.now());
+                        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                        const label = d.toLocaleString("en-US", { month: "short" });
+                        const prev = map.get(key) || { month: label, revenue: 0 };
+                        prev.revenue += b.totalAmount || 0;
+                        map.set(key, prev);
+                    });
+                    const series = Array.from(map.entries())
+                        .sort(([a], [b]) => (a > b ? 1 : -1))
+                        .map(([, v]) => ({ month: v.month, revenue: v.revenue, commission: Math.round(v.revenue * 0.15) }));
+                    if (series.length) setRevenueSeries(series);
+                }
+                if (Array.isArray(trend) && trend.length) setBookingSeries(trend);
+            } catch {
+                // keep defaults
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [allBookings]);
 
     const statCards = [
         { title: "Total Revenue", value: `₹${(stats.totalRevenue || 0).toLocaleString()}`, icon: IndianRupee, color: "from-indigo-500/20 to-indigo-500/5", iconBg: "bg-indigo-500/20 text-indigo-400", trend: "+18%", up: true },
@@ -113,7 +172,7 @@ export default function AdminDashboard() {
                         </CardHeader>
                         <CardContent>
                             <ResponsiveContainer width="100%" height={220}>
-                                <BarChart data={revenueData}>
+                                <BarChart data={revenueSeries}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                                     <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
                                     <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
@@ -134,7 +193,7 @@ export default function AdminDashboard() {
                         </CardHeader>
                         <CardContent>
                             <ResponsiveContainer width="100%" height={220}>
-                                <AreaChart data={bookingTrend}>
+                                <AreaChart data={bookingSeries}>
                                     <defs>
                                         <linearGradient id="bookingGrad" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />

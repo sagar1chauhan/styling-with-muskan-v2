@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, Navigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Wallet,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/modules/user/lib/utils";
 import { useProviderAuth } from "../contexts/ProviderAuthContext";
+import { api } from "@/modules/user/lib/api";
 
 // Fallback cn if needed, but normally it's at @/lib/utils in these setups
 // If not, we can just use template literals. Assuming standard shadcn template.
@@ -30,10 +31,17 @@ const ProviderLayout = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  const { provider } = useProviderAuth();
+  const { provider, isLoggedIn, hydrated } = useProviderAuth();
   const safeProvider = provider || {};
   const name = safeProvider.name || "stylingwithmuskan";
   const profileImage = safeProvider.profilePhoto || "/logo1.png";
+
+  if (!hydrated) {
+    return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+  }
+  if (!isLoggedIn) {
+    return <Navigate to="/provider/login" replace />;
+  }
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40 md:flex-row">
@@ -98,21 +106,9 @@ const ProviderLayout = () => {
             <button
               onClick={() => {
                 if (window.confirm("EMERGENCY: Do you want to trigger SOS alert?")) {
-                  const sosAlertsRaw = localStorage.getItem("muskan-admin-sos");
-                  const sosAlerts = sosAlertsRaw ? JSON.parse(sosAlertsRaw) : [];
-                  // In real app, we'd get provider data from context
-                  const newAlert = {
-                    id: Date.now(),
-                    userId: 'sp_demo',
-                    userName: 'Demo Provider',
-                    userPhone: '9876543210',
-                    type: 'BEAUTICIAN',
-                    status: 'PENDING',
-                    location: 'Service Site B',
-                    timestamp: new Date().toISOString()
-                  };
-                  localStorage.setItem("muskan-admin-sos", JSON.stringify([newAlert, ...sosAlerts]));
-                  alert("SOS Alert Sent! Emergency team notified.");
+                  api.sos.create({ userType: "beautician", userId: safeProvider?._id || safeProvider?.id || "sp_demo", source: "provider-app" })
+                    .then(() => alert("SOS Alert Sent! Emergency team notified."))
+                    .catch(() => alert("Failed to send SOS"));
                 }
               }}
               className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition-colors"

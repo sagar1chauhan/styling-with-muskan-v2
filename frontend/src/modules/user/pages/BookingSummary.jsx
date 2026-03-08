@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, MapPin, Calendar, Clock, Tag, ChevronRight, CheckCircle2, ShoppingBag } from "lucide-react";
@@ -8,6 +8,7 @@ import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useBookings } from "@/modules/user/contexts/BookingContext";
+import { api } from "@/modules/user/lib/api";
 
 const BookingSummary = () => {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ const BookingSummary = () => {
 
   const { gender } = useGenderTheme();
   const { cartItems, updateQuantity, clearCart, totalPrice, totalSavings, isCartOpen, setIsCartOpen, selectedSlot, getGroupedItems } = useCart();
-  const { user } = useAuth();
+  const { user, setIsAddressModalOpen } = useAuth();
   const { addBooking } = useBookings();
 
   const allGroups = getGroupedItems();
@@ -36,31 +37,34 @@ const BookingSummary = () => {
   const [couponApplied, setCouponApplied] = useState(null);
   const [couponError, setCouponError] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState([]);
 
-  const handleApplyCoupon = () => {
-    const adminCouponsRaw = localStorage.getItem("muskan-admin-coupons");
-    const adminCoupons = adminCouponsRaw ? JSON.parse(adminCouponsRaw) : [];
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { coupons } = await api.userCoupons();
+        if (!cancelled) setAvailableCoupons(Array.isArray(coupons) ? coupons : []);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
-    // Convert both to uppercase for case-insensitive comparison
-    const foundCoupon = adminCoupons.find(c =>
-      c.code.toUpperCase() === coupon.toUpperCase() &&
-      c.status === "ACTIVE"
-    );
-
-    if (!foundCoupon) {
-      setCouponError("Invalid or expired coupon");
+  const handleApplyCoupon = async () => {
+    try {
+      const items = displayItems.map(it => ({ name: it.name, price: it.price, quantity: it.quantity || 1, duration: it.duration, category: it.category, serviceType: it.serviceType }));
+      const { total, discount: serverDiscount, couponApplied } = await api.bookings.quote({ items, couponCode: coupon });
+      if (!couponApplied) {
+        setCouponError("Invalid or expired coupon");
+        setCouponApplied(null);
+        return;
+      }
+      setCouponError("");
+      setCouponApplied({ code: couponApplied, type: "AUTO", value: serverDiscount });
+    } catch (e) {
+      setCouponError(e.message || "Coupon apply failed");
       setCouponApplied(null);
-      return;
     }
-
-    if (displayTotalPrice < (foundCoupon.minOrder || 0)) {
-      setCouponError(`Min order ₹${foundCoupon.minOrder} required`);
-      setCouponApplied(null);
-      return;
-    }
-
-    setCouponError("");
-    setCouponApplied(foundCoupon);
   };
 
   const discount = couponApplied
@@ -73,18 +77,56 @@ const BookingSummary = () => {
   const advanceAmount = passedBookingData?.advanceAmount || 0;
   const remainingAfterAdvance = finalTotal - advanceAmount;
 
-  const handlePay = () => {
-    navigate("/payment", {
-      state: {
-        discount,
-        finalTotal,
-        totalSavings: displayTotalSavings,
-        checkoutType,
-        advanceAmount: advanceAmount,
-        remainingAmount: remainingAfterAdvance,
-        isPartiallyPaid: advanceAmount > 0
+  const handlePay = async () => {
+    if (!user?.addresses || user.addresses.length === 0) {
+      setIsAddressModalOpen(true);
+      return;
+    }
+    try {
+      const items = displayItems.map(it => ({ name: it.name, price: it.price, quantity: it.quantity || 1, duration: it.duration, category: it.category, serviceType: it.serviceType }));
+      const address = {
+        houseNo: user.addresses[0].houseNo,
+        area: user.addresses[0].area,
+        landmark: user.addresses[0].landmark || "",
+        lat: user.addresses[0].lat ?? null,
+        lng: user.addresses[0].lng ?? null
+      };
+      const { booking, totals, advanceAmount, order } = await api.bookings.create({
+        items,
+        slot: selectedSlot || { date: "Today", time: "09:00" },
+        address,
+        bookingType: checkoutType || "instant",
+        couponCode: couponApplied?.code || undefined,
+      });
+      if (advanceAmount > 0 && order) {
+        navigate("/payment", {
+          state: {
+            discount: totals.total - totals.finalTotal,
+            finalTotal: totals.finalTotal,
+            totalSavings: displayTotalSavings,
+            checkoutType,
+            advanceAmount,
+            remainingAmount: totals.finalTotal - advanceAmount,
+            isPartiallyPaid: true,
+            order
+          }
+        });
+      } else {
+        navigate("/payment", {
+          state: {
+            discount: totals.total - totals.finalTotal,
+            finalTotal: totals.finalTotal,
+            totalSavings: displayTotalSavings,
+            checkoutType,
+            advanceAmount: 0,
+            remainingAmount: totals.finalTotal,
+            isPartiallyPaid: false
+          }
+        });
       }
-    });
+    } catch (e) {
+      alert(e.message || "Payment initiation failed");
+    }
   };
 
   const getFormattedDate = (dateStr) => {
@@ -152,12 +194,12 @@ const BookingSummary = () => {
           <div className="flex items-center gap-2 text-sm font-bold mb-3 uppercase tracking-wider text-muted-foreground">
             <MapPin className="w-4 h-4 text-primary" /> Service Address
           </div>
-          {user?.address ? (
+          {Array.isArray(user?.addresses) && user.addresses.length > 0 ? (
             <div>
-              <p className="font-bold text-sm uppercase">{user.address.type}</p>
+              <p className="font-bold text-sm uppercase">{user.addresses[0].type}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                {user.address.houseNo}, {user.address.area}
-                {user.address.landmark && <span className="block italic text-xs mt-0.5 opacity-60">Near {user.address.landmark}</span>}
+                {user.addresses[0].houseNo}, {user.addresses[0].area}
+                {user.addresses[0].landmark && <span className="block italic text-xs mt-0.5 opacity-60">Near {user.addresses[0].landmark}</span>}
               </p>
             </div>
           ) : (
@@ -257,6 +299,25 @@ const BookingSummary = () => {
               }}
               className="flex-1 h-12 rounded-xl bg-accent border-none text-base font-medium"
             />
+            {availableCoupons.length > 0 && (
+              <select
+                value={coupon}
+                onChange={(e) => {
+                  setCoupon(e.target.value);
+                  setCouponError("");
+                  setCouponApplied(null);
+                }}
+                className="h-12 rounded-xl bg-white border border-border px-3 text-sm font-bold"
+                aria-label="Select coupon"
+              >
+                <option value="">Choose coupon</option>
+                {availableCoupons.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} ({c.type === "FIXED" ? `₹${c.value}` : `${c.value}%`})
+                  </option>
+                ))}
+              </select>
+            )}
             <Button
               className="h-12 rounded-xl px-6 font-bold"
               variant={couponApplied ? "secondary" : "default"}

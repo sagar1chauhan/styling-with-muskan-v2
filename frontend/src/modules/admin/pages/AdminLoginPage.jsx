@@ -24,10 +24,10 @@ export default function AdminLoginPage() {
         if (isLoggedIn) navigate("/admin/dashboard", { replace: true });
     }, [isLoggedIn]);
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
         setError("");
-        const result = login(email, password);
+        const result = await login(email, password);
         if (result.success) navigate("/admin/dashboard");
         else setError(result.error || "Invalid credentials");
     };

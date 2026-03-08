@@ -10,19 +10,26 @@ import { Badge } from "@/modules/user/components/ui/badge";
 import { Input } from "@/modules/user/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/modules/user/components/ui/tabs";
 import { useVenderAuth } from "@/modules/vender/contexts/VenderAuthContext";
+import { toast } from "sonner";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } };
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
 
 export default function SPManagement() {
-    const { getServiceProviders, updateSPStatus } = useVenderAuth();
+    const { getServiceProviders, updateSPStatus, hydrated, isLoggedIn } = useVenderAuth();
     const [providers, setProviders] = useState([]);
     const [search, setSearch] = useState("");
     const [selectedSP, setSelectedSP] = useState(null);
     const [activeTab, setActiveTab] = useState("all");
 
-    const loadProviders = () => setProviders(getServiceProviders());
-    useEffect(() => { loadProviders(); }, []);
+    const loadProviders = async () => {
+        try {
+            if (!hydrated || !isLoggedIn) return;
+            const sps = await getServiceProviders();
+            setProviders(Array.isArray(sps) ? sps : []);
+        } catch {}
+    };
+    useEffect(() => { loadProviders(); }, [hydrated, isLoggedIn]);
 
     const filtered = providers.filter(sp => {
         const matchSearch = sp.name?.toLowerCase().includes(search.toLowerCase()) || sp.phone?.includes(search);
@@ -33,10 +40,15 @@ export default function SPManagement() {
         return matchSearch;
     });
 
-    const handleAction = (phone, status) => {
-        updateSPStatus(phone, status);
-        loadProviders();
-        if (selectedSP?.phone === phone) setSelectedSP(prev => ({ ...prev, approvalStatus: status }));
+    const handleAction = async (id, status) => {
+        try {
+            await updateSPStatus(id, status);
+            toast.success(`Status updated to ${status}`);
+            loadProviders();
+            if (selectedSP?._id === id) setSelectedSP(prev => ({ ...prev, approvalStatus: status }));
+        } catch {
+            toast.error("Status update failed");
+        }
     };
 
     const statusConfig = {
@@ -90,7 +102,7 @@ export default function SPManagement() {
                                 {filtered.map((sp) => {
                                     const stConfig = statusConfig[sp.approvalStatus] || statusConfig.pending;
                                     return (
-                                        <motion.div key={sp.phone || sp.id} variants={item}>
+                                        <motion.div key={sp._id || sp.id || sp.phone} variants={item}>
                                             <Card className="shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group" onClick={() => setSelectedSP(sp)}>
                                                 <CardContent className="p-4 md:p-5">
                                                     <div className="flex items-center gap-4">
@@ -116,12 +128,12 @@ export default function SPManagement() {
                                                             {sp.approvalStatus === "pending" && (
                                                                 <>
                                                                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                                                        <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[11px] font-bold gap-1" onClick={(e) => { e.stopPropagation(); handleAction(sp.phone, "approved"); }}>
+                                                                        <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[11px] font-bold gap-1" onClick={(e) => { e.stopPropagation(); handleAction(sp._id || sp.id, "approved"); }}>
                                                                             <CheckCircle className="h-3.5 w-3.5" /> Approve
                                                                         </Button>
                                                                     </motion.div>
                                                                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                                                        <Button size="sm" variant="outline" className="h-8 border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-[11px] font-bold gap-1" onClick={(e) => { e.stopPropagation(); handleAction(sp.phone, "rejected"); }}>
+                                                                        <Button size="sm" variant="outline" className="h-8 border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-[11px] font-bold gap-1" onClick={(e) => { e.stopPropagation(); handleAction(sp._id || sp.id, "rejected"); }}>
                                                                             <XCircle className="h-3.5 w-3.5" /> Reject
                                                                         </Button>
                                                                     </motion.div>
@@ -129,14 +141,14 @@ export default function SPManagement() {
                                                             )}
                                                             {sp.approvalStatus === "approved" && (
                                                                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                                                    <Button size="sm" variant="outline" className="h-8 border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-[11px] font-bold gap-1" onClick={(e) => { e.stopPropagation(); handleAction(sp.phone, "blocked"); }}>
+                                                                    <Button size="sm" variant="outline" className="h-8 border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-[11px] font-bold gap-1" onClick={(e) => { e.stopPropagation(); handleAction(sp._id || sp.id, "blocked"); }}>
                                                                         <Ban className="h-3.5 w-3.5" /> Block
                                                                     </Button>
                                                                 </motion.div>
                                                             )}
                                                             {(sp.approvalStatus === "blocked" || sp.approvalStatus === "rejected") && (
                                                                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                                                    <Button size="sm" className="h-8 bg-primary hover:bg-primary/90 text-white rounded-lg text-[11px] font-bold gap-1" onClick={(e) => { e.stopPropagation(); handleAction(sp.phone, "approved"); }}>
+                                                                    <Button size="sm" className="h-8 bg-primary hover:bg-primary/90 text-white rounded-lg text-[11px] font-bold gap-1" onClick={(e) => { e.stopPropagation(); handleAction(sp._id || sp.id, "approved"); }}>
                                                                         <UserCheck className="h-3.5 w-3.5" /> Unblock
                                                                     </Button>
                                                                 </motion.div>
@@ -178,7 +190,7 @@ export default function SPManagement() {
                                             <Badge variant="outline" className={`text-[9px] font-black ${(statusConfig[selectedSP.approvalStatus] || statusConfig.pending).color}`}>
                                                 {(statusConfig[selectedSP.approvalStatus] || statusConfig.pending).label}
                                             </Badge>
-                                            <span className="text-[10px] text-muted-foreground font-medium">ID: {selectedSP.id}</span>
+                                            <span className="text-[10px] text-muted-foreground font-medium">ID: {selectedSP._id || selectedSP.id}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -229,21 +241,21 @@ export default function SPManagement() {
                                 <div className="flex gap-2 pt-2">
                                     {selectedSP.approvalStatus === "pending" && (
                                         <>
-                                            <Button className="flex-1 h-11 bg-green-600 hover:bg-green-700 rounded-xl font-bold gap-2" onClick={() => handleAction(selectedSP.phone, "approved")}>
+                                            <Button className="flex-1 h-11 bg-green-600 hover:bg-green-700 rounded-xl font-bold gap-2" onClick={() => handleAction(selectedSP._id || selectedSP.id, "approved")}>
                                                 <CheckCircle className="h-4 w-4" /> Approve
                                             </Button>
-                                            <Button variant="outline" className="flex-1 h-11 border-red-200 text-red-600 hover:bg-red-50 rounded-xl font-bold gap-2" onClick={() => handleAction(selectedSP.phone, "rejected")}>
+                                            <Button variant="outline" className="flex-1 h-11 border-red-200 text-red-600 hover:bg-red-50 rounded-xl font-bold gap-2" onClick={() => handleAction(selectedSP._id || selectedSP.id, "rejected")}>
                                                 <XCircle className="h-4 w-4" /> Reject
                                             </Button>
                                         </>
                                     )}
                                     {selectedSP.approvalStatus === "approved" && (
-                                        <Button variant="outline" className="flex-1 h-11 border-red-200 text-red-600 hover:bg-red-50 rounded-xl font-bold gap-2" onClick={() => handleAction(selectedSP.phone, "blocked")}>
+                                        <Button variant="outline" className="flex-1 h-11 border-red-200 text-red-600 hover:bg-red-50 rounded-xl font-bold gap-2" onClick={() => handleAction(selectedSP._id || selectedSP.id, "blocked")}>
                                             <Ban className="h-4 w-4" /> Block SP
                                         </Button>
                                     )}
                                     {(selectedSP.approvalStatus === "blocked" || selectedSP.approvalStatus === "rejected") && (
-                                        <Button className="flex-1 h-11 bg-primary hover:bg-primary/90 rounded-xl font-bold gap-2" onClick={() => handleAction(selectedSP.phone, "approved")}>
+                                        <Button className="flex-1 h-11 bg-primary hover:bg-primary/90 rounded-xl font-bold gap-2" onClick={() => handleAction(selectedSP._id || selectedSP.id, "approved")}>
                                             <UserCheck className="h-4 w-4" /> Unblock & Approve
                                         </Button>
                                     )}

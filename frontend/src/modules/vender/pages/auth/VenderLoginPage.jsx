@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Store, Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Store, Smartphone, ArrowRight } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
 import { Input } from "@/modules/user/components/ui/input";
 import { Label } from "@/modules/user/components/ui/label";
@@ -8,11 +8,11 @@ import { useVenderAuth } from "@/modules/vender/contexts/VenderAuthContext";
 import { useNavigate, Link } from "react-router-dom";
 
 export default function VenderLoginPage() {
-    const { login, isLoggedIn } = useVenderAuth();
+    const { requestOtp, verifyOtp, isLoggedIn } = useVenderAuth();
     const navigate = useNavigate();
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [showPw, setShowPw] = useState(false);
+    const [step, setStep] = useState(1);
+    const [phone, setPhone] = useState("");
+    const [otp, setOtp] = useState(["", "", "", "", "", ""]);
     const [error, setError] = useState("");
 
     useEffect(() => {
@@ -24,12 +24,27 @@ export default function VenderLoginPage() {
         if (isLoggedIn) navigate("/vender/dashboard", { replace: true });
     }, [isLoggedIn]);
 
-    const handleLogin = (e) => {
+    const handleRequestOtp = async (e) => {
         e.preventDefault();
         setError("");
-        const result = login(email, password);
-        if (result.success) navigate("/vender/dashboard");
-        else setError(result.error || "Invalid credentials");
+        try {
+            if (phone.length !== 10) return;
+            await requestOtp(phone);
+            setStep(2);
+        } catch (err) {
+            setError(err?.message || "Failed to request OTP");
+        }
+    };
+    const handleVerify = async (e) => {
+        e.preventDefault();
+        setError("");
+        try {
+            const code = otp.join("");
+            await verifyOtp(phone, code);
+            navigate("/vender/dashboard", { replace: true });
+        } catch (err) {
+            setError(err?.message || "Failed to verify OTP");
+        }
     };
 
     return (
@@ -61,31 +76,43 @@ export default function VenderLoginPage() {
                     transition={{ delay: 0.3 }}
                     className="bg-white rounded-2xl border border-gray-100 shadow-xl shadow-emerald-100/30 p-6 space-y-5"
                 >
-                    <form onSubmit={handleLogin} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="email" className="text-xs font-bold text-gray-600">Email Address</Label>
-                            <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <Input id="email" type="email" placeholder="vendor@swm.com" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 h-11 rounded-xl border-gray-200" required />
+                    {step === 1 ? (
+                        <form onSubmit={handleRequestOtp} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="phone" className="text-xs font-bold text-gray-600">Mobile Number</Label>
+                                <div className="relative">
+                                    <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                    <Input id="phone" type="tel" placeholder="10-digit mobile number" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} className="pl-10 h-11 rounded-xl border-gray-200" required />
+                                </div>
                             </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="password" className="text-xs font-bold text-gray-600">Password</Label>
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <Input id="password" type={showPw ? "text" : "password"} placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 pr-10 h-11 rounded-xl border-gray-200" required />
-                                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                </button>
+
+                            {error && <p className="text-xs font-bold text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+
+                            <Button type="submit" className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-bold text-white gap-2 shadow-lg shadow-emerald-200">
+                                Continue <ArrowRight className="h-4 w-4" />
+                            </Button>
+                        </form>
+                    ) : (
+                        <form onSubmit={handleVerify} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-gray-600">Enter OTP</Label>
+                                <div className="grid grid-cols-6 gap-2">
+                                    {otp.map((d, i) => (
+                                        <Input key={i} id={`otp-${i}`} value={d} onChange={e => {
+                                            if (/^\d*$/.test(e.target.value)) {
+                                                const n = [...otp]; n[i] = e.target.value.slice(-1); setOtp(n);
+                                                if (e.target.value && i < 5) document.getElementById(`otp-${i + 1}`)?.focus();
+                                            }
+                                        }} className="h-12 text-center font-bold" maxLength={1} />
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-
-                        {error && <p className="text-xs font-bold text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-
-                        <Button type="submit" className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-bold text-white gap-2 shadow-lg shadow-emerald-200">
-                            Login <ArrowRight className="h-4 w-4" />
-                        </Button>
-                    </form>
+                            {error && <p className="text-xs font-bold text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+                            <Button type="submit" className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-bold text-white gap-2 shadow-lg shadow-emerald-200">
+                                Verify & Login <ArrowRight className="h-4 w-4" />
+                            </Button>
+                        </form>
+                    )}
 
                     <div className="text-center pt-2 border-t border-gray-100">
                         <p className="text-xs text-gray-500 font-medium">

@@ -9,7 +9,7 @@ import { Button } from "@/modules/user/components/ui/button";
 const EditProfilePage = () => {
     const navigate = useNavigate();
     const { gender } = useGenderTheme();
-    const { user, login } = useAuth(); // We'll use login to update the "local" user state for now
+    const { user, updateProfile } = useAuth();
 
     const [formData, setFormData] = useState({
         name: user?.name || "Muskan",
@@ -34,12 +34,9 @@ const EditProfilePage = () => {
 
     const handleSave = () => {
         setIsSaving(true);
-        // Simulate API call
-        setTimeout(() => {
-            login({ ...user, ...formData });
-            setIsSaving(false);
-            navigate(-1);
-        }, 1000);
+        updateProfile({ name: formData.name })
+            .then(() => navigate(-1))
+            .finally(() => setIsSaving(false));
     };
 
     return (

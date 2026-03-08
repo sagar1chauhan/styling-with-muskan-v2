@@ -30,7 +30,7 @@ const statusColors = {
 };
 
 export default function VenderBookings() {
-    const { getAllBookings, getServiceProviders, assignSPToBooking } = useVenderAuth();
+    const { getAllBookings, getServiceProviders, assignSPToBooking, hydrated, isLoggedIn } = useVenderAuth();
     const [bookings, setBookings] = useState([]);
     const [providers, setProviders] = useState([]);
     const [search, setSearch] = useState("");
@@ -39,11 +39,16 @@ export default function VenderBookings() {
     const [assignModal, setAssignModal] = useState(null);
     const [selectedProvider, setSelectedProvider] = useState("");
 
-    const load = () => {
-        setBookings(getAllBookings());
-        setProviders(getServiceProviders().filter(sp => sp.approvalStatus === "approved"));
+    const load = async () => {
+        try {
+            if (!hydrated || !isLoggedIn) return;
+            const [bks, sps] = await Promise.all([getAllBookings(), getServiceProviders()]);
+            setBookings(Array.isArray(bks) ? bks : []);
+            const sArr = Array.isArray(sps) ? sps : [];
+            setProviders(sArr.filter(sp => sp.approvalStatus === "approved"));
+        } catch {}
     };
-    useEffect(() => { load(); }, []);
+    useEffect(() => { load(); }, [hydrated, isLoggedIn]);
 
     const filtered = bookings.filter(b => {
         const matchSearch = b.customerName?.toLowerCase().includes(search.toLowerCase()) || b.id?.includes(search) || b.serviceType?.toLowerCase().includes(search.toLowerCase());
@@ -64,10 +69,10 @@ export default function VenderBookings() {
         return matchSearch && tabMatch && typeMatch;
     });
 
-    const handleAssign = () => {
+    const handleAssign = async () => {
         if (assignModal && selectedProvider) {
-            assignSPToBooking(assignModal.id, selectedProvider);
-            load();
+            await assignSPToBooking(assignModal.id, selectedProvider);
+            await load();
             setAssignModal(null);
             setSelectedProvider("");
         }

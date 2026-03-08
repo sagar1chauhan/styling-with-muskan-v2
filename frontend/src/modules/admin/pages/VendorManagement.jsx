@@ -6,6 +6,7 @@ import { Button } from "@/modules/user/components/ui/button";
 import { Badge } from "@/modules/user/components/ui/badge";
 import { Input } from "@/modules/user/components/ui/input";
 import { useAdminAuth } from "@/modules/admin/contexts/AdminAuthContext";
+import { toast } from "sonner";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } };
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
@@ -15,12 +16,25 @@ export default function VendorManagement() {
     const [vendors, setVendors] = useState([]);
     const [search, setSearch] = useState("");
 
-    const load = () => setVendors(getAllVendors());
+    const load = async () => {
+        try {
+            const items = await getAllVendors();
+            setVendors(Array.isArray(items) ? items : []);
+        } catch {}
+    };
     useEffect(() => { load(); }, []);
 
     const filtered = vendors.filter(v => v.name?.toLowerCase().includes(search.toLowerCase()) || v.city?.toLowerCase().includes(search.toLowerCase()));
 
-    const handleAction = (id, status) => { updateVendorStatus(id, status); load(); };
+    const handleAction = async (id, status) => {
+        try {
+            await updateVendorStatus(id, status);
+            toast.success(`Status updated to ${status}`);
+            load();
+        } catch {
+            toast.error("Status update failed");
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -47,7 +61,7 @@ export default function VendorManagement() {
             ) : (
                 <motion.div variants={container} initial="hidden" animate="show" className="grid gap-3 md:grid-cols-2">
                     {filtered.map(v => (
-                        <motion.div key={v.id} variants={item}>
+                        <motion.div key={v._id || v.id} variants={item}>
                             <Card className="shadow-none border-border/50 hover:border-primary/30 transition-all duration-200">
                                 <CardContent className="p-5">
                                     <div className="flex items-center gap-4">
@@ -68,11 +82,11 @@ export default function VendorManagement() {
                                         </div>
                                         <div className="flex gap-1.5">
                                             {v.status !== "blocked" ? (
-                                                <Button size="sm" variant="outline" className="h-8 text-[10px] font-bold border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-lg" onClick={() => handleAction(v.id, "blocked")}>
+                                                <Button size="sm" variant="outline" className="h-8 text-[10px] font-bold border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-lg" onClick={() => handleAction(v._id || v.id, "blocked")}>
                                                     <Ban className="h-3 w-3 mr-1" /> Block
                                                 </Button>
                                             ) : (
-                                                <Button size="sm" className="h-8 text-[10px] font-bold bg-primary rounded-lg" onClick={() => handleAction(v.id, "approved")}>
+                                                <Button size="sm" className="h-8 text-[10px] font-bold bg-primary rounded-lg" onClick={() => handleAction(v._id || v.id, "approved")}>
                                                     <UserCheck className="h-3 w-3 mr-1" /> Unblock
                                                 </Button>
                                             )}

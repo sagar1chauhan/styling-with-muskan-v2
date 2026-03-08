@@ -4,15 +4,30 @@ import { X, MapPin, Navigation, Home, Briefcase, Plus } from "lucide-react";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { Button } from "@/modules/user/components/ui/button";
 
-const AddressModal = ({ isOpen, onClose, onSave }) => {
-    const { updateAddress } = useAuth();
+const AddressModal = ({ isOpen, onClose, onSave, initialAddress }) => {
+    const { updateAddress, updateExistingAddress } = useAuth();
     const [address, setAddress] = useState({
         houseNo: "",
         landmark: "",
         area: "",
-        type: "home"
+        type: "home",
+        _id: undefined
     });
     const [isLocating, setIsLocating] = useState(false);
+
+    React.useEffect(() => {
+        if (initialAddress) {
+            setAddress({
+                houseNo: initialAddress.houseNo || "",
+                landmark: initialAddress.landmark || "",
+                area: initialAddress.area || "",
+                type: initialAddress.type || "home",
+                _id: initialAddress._id || initialAddress.id
+            });
+        } else {
+            setAddress({ houseNo: "", landmark: "", area: "", type: "home", _id: undefined });
+        }
+    }, [initialAddress, isOpen]);
 
     const handleGetCurrentLocation = () => {
         if (!navigator.geolocation) {
@@ -26,7 +41,7 @@ const AddressModal = ({ isOpen, onClose, onSave }) => {
                 const { latitude, longitude } = position.coords;
                 // Mocking reverse geocoding with a random valid-looking area
                 setTimeout(() => {
-                    setAddress(prev => ({ ...prev, area: "Sector 15, Noida" }));
+                    setAddress(prev => ({ ...prev, area: "Sector 15, Noida", lat: latitude, lng: longitude }));
                     setIsLocating(false);
                 }, 1500);
             },
@@ -41,7 +56,25 @@ const AddressModal = ({ isOpen, onClose, onSave }) => {
     const handleSave = (e) => {
         e.preventDefault();
         if (address.houseNo && address.area) {
-            updateAddress(address);
+            if (address._id) {
+                updateExistingAddress(address._id, {
+                    houseNo: address.houseNo,
+                    area: address.area,
+                    landmark: address.landmark,
+                    type: address.type,
+                    lat: address.lat,
+                    lng: address.lng
+                });
+            } else {
+                updateAddress({
+                    houseNo: address.houseNo,
+                    area: address.area,
+                    landmark: address.landmark,
+                    type: address.type,
+                    lat: address.lat,
+                    lng: address.lng
+                });
+            }
             onSave?.();
             onClose();
         }

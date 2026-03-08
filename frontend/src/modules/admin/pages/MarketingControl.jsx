@@ -17,18 +17,25 @@ export default function MarketingControl() {
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState({ title: "", imageUrl: "", linkTo: "", startDate: "", endDate: "", priority: 1 });
 
-    const load = () => setBanners(getBanners());
+    const load = async () => {
+        try {
+            const items = await getBanners();
+            setBanners(Array.isArray(items) ? items : []);
+        } catch {
+            setBanners([]);
+        }
+    };
     useEffect(() => { load(); }, []);
 
-    const handleAdd = (e) => {
+    const handleAdd = async (e) => {
         e.preventDefault();
-        addBanner(form);
+        await addBanner(form);
         setForm({ title: "", imageUrl: "", linkTo: "", startDate: "", endDate: "", priority: 1 });
         setShowForm(false);
         load();
     };
 
-    const handleDelete = (id) => { deleteBanner(id); load(); };
+    const handleDelete = async (id) => { await deleteBanner(id); load(); };
     const update = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
     return (

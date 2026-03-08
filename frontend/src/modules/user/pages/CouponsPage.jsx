@@ -1,39 +1,31 @@
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
-import { ArrowLeft, Ticket, Search, Info, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Ticket, Search, Info } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
-
-const coupons = [
-    {
-        id: 1,
-        code: "WELCOME100",
-        title: "Flat ₹100 Off",
-        desc: "Valid on your first booking above ₹499",
-        expiry: "Ends in 12 days",
-        isNew: true
-    },
-    {
-        id: 2,
-        code: "GLOW20",
-        title: "20% OFF on Facials",
-        desc: "Maximum discount up to ₹300",
-        expiry: "Ends in 2 days",
-        isNew: false
-    },
-    {
-        id: 3,
-        code: "WEEKEND50",
-        title: "Weekend Special",
-        desc: "Get ₹50 cashback on any service",
-        expiry: "Valid only on Sat-Sun",
-        isNew: false
-    },
-];
+import { api } from "@/modules/user/lib/api";
 
 const CouponsPage = () => {
     const navigate = useNavigate();
     const { gender } = useGenderTheme();
+    const [coupons, setCoupons] = useState([]);
+    useEffect(() => {
+        let cancelled = false;
+        api.userCoupons().then(({ coupons }) => {
+            if (cancelled) return;
+            const mapped = (coupons || []).map((c, i) => ({
+                id: c._id || i + 1,
+                code: c.code,
+                title: c.type === "PERCENT" ? `${c.value}% OFF` : `Flat ₹${c.value} Off`,
+                desc: c.firstTimeOnly ? "Valid on your first booking" : "Valid on eligible bookings",
+                expiry: c.isActive ? "Active" : "Inactive",
+                isNew: false
+            }));
+            setCoupons(mapped);
+        }).catch(() => setCoupons([]));
+        return () => { cancelled = true; };
+    }, []);
 
     return (
         <div className="min-h-screen bg-background pb-8">

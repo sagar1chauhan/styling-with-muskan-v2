@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
+import { useProviderAuth } from "../contexts/ProviderAuthContext";
+import { api } from "@/modules/user/lib/api";
 import {
     Card,
     CardContent,
@@ -13,13 +15,26 @@ import { Badge } from "@/modules/user/components/ui/badge";
 import { Wallet, Plus, ArrowDownRight, ArrowUpRight, Ban } from "lucide-react";
 
 export default function LeadCreditManager() {
-    const [balance, setBalance] = useState(1250);
-    const [transactions, setTransactions] = useState([
-        { id: 1, type: "Recharge", amount: 1000, date: "2026-02-24 10:30 AM", status: "Success", desc: "Added via UPI" },
-        { id: 2, type: "Expense", amount: -150, date: "2026-02-25 09:15 AM", status: "Success", desc: "Bought Lead: Haircut" },
-        { id: 3, type: "Refund", amount: 150, date: "2026-02-25 02:20 PM", status: "Success", desc: "Client Cancelled Lead" },
-        { id: 4, type: "Penalty", amount: -50, date: "2026-02-26 11:00 AM", status: "Success", desc: "Late arrival penalty" },
-    ]);
+    const { provider } = useProviderAuth();
+    const [balance, setBalance] = useState(0);
+    const [transactions, setTransactions] = useState([]);
+    useEffect(() => {
+        let cancel = false;
+        const run = async () => {
+            if (!provider?.phone) return;
+            try {
+                const { credits, transactions } = await api.provider.credits(provider.phone);
+                if (!cancel) {
+                    setBalance(credits || 0);
+                    setTransactions(Array.isArray(transactions) ? transactions : []);
+                }
+            } catch {
+                // fallback to zero balance, empty transactions
+            }
+        };
+        run();
+        return () => { cancel = true; };
+    }, [provider?.phone]);
 
     const handleBuyLead = () => {
         if (balance < 150) return alert("Insufficient balance");

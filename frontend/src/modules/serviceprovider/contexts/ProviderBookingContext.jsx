@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { useProviderAuth } from "./ProviderAuthContext";
+import { api } from "@/modules/user/lib/api";
 
 const ProviderBookingContext = createContext(undefined);
 
@@ -9,104 +10,23 @@ export const useProviderBookings = () => {
     return context;
 };
 
-const STORAGE_KEY = "muskan-bookings";
-
-// Generate mock incoming bookings
-const generateMockBookings = () => [
-    {
-        id: "PB1001",
-        customerId: "U1001",
-        customerName: "Rahul M.",
-        services: [{ name: "Bridal Makeup", price: 15000, duration: "3 hrs" }],
-        totalAmount: 15000,
-        address: { houseNo: "B-12, Sunshine Apartments", area: "Sector 14, Gurgaon", landmark: "Near Subhash Chowk" },
-        slot: { date: new Date().toISOString().split("T")[0], time: "10:00 AM" },
-        bookingType: "scheduled",
-        status: "incoming", // incoming | pending | accepted | travelling | arrived | in_progress | completed | rejected | cancelled
-        otp: "4523",
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        beforeImages: [],
-        afterImages: [],
-        providerFeedback: "",
-    },
-    {
-        id: "PB1002",
-        customerId: "U1002",
-        customerName: "Simran K.",
-        services: [
-            { name: "Party Makeup", price: 3500, duration: "90 min" },
-            { name: "Hair Styling", price: 1200, duration: "45 min" },
-        ],
-        totalAmount: 4700,
-        address: { houseNo: "F-45, Green Valley", area: "DLF Phase 3", landmark: "Opposite Cyber Hub" },
-        slot: { date: new Date().toISOString().split("T")[0], time: "02:00 PM" },
-        bookingType: "scheduled",
-        status: "pending",
-        otp: "7891",
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
-        beforeImages: [],
-        afterImages: [],
-        providerFeedback: "",
-    },
-    {
-        id: "PB1003",
-        customerId: "U1003",
-        customerName: "Pooja S.",
-        services: [{ name: "Advanced Haircut & Color", price: 2500, duration: "2 hrs" }],
-        totalAmount: 2500,
-        address: { houseNo: "A-8, Royal Heights", area: "Golf Course Rd", landmark: "Near Mega Mall" },
-        slot: { date: new Date(Date.now() + 86400000).toISOString().split("T")[0], time: "09:00 AM" },
-        bookingType: "scheduled",
-        status: "accepted",
-        otp: "3456",
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-        expiresAt: null,
-        beforeImages: [],
-        afterImages: [],
-        providerFeedback: "",
-    },
-    {
-        id: "PB1004",
-        customerId: "U1004",
-        customerName: "Kriti D.",
-        services: [{ name: "Keratin Treatment", price: 5000, duration: "2.5 hrs" }],
-        totalAmount: 5000,
-        address: { houseNo: "C-11, Platinum Towers", area: "MG Road", landmark: "Near MG Metro" },
-        slot: { date: new Date(Date.now() - 86400000).toISOString().split("T")[0], time: "11:00 AM" },
-        bookingType: "scheduled",
-        status: "cancelled",
-        otp: "0000",
-        createdAt: new Date(Date.now() - 10000000).toISOString(),
-        expiresAt: null,
-        beforeImages: [],
-        afterImages: [],
-        providerFeedback: "",
-    }
-];
+const STORAGE_KEY = null;
 
 export const ProviderBookingProvider = ({ children }) => {
-    const [bookings, setBookings] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            return parsed;
-        }
-        return [];
-    });
-
-    useEffect(() => {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
-        } catch (e) {
-            console.error("ProviderBooking storage limit exceeded!", e);
-        }
-    }, [bookings]);
+    const [bookings, setBookings] = useState([]);
 
     const { provider } = useProviderAuth();
 
-    const providerId = provider?.id || provider?.phone;
+    const providerId = provider?._id || provider?.id || provider?.phone;
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!providerId) return;
+        api.provider.bookings(providerId).then(({ bookings }) => {
+            if (!cancelled) setBookings(bookings || []);
+        }).catch(() => {});
+        return () => { cancelled = true; };
+    }, [providerId]);
 
     // Only show bookings explicitly assigned to this provider
     const myBookings = bookings.filter(b => b.assignedProvider === providerId);
@@ -117,38 +37,31 @@ export const ProviderBookingProvider = ({ children }) => {
     const completedBookings = myBookings.filter(b => b.status === "completed");
     const cancelledBookings = myBookings.filter(b => ["cancelled", "rejected"].includes(b.status));
 
-    const acceptBooking = useCallback((id) => {
-        setBookings(prev => prev.map(b =>
-            b.id === id ? { ...b, status: "accepted", expiresAt: null } : b
-        ));
+    const acceptBooking = useCallback(async (id) => {
+        const { booking } = await api.provider.updateBookingStatus(id, "accepted");
+        setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
     }, []);
 
-    const rejectBooking = useCallback((id) => {
-        setBookings(prev => prev.map(b =>
-            b.id === id ? { ...b, status: "rejected" } : b
-        ));
+    const rejectBooking = useCallback(async (id) => {
+        const { booking } = await api.provider.updateBookingStatus(id, "rejected");
+        setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
     }, []);
 
-    const updateBookingStatus = useCallback((id, status) => {
-        setBookings(prev => prev.map(b =>
-            b.id === id ? { ...b, status } : b
-        ));
+    const updateBookingStatus = useCallback(async (id, status) => {
+        const { booking } = await api.provider.updateBookingStatus(id, status);
+        setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
     }, []);
 
-    const cancelBooking = useCallback((id) => {
-        setBookings(prev => prev.map(b =>
-            b.id === id ? { ...b, status: "cancelled" } : b
-        ));
+    const cancelBooking = useCallback(async (id) => {
+        const { booking } = await api.provider.updateBookingStatus(id, "cancelled");
+        setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
     }, []);
 
-    const verifyOTP = useCallback((id, enteredOtp) => {
-        const booking = bookings.find(b => b.id === id);
-        if (booking && booking.otp === enteredOtp) {
-            updateBookingStatus(id, "in_progress");
-            return true;
-        }
-        return false;
-    }, [bookings, updateBookingStatus]);
+    const verifyOTP = useCallback(async (id, enteredOtp) => {
+        const { booking } = await api.provider.verifyBookingOtp(id, enteredOtp);
+        setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+        return true;
+    }, []);
 
     const addBeforeImages = useCallback((id, images) => {
         setBookings(prev => prev.map(b =>

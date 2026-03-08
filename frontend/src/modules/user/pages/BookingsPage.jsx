@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
@@ -17,6 +17,16 @@ const BookingsPage = () => {
     const navigate = useNavigate();
     const { gender } = useGenderTheme();
     const { bookings } = useBookings();
+    useEffect(() => {
+        try {
+            bookings.forEach(b => {
+                const s = (b.status || "").toLowerCase();
+                if (s === "arrived" && b.otp) {
+                    console.log("[Booking OTP]", b._id || b.id, b.otp);
+                }
+            });
+        } catch {}
+    }, [bookings]);
     const [mainType, setMainType] = useState("normal"); // 'normal' or 'customize'
     const [activeTab, setActiveTab] = useState("Upcoming");
     const [chatBooking, setChatBooking] = useState(null);
@@ -89,10 +99,13 @@ const BookingsPage = () => {
                         {/* Bookings List */}
                         <div className="space-y-4">
                             {bookings
-                                .filter(b => activeTab === "Upcoming" ? b.status !== "Completed" : b.status === "Completed")
+                                .filter(b => {
+                                    const s = (b.status || "").toLowerCase();
+                                    return activeTab === "Upcoming" ? s !== "completed" : s === "completed";
+                                })
                                 .map((booking, i) => (
                                     <motion.div
-                                        key={booking.id}
+                                        key={booking._id || booking.id}
                                         initial={{ opacity: 0, y: 15 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: i * 0.1 }}
@@ -123,7 +136,7 @@ const BookingsPage = () => {
                                                                     {(booking.bookingType || "").toLowerCase() === 'instant' ? 'Instant' : 'Pre-book'}
                                                                 </span>
                                                                 <span className="text-[10px] text-muted-foreground font-medium">
-                                                                    ID: {booking.id}
+                                                                    ID: {booking._id || booking.id}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -152,7 +165,7 @@ const BookingsPage = () => {
                                                         <MapPin className="w-3 h-3 text-primary" />
                                                         {booking.address?.houseNo}, {booking.address?.area}
                                                     </p>
-                                                    {booking.otp && ["pending", "Pending", "accepted", "Accepted", "travelling", "arrived"].includes(booking.status) && (
+                                                    {booking.otp && ((booking.status || "").toLowerCase() === "arrived") && (
                                                         <div className="mt-2 inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 px-3 py-1.5 rounded-lg text-[11px] font-black tracking-widest shadow-sm">
                                                             OTP: {booking.otp}
                                                         </div>

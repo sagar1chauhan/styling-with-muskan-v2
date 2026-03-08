@@ -30,6 +30,7 @@ import SupportPage from "@/modules/user/pages/SupportPage";
 import NotFound from "@/modules/user/pages/NotFound";
 import UserRegisterPage from "@/modules/user/pages/UserRegisterPage";
 import WishlistPage from "@/modules/user/pages/WishlistPage";
+import UserLoginPage from "@/modules/user/pages/UserLoginPage";
 
 // Service Provider Module
 import ProviderLayout from "@/modules/serviceprovider/components/ProviderLayout";
@@ -108,6 +109,7 @@ const App = () => {
                                 <Route path="/select-gender" element={<GenderSelect />} />
                                 <Route path="/home" element={<HomePage />} />
                                 <Route path="/register" element={<UserRegisterPage />} />
+                                <Route path="/login" element={<UserLoginPage />} />
                                 <Route path="/explore" element={<ExplorePage />} />
                                 <Route path="/explore/:categoryId" element={<ExplorePage />} />
                                 <Route path="/bookings" element={<BookingsPage />} />
