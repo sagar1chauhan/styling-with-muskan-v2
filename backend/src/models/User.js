@@ -20,6 +20,7 @@ const UserSchema = new mongoose.Schema(
     isVerified: { type: Boolean, default: false },
     avatar: { type: String, default: "" },
     addresses: [AddressSchema],
+    favorites: { type: [String], default: [] },
     wallet: {
       balance: { type: Number, default: 0 },
       transactions: [

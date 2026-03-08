@@ -1,15 +1,27 @@
 import { validationResult } from "express-validator";
 import Booking from "../../../models/Booking.js";
 import Coupon from "../../../models/Coupon.js";
-import { OfficeSettings } from "../../../models/Content.js";
+import { OfficeSettings, Category } from "../../../models/Content.js";
 import ProviderAccount from "../../../models/ProviderAccount.js";
 import BookingLog from "../../../models/BookingLog.js";
 import Razorpay from "razorpay";
 import { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } from "../../../config.js";
 
-function computeAdvance(total, bookingType) {
-  const percent = bookingType === "scheduled" || total >= 5000 ? 0.3 : 0.2;
-  return Math.ceil(total * percent);
+async function computeAdvanceFromCategories(items = []) {
+  const catIds = Array.from(new Set(items.map((it) => it.category).filter(Boolean)));
+  const cats = await Category.find({ id: { $in: catIds } }).lean();
+  const byId = new Map(cats.map((c) => [c.id, c]));
+  let sum = 0;
+  for (const it of items) {
+    const c = byId.get(it.category);
+    if (!c) continue;
+    const pct = Number(c.advancePercentage || 0);
+    const type = String(c.bookingType || "").toLowerCase();
+    if (pct > 0 && (type === "scheduled" || type === "prebooking" || type === "pre-book" || type === "customize")) {
+      sum += Math.ceil((Number(it.price) || 0) * (pct / 100));
+    }
+  }
+  return Math.max(sum, 0);
 }
 function computeTotals(items = [], coupon) {
   const total = items.reduce((sum, it) => sum + (Number(it.price) * (Number(it.quantity) || 1)), 0);
@@ -37,7 +49,8 @@ export async function quote(req, res) {
     coupon = await Coupon.findOne({ code: req.body.couponCode, isActive: true }).lean();
   }
   const totals = computeTotals(req.body.items, coupon);
-  res.json({ ...totals, couponApplied: coupon ? coupon.code : null });
+  const advanceAmount = await computeAdvanceFromCategories(req.body.items || []);
+  res.json({ ...totals, couponApplied: coupon ? coupon.code : null, advanceAmount });
 }
 
 export async function create(req, res) {
@@ -47,7 +60,7 @@ export async function create(req, res) {
   let coupon = null;
   if (couponCode) coupon = await Coupon.findOne({ code: couponCode, isActive: true }).lean();
   const totals = computeTotals(items, coupon);
-  const advanceAmount = computeAdvance(totals.finalTotal, bookingType);
+  const advanceAmount = await computeAdvanceFromCategories(items);
   const office = await OfficeSettings.findOne().lean();
   const now = new Date();
   const [startH, startM] = (office?.startTime || "09:00").split(":").map(Number);
@@ -65,6 +78,7 @@ export async function create(req, res) {
     const providers = await ProviderAccount.find({
       approvalStatus: "approved",
       registrationComplete: true,
+      isOnline: true,
       "currentLocation.lat": { $ne: null },
       "currentLocation.lng": { $ne: null }
     }).lean();
@@ -79,7 +93,15 @@ export async function create(req, res) {
       const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
       return R * c;
     };
+    const wantCats = new Set((items || []).map(it => String(it.category || "")).filter(Boolean));
+    const wantTypes = new Set((items || []).map(it => String(it.serviceType || "")).filter(Boolean));
+    const matchesSpecialty = (p) => {
+      const spec = p?.documents?.specializations || [];
+      if (!Array.isArray(spec) || spec.length === 0) return true;
+      return spec.some(s => wantCats.has(s) || wantTypes.has(s));
+    };
     const sorted = providers
+      .filter(p => matchesSpecialty(p))
       .map(p => ({ id: p._id.toString(), d: distKm({ lat: userLat, lng: userLng }, { lat: p.currentLocation.lat, lng: p.currentLocation.lng }) }))
       .filter(x => x.d <= 5)
       .sort((a, b) => a.d - b.d);
@@ -140,6 +162,14 @@ export async function create(req, res) {
     advanceAmount,
     order,
   });
+  if (notificationStatus === "queued") {
+    await BookingLog.create({
+      action: "booking:queue",
+      userId: req.user._id.toString(),
+      bookingId: booking._id.toString(),
+      meta: { reason: "outside_office_hours" },
+    });
+  }
   await BookingLog.create({
     action: "booking:create",
     userId: req.user._id.toString(),

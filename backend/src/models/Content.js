@@ -25,6 +25,7 @@ const CategorySchema = new mongoose.Schema({
   serviceType: String,
   bookingType: String,
   image: String,
+  advancePercentage: { type: Number, default: 0 },
 });
 
 const ServiceSchema = new mongoose.Schema({

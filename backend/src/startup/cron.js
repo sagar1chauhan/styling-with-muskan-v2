@@ -1,6 +1,7 @@
 import Booking from "../models/Booking.js";
 import { OfficeSettings } from "../models/Content.js";
 import { getIO } from "./socket.js";
+import BookingLog from "../models/BookingLog.js";
 
 function withinOffice(now, office) {
   const [startH, startM] = (office?.startTime || "09:00").split(":").map(Number);
@@ -25,6 +26,13 @@ export async function startCron() {
           // leave assignment for manual or provider polling
         }
         await b.save();
+        try {
+          await BookingLog.create({
+            action: "booking:queue-release",
+            bookingId: b._id.toString(),
+            meta: { tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "local" },
+          });
+        } catch {}
         try {
           const io = getIO();
           io?.of("/bookings").emit("status:update", { id: b._id.toString(), status: b.status, notificationStatus: b.notificationStatus });
