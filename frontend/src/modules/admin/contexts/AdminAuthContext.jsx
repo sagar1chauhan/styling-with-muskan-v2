@@ -49,59 +49,6 @@ export const AdminAuthProvider = ({ children }) => {
     const getAllBookings = async () => (await api.admin.bookings()).bookings;
     const getUserBookings = async () => (await api.admin.bookings()).bookings;
     const assignSPToBooking = async (bookingId, spId) => { await api.admin.assignBooking(bookingId, spId); };
-    const getAllBookings = () => {
-        const bookings = JSON.parse(localStorage.getItem(SP_BOOKINGS_KEY) || "[]");
-        const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
-
-        // Map enquiries to booking structure for unified management
-        const mappedEnquiries = enquiries.map((enq, index) => ({
-            ...enq,
-            id: enq.id || `ENQ-TEMP-${index}`,
-            customerName: enq.name || "Customer",
-            bookingType: "customized",
-            serviceType: enq.eventType || "Event Services",
-            totalAmount: enq.totalAmount || 0,
-            discountPrice: enq.discountPrice || 0,
-            slot: {
-                date: enq.date || "TBD",
-                time: enq.timeSlot || "TBD"
-            },
-            items: [{ name: `${enq.eventType || "Event Enquiry"} (${enq.noOfPeople || "N/A"} people)` }],
-            address: typeof enq.address === 'object' ? enq.address : { area: enq.address || "Enquiry (Contact via Phone)" },
-            status: enq.status || "unassigned"
-        }));
-
-        // Merge without duplicates (real bookings take priority)
-        const combined = [...bookings];
-        const existingIds = new Set(bookings.map(b => b.id));
-
-        mappedEnquiries.forEach(enq => {
-            if (!existingIds.has(enq.id)) {
-                combined.push(enq);
-            }
-        });
-
-        console.log("Admin Context - Consolidated Bookings:", combined.length);
-        return combined;
-    };
-    const getUserBookings = () => JSON.parse(localStorage.getItem(USER_BOOKINGS_KEY) || "[]");
-    const assignSPToBooking = (bookingId, spId) => {
-        const bookings = JSON.parse(localStorage.getItem(SP_BOOKINGS_KEY) || "[]");
-        
-        let responseTimeMins = 20;
-        try {
-            const configRaw = localStorage.getItem("swm_bookingTypeConfig");
-            if (configRaw) {
-                const config = JSON.parse(configRaw);
-                const firstFound = config.find(c => c.providerResponseTime);
-                if (firstFound) responseTimeMins = firstFound.providerResponseTime;
-            }
-        } catch(e) {}
-        const expiresAt = new Date(Date.now() + responseTimeMins * 60 * 1000).toISOString();
-
-        const updated = bookings.map(b => b.id === bookingId ? { ...b, assignedProvider: spId, status: "pending", expiresAt } : b);
-        localStorage.setItem(SP_BOOKINGS_KEY, JSON.stringify(updated));
-    };
 
     const assignTeamToBooking = (bookingId, payload) => {
         // This handles customized bookings through various stages

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
@@ -20,7 +19,7 @@ import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext
 const BookingsPage = () => {
     const navigate = useNavigate();
     const { gender } = useGenderTheme();
-    const { bookings } = useBookings();
+    const { bookings, acceptCustomizedBooking, confirmCustomizedBooking, rejectCustomizedBooking } = useBookings();
     useEffect(() => {
         try {
             bookings.forEach(b => {
@@ -31,7 +30,6 @@ const BookingsPage = () => {
             });
         } catch {}
     }, [bookings]);
-    const { bookings, acceptCustomizedBooking, confirmCustomizedBooking, rejectCustomizedBooking } = useBookings();
     const [mainType, setMainType] = useState("normal"); // 'normal' or 'customize'
     const [activeTab, setActiveTab] = useState("Upcoming");
     const [chatBooking, setChatBooking] = useState(null);

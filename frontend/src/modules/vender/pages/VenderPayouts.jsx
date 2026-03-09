@@ -16,9 +16,7 @@ export default function VenderPayouts() {
     const [search, setSearch] = useState("");
     const [providers, setProviders] = useState([]);
     const [bookings, setBookings] = useState([]);
-    
-  
-    const [bookingsState, setBookingsState] = useState([]);
+
     const load = async () => {
         try {
             if (!hydrated || !isLoggedIn) return;
@@ -41,15 +39,8 @@ export default function VenderPayouts() {
         })();
         return () => { cancelled = true; };
     }, [hydrated, isLoggedIn]);
+
     const completedBookings = bookings.filter(b => b.status === "completed");
-
-
-    useEffect(() => {
-        setBookingsState(getAllBookings());
-    }, []);
-
-    const providers = getServiceProviders().filter(sp => sp.approvalStatus === "approved");
-    const completedBookings = bookingsState.filter(b => b.status === "completed" && b.assignedProvider);
     const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
     const commissionRate = 0.15;
     const totalCommission = Math.round(totalRevenue * commissionRate);
@@ -59,32 +50,21 @@ export default function VenderPayouts() {
         const p = providers.find(p => (p._id || p.id) === id);
         return p?.name || "Unknown";
     };
-    const payouts = bookings.map(b => {
-        const status = b.status === "completed" ? "completed" : b.status === "pending" ? "pending" : "on_hold";
-        return {
-            id: (b._id || "").toString().slice(-6).toUpperCase(),
-            spName: providerName(b.assignedProvider),
-            amount: b.totalAmount || 0,
-            status,
-            date: (b.createdAt || "").slice(0, 10),
-        };
-    });
-    // Dynamic payout history from completed bookings
     const payouts = completedBookings.map(b => {
-        const provider = providers.find(p => p.id === b.assignedProvider || p.phone === b.assignedProvider);
+        const provider = providers.find(p => (p._id || p.id) === b.assignedProvider || p.phone === b.assignedProvider);
         return {
-            id: b.id,
+            id: b._id || b.id,
             spName: provider ? provider.name : "Unknown SP",
-            amount: Math.round((b.totalAmount || 0) * (1 - commissionRate)), // Pay structure: 85% to provider
+            amount: Math.round((b.totalAmount || 0) * (1 - commissionRate)),
             status: b.payoutStatus || "pending",
-            date: b.slot?.date || b.date || "N/A"
+            date: b.slot?.date || b.createdAt?.slice(0, 10) || "N/A"
         };
     }).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
     const handleStatusUpdate = (id, newStatus) => {
         if (updatePayoutStatus) {
             updatePayoutStatus(id, newStatus);
-            setBookingsState(getAllBookings());
+            load();
         }
     };
 

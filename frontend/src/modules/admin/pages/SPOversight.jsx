@@ -26,14 +26,13 @@ export default function SPOversight() {
     const [tab, setTab] = useState("all");
     const [categoryRequests, setCategoryRequests] = useState([]);
 
+    const [feedback, setFeedback] = useState([]);
+
     const load = async () => {
         try {
             const items = await getAllServiceProviders();
             setProviders(Array.isArray(items) ? items : []);
         } catch {}
-    const [feedback, setFeedback] = useState([]);
-    const load = () => {
-        setProviders(getAllServiceProviders());
         setFeedback(JSON.parse(localStorage.getItem("muskan-feedback") || "[]"));
         setCategoryRequests(JSON.parse(localStorage.getItem("muskan-category-requests") || "[]"));
     };
@@ -136,32 +135,17 @@ export default function SPOversight() {
                                                 <div className="flex gap-1.5">
                                                     {sp.approvalStatus === "pending" && (
                                                         <>
-                                                            <Button size="sm" className="h-7 text-[10px] font-bold bg-green-600 hover:bg-green-700 rounded-lg px-2" onClick={() => handleAction(sp.phone, "approved")}><CheckCircle className="h-3 w-3 mr-1" />Approve</Button>
-                                                            <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-red-500/30 text-red-400 rounded-lg px-2" onClick={() => handleAction(sp.phone, "rejected")}><XCircle className="h-3 w-3 mr-1" />Reject</Button>
+                                                            <Button size="sm" className="h-7 text-[10px] font-bold bg-green-600 hover:bg-green-700 rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "approved")}><CheckCircle className="h-3 w-3 mr-1" />Approve</Button>
+                                                            <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-red-500/30 text-red-400 rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "rejected")}><XCircle className="h-3 w-3 mr-1" />Reject</Button>
                                                         </>
                                                     )}
                                                     {sp.approvalStatus === "approved" && (
-                                                        <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-red-500/30 text-red-400 rounded-lg px-2" onClick={() => handleAction(sp.phone, "blocked")}><Ban className="h-3 w-3 mr-1" />Block</Button>
+                                                        <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-red-500/30 text-red-400 rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "blocked")}><Ban className="h-3 w-3 mr-1" />Block</Button>
                                                     )}
                                                     {(sp.approvalStatus === "blocked" || sp.approvalStatus === "rejected") && (
-                                                        <Button size="sm" className="h-7 text-[10px] font-bold bg-primary rounded-lg px-2" onClick={() => handleAction(sp.phone, "approved")}><UserCheck className="h-3 w-3 mr-1" />Unblock</Button>
+                                                        <Button size="sm" className="h-7 text-[10px] font-bold bg-primary rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "approved")}><UserCheck className="h-3 w-3 mr-1" />Unblock</Button>
                                                     )}
                                                 </div>
-                                                <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1 mt-0.5"><Phone className="h-3 w-3" />{sp.phone}</span>
-                                            </div>
-                                            <div className="flex gap-1.5">
-                                                {sp.approvalStatus === "pending" && (
-                                                    <>
-                                                        <Button size="sm" className="h-7 text-[10px] font-bold bg-green-600 hover:bg-green-700 rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "approved")}><CheckCircle className="h-3 w-3 mr-1" />Approve</Button>
-                                                        <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-red-500/30 text-red-400 rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "rejected")}><XCircle className="h-3 w-3 mr-1" />Reject</Button>
-                                                    </>
-                                                )}
-                                                {sp.approvalStatus === "approved" && (
-                                                    <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-red-500/30 text-red-400 rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "blocked")}><Ban className="h-3 w-3 mr-1" />Block</Button>
-                                                )}
-                                                {(sp.approvalStatus === "blocked" || sp.approvalStatus === "rejected") && (
-                                                    <Button size="sm" className="h-7 text-[10px] font-bold bg-primary rounded-lg px-2" onClick={() => handleAction(sp._id || sp.id, "approved")}><UserCheck className="h-3 w-3 mr-1" />Unblock</Button>
-                                                )}
                                             </div>
 
                                             {/* Advanced Stats (For View) */}

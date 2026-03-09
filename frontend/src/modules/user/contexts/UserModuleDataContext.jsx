@@ -1,69 +1,29 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { api } from "@/modules/user/lib/api";
-import { SERVICE_TYPES as FALLBACK_SERVICE_TYPES, BOOKING_TYPE_CONFIG as FALLBACK_BOOKING_TYPES, categories as FALLBACK_CATEGORIES, services as FALLBACK_SERVICES, banners as FALLBACK_BANNERS, mockProviders as FALLBACK_PROVIDERS } from "@/modules/user/data/services";
 import {
-    SERVICE_TYPES as initialServiceTypes,
-    BOOKING_TYPE_CONFIG as initialBookingTypeConfig,
-    categories as initialCategories,
-    services as initialServices,
-    banners as initialBanners,
-    mockProviders as initialProviders,
+    SERVICE_TYPES as FALLBACK_SERVICE_TYPES,
+    BOOKING_TYPE_CONFIG as FALLBACK_BOOKING_TYPES,
+    categories as FALLBACK_CATEGORIES,
+    services as FALLBACK_SERVICES,
+    banners as FALLBACK_BANNERS,
+    mockProviders as FALLBACK_PROVIDERS,
     initialSpotlights,
     initialGallery,
     initialTestimonials
-} from "../data/services";
+} from "@/modules/user/data/services";
 
 const UserModuleDataContext = createContext(null);
 
 export const UserModuleDataProvider = ({ children }) => {
     const [serviceTypes, setServiceTypes] = useState([]);
-    // Initialize state from localStorage or fallback to static data
-    const [serviceTypes, setServiceTypes] = useState(() => {
-        const saved = localStorage.getItem("swm_serviceTypes");
-        return saved ? JSON.parse(saved) : initialServiceTypes;
-    });
+    const [bookingTypeConfig, setBookingTypeConfig] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [services, setServices] = useState([]);
+    const [banners, setBanners] = useState({ women: [], men: [] });
+    const [providers, setProviders] = useState([]);
+    const [officeSettings, setOfficeSettings] = useState({ startTime: "09:00", endTime: "21:00", autoAssign: true, notificationMessage: "Our pros are sleeping. Service starts at 9:00 AM" });
 
-    const [bookingTypeConfig, setBookingTypeConfig] = useState(() => {
-        const saved = localStorage.getItem("swm_bookingTypeConfig");
-        let parsed = saved ? JSON.parse(saved) : initialBookingTypeConfig;
-        
-        // Migration: Ensure 'Instant Booking' is replaced with 'Booked' consistently
-        parsed = parsed.map(config => {
-            if (config.id === "instant" && (config.label === "Instant Booking" || config.label === "Instant")) {
-                return { ...config, label: "Booked" };
-            }
-            return config;
-        });
-        
-        return parsed;
-    });
-
-    const [categories, setCategories] = useState(() => {
-        const saved = localStorage.getItem("swm_categories");
-        return saved ? JSON.parse(saved) : initialCategories;
-    });
-
-    const [services, setServices] = useState(() => {
-        const saved = localStorage.getItem("swm_services");
-        return saved ? JSON.parse(saved) : initialServices;
-    });
-
-    const [banners, setBanners] = useState(() => {
-        const saved = localStorage.getItem("swm_banners");
-        return saved ? JSON.parse(saved) : initialBanners;
-    });
-
-    const [providers, setProviders] = useState(() => {
-        const saved = localStorage.getItem("swm_providers");
-        return saved ? JSON.parse(saved) : initialProviders;
-    });
-
-    const [officeSettings, setOfficeSettings] = useState(() => {
-        const saved = localStorage.getItem("swm_officeSettings");
-        return saved ? JSON.parse(saved) : { startTime: "09:00", endTime: "21:00", autoAssign: true, notificationMessage: "Our pros are sleeping. Service starts at 9:00 AM" };
-    });
-
-    // New Site Content States
+    // Site Content States
     const [spotlights, setSpotlights] = useState(() => {
         const saved = localStorage.getItem("swm_spotlights");
         return saved ? JSON.parse(saved) : initialSpotlights;
@@ -87,18 +47,6 @@ export const UserModuleDataProvider = ({ children }) => {
             console.error(`Storage failed for ${key}`, e);
         }
     }
-
-    const [bookingTypeConfig, setBookingTypeConfig] = useState([]);
-
-    const [categories, setCategories] = useState([]);
-
-    const [services, setServices] = useState([]);
-
-    const [banners, setBanners] = useState({ women: [], men: [] });
-
-    const [providers, setProviders] = useState([]);
-
-    const [officeSettings, setOfficeSettings] = useState({ startTime: "09:00", endTime: "21:00", autoAssign: true, notificationMessage: "Our pros are sleeping. Service starts at 9:00 AM" });
 
     useEffect(() => {
         let cancelled = false;

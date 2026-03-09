@@ -45,25 +45,6 @@ export const VenderAuthProvider = ({ children }) => {
         const { vendor } = await api.vendor.register(data);
         setVendor(vendor);
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(vendor)); } catch {}
-    const register = (data) => {
-        const newVendor = {
-            id: `VEN${Date.now()}`,
-            name: data.name,
-            email: data.email,
-            phone: data.phone,
-            city: data.city,
-            status: "approved", // auto-approved for demo
-            businessName: data.businessName || "",
-            createdAt: new Date().toISOString(),
-            subscription: {
-                name: "SWM City Manager Enterprise",
-                status: "active",
-                isTrial: true,
-                expiresAt: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
-                fee: 4999
-            }
-        };
-        setVendor(newVendor);
         return { success: true };
     };
 
@@ -84,60 +65,6 @@ export const VenderAuthProvider = ({ children }) => {
 
     // Assign SP to a booking
     const assignSPToBooking = async (bookingId, spId) => { await api.vendor.assignBooking(bookingId, spId); };
-    // Get all bookings including customized enquiries
-    const getAllBookings = () => {
-        const bookings = JSON.parse(localStorage.getItem(SP_BOOKINGS_KEY) || "[]");
-        const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
-
-        // Map enquiries to booking-like structure
-        const mappedEnquiries = enquiries.map((enq, index) => ({
-            ...enq,
-            id: enq.id || `ENQ-TEMP-${index}`, // Fallback ID if missing
-            customerName: enq.name || "Customer",
-            bookingType: "customized",
-            serviceType: enq.eventType || "Event Services",
-            slot: { date: enq.date || "TBD", time: enq.timeSlot || "TBD" },
-            items: enq.selectedServices?.length > 0 
-                ? enq.selectedServices.map(s => ({ name: `${s.name} (x${s.quantity})`, category: s.categoryName }))
-                : [{ name: `${enq.eventType || "Event Enquiry"}` }],
-            address: typeof enq.address === 'object' ? enq.address : { area: enq.address || "Enquiry Area" },
-            status: enq.status || "unassigned"
-        }));
-
-        // Merge and avoid duplicates by ID
-        const combined = [...bookings];
-        const existingIds = new Set(bookings.map(b => b.id));
-
-        mappedEnquiries.forEach(enq => {
-            if (!existingIds.has(enq.id)) {
-                combined.push(enq);
-            }
-        });
-
-        console.log("Vender Context - Total Bookings:", combined.length, "Enquiries found:", enquiries.length);
-        return combined;
-    };
-
-    // Assign SP to a booking
-    const assignSPToBooking = (bookingId, spId) => {
-        const bookings = JSON.parse(localStorage.getItem(SP_BOOKINGS_KEY) || "[]");
-        
-        let responseTimeMins = 20;
-        try {
-            const configRaw = localStorage.getItem("swm_bookingTypeConfig");
-            if (configRaw) {
-                const config = JSON.parse(configRaw);
-                const firstFound = config.find(c => c.providerResponseTime);
-                if (firstFound) responseTimeMins = firstFound.providerResponseTime;
-            }
-        } catch(e) {}
-        const expiresAt = new Date(Date.now() + responseTimeMins * 60 * 1000).toISOString();
-
-        const updated = bookings.map(b =>
-            b.id === bookingId ? { ...b, assignedProvider: spId, status: "pending", expiresAt } : b
-        );
-        localStorage.setItem(SP_BOOKINGS_KEY, JSON.stringify(updated));
-    };
 
     const assignTeamToBooking = (bookingId, payload) => {
         const bookings = JSON.parse(localStorage.getItem(SP_BOOKINGS_KEY) || "[]");

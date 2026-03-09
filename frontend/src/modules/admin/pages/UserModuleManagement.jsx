@@ -964,6 +964,6 @@ const UserModuleManagement = () => {
             )}
         </div>
     );
-};
-
+}
+}
 export default UserModuleManagement;

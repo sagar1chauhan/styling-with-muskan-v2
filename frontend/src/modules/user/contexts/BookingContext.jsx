@@ -60,7 +60,7 @@ export const BookingProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
-    }, [bookings]);
+    };
 
     const addBooking = (newBooking) => {
         // Read office settings and providers from localStorage (since context may not be available here)
@@ -194,8 +194,7 @@ export const BookingProvider = ({ children }) => {
     };
 
     return (
-        <BookingContext.Provider value={{ bookings, loading, loadBookings, cancelBooking, updateBooking }}>
-        <BookingContext.Provider value={{ bookings, addBooking, cancelBooking, updateBooking, acceptCustomizedBooking, confirmCustomizedBooking, rejectCustomizedBooking }}>
+        <BookingContext.Provider value={{ bookings, loading, loadBookings, addBooking, cancelBooking, updateBooking, acceptCustomizedBooking, confirmCustomizedBooking, rejectCustomizedBooking }}>
             {children}
         </BookingContext.Provider>
     );

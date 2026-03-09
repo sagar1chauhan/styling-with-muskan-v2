@@ -1,14 +1,10 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 
 import { api } from "@/modules/user/lib/api";
-
-import { motion, AnimatePresence } from "framer-motion";
-
-
 
 import { ArrowLeft, ChevronRight, Wallet, MapPin, Gift, Ticket, HelpCircle, LogOut, User, Calendar, Edit2, ShieldCheck, Zap, Sparkles } from "lucide-react";
 
@@ -21,6 +17,7 @@ const ProfilePage = () => {
   const { gender, setGender } = useGenderTheme();
   const { user, logout, isLoggedIn, loading } = useAuth();
   const [walletBalance, setWalletBalance] = useState(null);
+  const [showPopup, setShowPopup] = useState(false);
 
   useEffect(() => {
     if (!loading && !isLoggedIn) {
@@ -42,8 +39,6 @@ const ProfilePage = () => {
     })();
     return () => { cancelled = true; };
   }, [loading, isLoggedIn]);
-  const { user, logout } = useAuth();
-  const [showPopup, setShowPopup] = useState(false);
 
   const handleGenderSwitch = (g) => {
     if (g === "men") {

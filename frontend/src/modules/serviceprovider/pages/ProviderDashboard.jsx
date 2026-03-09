@@ -43,17 +43,6 @@ const ProviderDashboard = () => {
         return () => { cancelled = true; };
     }, [provider?.phone]);
 
-    const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
-    const activeJobsCount = activeBookings.length;
-    const providerGrade = provider?.rating >= 4.5 ? "Elite Pro" : (provider?.rating >= 4.0 ? "Pro" : "New");
-    const availableHours = summary?.calendar?.availableHoursWeek ?? null;
-    const nextDates = (() => {
-        const today = new Date();
-        const d1 = new Date(today); d1.setDate(today.getDate() + 0);
-        const d2 = new Date(today); d2.setDate(today.getDate() + 1);
-        const fmt = (d) => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "2-digit" });
-        return [fmt(d1), fmt(d2)];
-    })();
     const [realRating, setRealRating] = useState(provider?.rating || 4.5);
 
     useEffect(() => {

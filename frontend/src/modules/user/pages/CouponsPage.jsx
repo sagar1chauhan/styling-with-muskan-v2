@@ -1,38 +1,15 @@
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { ArrowLeft, Ticket, Search, Info } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
 import { api } from "@/modules/user/lib/api";
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
-import { ArrowLeft, Ticket, Search, Info, CheckCircle2, ChevronRight } from "lucide-react";
-import { Button } from "@/modules/user/components/ui/button";
 
 const CouponsPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { gender } = useGenderTheme();
-    const [coupons, setCoupons] = useState([]);
-    useEffect(() => {
-        let cancelled = false;
-        api.userCoupons().then(({ coupons }) => {
-            if (cancelled) return;
-            const mapped = (coupons || []).map((c, i) => ({
-                id: c._id || i + 1,
-                code: c.code,
-                title: c.type === "PERCENT" ? `${c.value}% OFF` : `Flat ₹${c.value} Off`,
-                desc: c.firstTimeOnly ? "Valid on your first booking" : "Valid on eligible bookings",
-                expiry: c.isActive ? "Active" : "Inactive",
-                isNew: false
-            }));
-            setCoupons(mapped);
-        }).catch(() => setCoupons([]));
-        return () => { cancelled = true; };
-    }, []);
     const searchParams = new URLSearchParams(location.search);
     const checkoutType = searchParams.get('checkoutType');
 
@@ -40,17 +17,18 @@ const CouponsPage = () => {
     const [searchCode, setSearchCode] = useState("");
 
     useEffect(() => {
-        const adminCouponsRaw = localStorage.getItem("muskan-admin-coupons");
-        if (adminCouponsRaw) {
-            setCoupons(JSON.parse(adminCouponsRaw));
-        }
+        let cancelled = false;
+        api.userCoupons().then(({ coupons }) => {
+            if (cancelled) return;
+            setCoupons(coupons || []);
+        }).catch(() => setCoupons([]));
+        return () => { cancelled = true; };
     }, []);
 
     const handleApply = (code) => {
         if (checkoutType) {
             navigate(`/booking/summary?type=${checkoutType}&coupon=${code}`);
         } else {
-            // Just go back if not from checkout
             navigate(-1);
         }
     };

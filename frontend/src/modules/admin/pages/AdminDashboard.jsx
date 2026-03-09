@@ -112,31 +112,6 @@ export default function AdminDashboard() {
         })();
         return () => { cancelled = true; };
     }, [allBookings]);
-        const vendors = getAllVendors();
-        const sps = getAllServiceProviders();
-        const providerBookings = getAllBookings();
-        const userBookings = getUserBookings();
-        const sos = getSOSAlerts();
-        const allBookings = [...providerBookings, ...userBookings];
-        const completed = providerBookings.filter(b => b.status === "completed");
-        const cancelled = providerBookings.filter(b => ["cancelled", "rejected"].includes(b.status));
-
-        setStats({
-            totalVendors: vendors.length,
-            totalSPs: sps.length,
-            activeSPs: sps.filter(sp => sp.approvalStatus === "approved").length,
-            pendingSPs: sps.filter(sp => sp.approvalStatus === "pending").length,
-            totalBookings: providerBookings.length,
-            activeBookings: providerBookings.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes(b.status)).length,
-            totalRevenue: completed.reduce((s, b) => s + (b.totalAmount || 0), 0),
-            commissionEarned: Math.round(completed.reduce((s, b) => s + (b.totalAmount || 0), 0) * 0.15),
-            cancellationRate: providerBookings.length > 0 ? Math.round((cancelled.length / providerBookings.length) * 100) : 0,
-            customerCount: new Set(providerBookings.map(b => b.customerId)).size,
-            sosAlerts: sos.filter(s => s.status !== "resolved").length,
-            zones: getZones(allBookings)
-        });
-    }, []);
-
     const getZones = (bookings) => {
         const zonesMap = {};
         if (Array.isArray(bookings)) {

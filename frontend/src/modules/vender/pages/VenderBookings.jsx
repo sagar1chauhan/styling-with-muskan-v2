@@ -82,12 +82,6 @@ export default function VenderBookings() {
         return matchSearch && tabMatch && typeMatch;
     });
 
-    const handleAssign = async () => {
-        if (assignModal && selectedProvider) {
-            await assignSPToBooking(assignModal.id, selectedProvider);
-            await load();
-            setAssignModal(null);
-            setSelectedProvider("");
     // Step 1: Vendor sets price & discount price (NO team assignment yet)
     const handleSetPrice = () => {
         if (!assignModal) return;

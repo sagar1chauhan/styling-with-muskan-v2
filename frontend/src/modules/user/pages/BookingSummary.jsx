@@ -50,50 +50,27 @@ const BookingSummary = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const handleApplyCoupon = async () => {
-    try {
-      const items = displayItems.map(it => ({ name: it.name, price: it.price, quantity: it.quantity || 1, duration: it.duration, category: it.category, serviceType: it.serviceType }));
-      const { total, discount: serverDiscount, couponApplied } = await api.bookings.quote({ items, couponCode: coupon });
-      if (!couponApplied) {
-        setCouponError("Invalid or expired coupon");
-        setCouponApplied(null);
-        return;
-      }
-      setCouponError("");
-      setCouponApplied({ code: couponApplied, type: "AUTO", value: serverDiscount });
-    } catch (e) {
-      setCouponError(e.message || "Coupon apply failed");
   // Auto apply coupon if redirected from CouponsPage
   useEffect(() => {
     const urlCoupon = searchParams.get('coupon');
     if (urlCoupon) {
       setCoupon(urlCoupon);
-      handleApplyCoupon(urlCoupon);
     }
   }, [location.search]);
 
-  const handleApplyCoupon = (codeToApply) => {
-    const targetCode = typeof codeToApply === 'string' ? codeToApply : coupon;
-    if (!targetCode) return;
-
-    const adminCouponsRaw = localStorage.getItem("muskan-admin-coupons");
-    const adminCoupons = adminCouponsRaw ? JSON.parse(adminCouponsRaw) : [];
-
-    // Check code and status (in coupon system isActive is used but sometimes absent so check truthiness)
-    const foundCoupon = adminCoupons.find(c =>
-      c.code.toUpperCase() === targetCode.toUpperCase() &&
-      c.isActive !== false
-    );
-
-    if (!foundCoupon) {
-      setCouponError("Invalid or expired coupon");
-      setCouponApplied(null);
-      return;
-    }
-
-    if (displayTotalPrice < (foundCoupon.minOrder || 0)) {
-      setCouponError(`Min order ₹${foundCoupon.minOrder} required`);
-      setCouponApplied(null);
+  const handleApplyCoupon = async () => {
+    try {
+      const items = displayItems.map(it => ({ name: it.name, price: it.price, quantity: it.quantity || 1, duration: it.duration, category: it.category, serviceType: it.serviceType }));
+      const { total, discount: serverDiscount, couponApplied: appliedCode } = await api.bookings.quote({ items, couponCode: coupon });
+      if (!appliedCode) {
+        setCouponError("Invalid or expired coupon");
+        setCouponApplied(null);
+        return;
+      }
+      setCouponError("");
+      setCouponApplied({ code: appliedCode, type: "AUTO", value: serverDiscount });
+    } catch (e) {
+      setCouponError(e.message || "Coupon apply failed");
     }
   };
 
@@ -143,22 +120,22 @@ const BookingSummary = () => {
         lat: user.addresses[0].lat ?? null,
         lng: user.addresses[0].lng ?? null
       };
-      const { booking, totals, advanceAmount, order } = await api.bookings.create({
+      const { booking, totals, advanceAmount: serverAdvance, order } = await api.bookings.create({
         items,
         slot: selectedSlot || { date: "Today", time: "09:00" },
         address,
         bookingType: checkoutType || "instant",
         couponCode: couponApplied?.code || undefined,
       });
-      if (advanceAmount > 0 && order) {
+      if (serverAdvance > 0 && order) {
         navigate("/payment", {
           state: {
             discount: totals.total - totals.finalTotal,
             finalTotal: totals.finalTotal,
             totalSavings: displayTotalSavings,
             checkoutType,
-            advanceAmount,
-            remainingAmount: totals.finalTotal - advanceAmount,
+            advanceAmount: serverAdvance,
+            remainingAmount: totals.finalTotal - serverAdvance,
             isPartiallyPaid: true,
             order
           }
@@ -175,17 +152,6 @@ const BookingSummary = () => {
             isPartiallyPaid: false
           }
         });
-  const handlePay = () => {
-    navigate("/payment", {
-      state: {
-        discount,
-        plusDiscount,
-        finalTotal,
-        totalSavings: displayTotalSavings,
-        checkoutType,
-        advanceAmount: advanceAmount,
-        remainingAmount: remainingAfterAdvance,
-        isPartiallyPaid: advanceAmount > 0
       }
     } catch (e) {
       alert(e.message || "Payment initiation failed");

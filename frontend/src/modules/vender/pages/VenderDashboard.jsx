@@ -71,30 +71,6 @@ export default function VenderDashboard() {
     };
 
     useEffect(() => { load(); }, [hydrated, isLoggedIn]);
-    const [topSPs, setTopSPs] = useState([]);
-    useEffect(() => {
-        const sps = getServiceProviders();
-        const bookings = getAllBookings();
-        const sos = getSOSAlerts();
-        const feedback = JSON.parse(localStorage.getItem('muskan-feedback') || '[]');
-
-        setStats({
-            sps: sps.length,
-            pendingSPs: sps.filter(s => s.approvalStatus === "pending").length,
-            bookings: bookings.length,
-            activeBookings: bookings.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes(b.status)).length,
-            revenue: bookings.filter(b => b.status === "completed").reduce((sum, b) => sum + (b.totalAmount || 0), 0),
-            sosAlerts: sos.filter(s => s.status !== "resolved").length,
-        });
-
-        // Calculate top SPs
-        const spRatings = sps.map(sp => {
-            const spFeedback = feedback.filter(f => (f.providerName === sp.name || f.assignedProvider === sp.id) && f.type === 'customer_to_provider');
-            const rating = spFeedback.length > 0 ? (spFeedback.reduce((a, b) => a + b.rating, 0) / spFeedback.length) : 0;
-            return { ...sp, rating };
-        }).sort((a, b) => b.rating - a.rating).slice(0, 3);
-        setTopSPs(spRatings);
-    }, []);
 
     const statCards = [
         { title: "Service Providers", value: stats.sps, icon: Users, color: "emerald", badge: stats.pendingSPs > 0 ? `${stats.pendingSPs} pending` : null, link: "/vender/service-providers" },
@@ -192,16 +168,16 @@ export default function VenderDashboard() {
                     </Card>
                 </motion.div>
 
-                {/* Top Rated SPs */}
+                {/* Recent Activity */}
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
                     <Card className="shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg font-bold">Top Performing SPs</CardTitle>
-                            <CardDescription>Highest rated providers this month</CardDescription>
+                            <CardTitle className="text-lg font-bold">Recent Activity</CardTitle>
+                            <CardDescription>Latest updates from your city</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                {activities.map((activity, i) => {
+                                {activities.length > 0 ? activities.map((activity, i) => {
                                     const AIcon = activity.icon || Clock;
                                     const rel = (() => {
                                         const diff = Date.now() - activity.ts;
@@ -227,26 +203,11 @@ export default function VenderDashboard() {
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-[12px] font-semibold text-foreground truncate">{activity.text}</p>
                                                 <p className="text-[10px] text-muted-foreground font-medium">{rel}</p>
-                                {topSPs.length > 0 ? topSPs.map((sp, i) => (
-                                    <div key={i} className="flex items-center gap-4 pb-3 border-b border-border/50 last:border-0 last:pb-0">
-                                        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center font-black text-primary">
-                                            {sp.name?.charAt(0)}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold truncate">{sp.name}</p>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <div className="flex items-center gap-0.5">
-                                                    {[1, 2, 3, 4, 5].map(s => (
-                                                        <Star key={s} className={`h-2.5 w-2.5 ${s <= sp.rating ? "text-amber-500 fill-amber-500" : "text-slate-200"}`} />
-                                                    ))}
-                                                </div>
-                                                <span className="text-[10px] text-muted-foreground font-bold">{sp.rating.toFixed(1)}</span>
                                             </div>
-                                        </div>
-                                        <Badge className="bg-emerald-50 text-emerald-600 border-none text-[10px] font-black">TOP PRO</Badge>
-                                    </div>
-                                )) : (
-                                    <p className="text-sm text-center text-muted-foreground py-4">No performance data yet</p>
+                                        </motion.div>
+                                    );
+                                }) : (
+                                    <p className="text-sm text-center text-muted-foreground py-4">No recent activity</p>
                                 )}
                             </div>
                         </CardContent>

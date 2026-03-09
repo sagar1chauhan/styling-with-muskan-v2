@@ -48,15 +48,6 @@ export const AuthProvider = ({ children }) => {
         }
         setUser(u);
         setHasAddress((u.addresses || []).length > 0);
-    const login = (userData) => {
-        const user = {
-            ...userData,
-            id: userData.id || `U${Date.now()}`,
-            isVerified: userData.isVerified || false,
-            referralCode: userData.referralCode || "",
-            address: userData.address || null,
-            isPlusMember: userData.isPlusMember || false,
-        };
         setIsLoggedIn(true);
     };
 

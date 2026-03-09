@@ -21,24 +21,18 @@ export default function SPManagement() {
     const [search, setSearch] = useState("");
     const [selectedSP, setSelectedSP] = useState(null);
     const [activeTab, setActiveTab] = useState("all");
-
+    const [feedback, setFeedback] = useState([]);
+    const [allBookings, setAllBookings] = useState([]);
     const loadProviders = async () => {
         try {
             if (!hydrated || !isLoggedIn) return;
             const sps = await getServiceProviders();
             setProviders(Array.isArray(sps) ? sps : []);
         } catch {}
-    };
-    useEffect(() => { loadProviders(); }, [hydrated, isLoggedIn]);
-    const [feedback, setFeedback] = useState([]);
-    const [allBookings, setAllBookings] = useState([]);
-
-    const loadProviders = () => {
-        setProviders(getServiceProviders());
         setFeedback(JSON.parse(localStorage.getItem('muskan-feedback') || '[]'));
         setAllBookings(JSON.parse(localStorage.getItem('muskan-bookings') || '[]'));
     };
-    useEffect(() => { loadProviders(); }, []);
+    useEffect(() => { loadProviders(); }, [hydrated, isLoggedIn]);
 
     const getSPRating = (sp) => {
         const spFeedback = feedback.filter(f => (f.providerName === sp.name || f.assignedProvider === sp.id) && f.type === 'customer_to_provider');
