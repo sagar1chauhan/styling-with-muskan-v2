@@ -82,6 +82,7 @@ export const AdminAuthProvider = ({ children }) => {
             bookingType: "customized",
             serviceType: enq.eventType || "Event Services",
             totalAmount: enq.totalAmount || 0,
+            discountPrice: enq.discountPrice || 0,
             slot: {
                 date: enq.date || "TBD",
                 time: enq.timeSlot || "TBD"
@@ -124,18 +125,25 @@ export const AdminAuthProvider = ({ children }) => {
     };
 
     const assignTeamToBooking = (bookingId, payload) => {
-        // This handles customized bookings where vendor assigns a team
+        // This handles customized bookings through various stages
         const allBookings = getAllBookings();
         const updated = allBookings.map(b => {
             if (b.id === bookingId) {
-                return {
+                const updatedBooking = {
                     ...b,
-                    assignedProvider: payload.maintainerProvider,
-                    maintainProvider: payload.maintainerProvider,
-                    teamMembers: payload.teamMembers,
                     totalAmount: payload.price,
-                    status: payload.status // vendor_assigned or admin_approved
+                    discountPrice: payload.discountPrice || 0,
+                    status: payload.status // vendor_assigned, admin_approved, team_assigned, final_approved
                 };
+                // Only set team fields if provided
+                if (payload.maintainerProvider) {
+                    updatedBooking.assignedProvider = payload.maintainerProvider;
+                    updatedBooking.maintainProvider = payload.maintainerProvider;
+                }
+                if (payload.teamMembers && payload.teamMembers.length > 0) {
+                    updatedBooking.teamMembers = payload.teamMembers;
+                }
+                return updatedBooking;
             }
             return b;
         });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarRange, Search, MapPin, Clock, User, Users, RefreshCw, CheckCircle, Bell, BellOff, Settings2, Tag, Zap, X, Phone, MessageSquare, Sparkles, LayoutGrid, CheckSquare } from "lucide-react";
+import { CalendarRange, Search, MapPin, Clock, User, Users, RefreshCw, CheckCircle, Bell, BellOff, Settings2, Tag, Zap, X, Phone, MessageSquare, Sparkles, LayoutGrid, CheckSquare, IndianRupee, Percent } from "lucide-react";
 import { Card, CardContent } from "@/modules/user/components/ui/card";
 import { Button } from "@/modules/user/components/ui/button";
 import { Badge } from "@/modules/user/components/ui/badge";
@@ -17,7 +17,9 @@ const statusColors = {
     arrived: "bg-purple-500/15 text-purple-600", in_progress: "bg-violet-500/15 text-violet-600",
     completed: "bg-green-500/15 text-green-600", cancelled: "bg-red-500/15 text-red-600",
     rejected: "bg-red-500/15 text-red-600", "Unassigned": "bg-orange-500/15 text-orange-600",
-    vendor_assigned: "bg-blue-500/15 text-blue-600", admin_approved: "bg-green-500/15 text-green-600"
+    vendor_assigned: "bg-blue-500/15 text-blue-600", admin_approved: "bg-green-500/15 text-green-600",
+    user_accepted: "bg-teal-500/15 text-teal-600", team_assigned: "bg-cyan-500/15 text-cyan-600",
+    final_approved: "bg-emerald-500/15 text-emerald-600"
 };
 
 const notifColors = {
@@ -40,8 +42,11 @@ export default function BookingManagement() {
     const [selectedSP, setSelectedSP] = useState("");
     const [showSettings, setShowSettings] = useState(false);
     const [tempSettings, setTempSettings] = useState(officeSettings);
+    // Admin review modal for price approval (Step 3)
     const [adminReviewModal, setAdminReviewModal] = useState(null);
-    const [reviewData, setReviewData] = useState({ price: 0, team: [], lead: "" });
+    const [reviewData, setReviewData] = useState({ price: 0, discountPrice: 0 });
+    // Admin team review modal for final approval (Step 6)
+    const [adminTeamReviewModal, setAdminTeamReviewModal] = useState(null);
 
     const load = () => {
         setBookings(getAllBookings());
@@ -59,7 +64,7 @@ export default function BookingManagement() {
 
         let tabMatch = true;
         if (tab === "active") tabMatch = ["accepted", "travelling", "arrived", "in_progress"].includes(status);
-        else if (tab === "pending") tabMatch = ["incoming", "pending", "unassigned", "vendor_assigned", "admin_approved"].includes(status);
+        else if (tab === "pending") tabMatch = ["incoming", "pending", "unassigned", "vendor_assigned", "admin_approved", "user_accepted", "team_assigned", "final_approved"].includes(status);
         else if (tab === "completed") tabMatch = status === "completed";
         else if (tab === "missed") tabMatch = ["cancelled", "missed", "rejected"].includes(status);
 
@@ -81,22 +86,38 @@ export default function BookingManagement() {
         }
     };
 
-    const handleAdminApprove = () => {
+    // Step 3: Admin reviews/modifies price & discount, then approves → status becomes admin_approved
+    const handleAdminPriceApprove = () => {
         if (!adminReviewModal) return;
 
         const payload = {
-            maintainerProvider: reviewData.lead,
-            teamMembers: reviewData.team.map(id => {
-                const p = providers.find(sp => sp.id === id);
-                return { id: p.id, name: p.name, serviceType: p.specialties?.join(", ") || "General" };
-            }),
+            maintainerProvider: "",
+            teamMembers: [],
             price: parseFloat(reviewData.price),
+            discountPrice: parseFloat(reviewData.discountPrice) || 0,
             status: "admin_approved"
         };
 
         assignTeamToBooking(adminReviewModal.id, payload);
         load();
         setAdminReviewModal(null);
+    };
+
+    // Step 6: Admin reviews team assignment and gives final approval
+    const handleAdminFinalApprove = () => {
+        if (!adminTeamReviewModal) return;
+
+        const payload = {
+            maintainerProvider: adminTeamReviewModal.maintainProvider,
+            teamMembers: adminTeamReviewModal.teamMembers || [],
+            price: adminTeamReviewModal.totalAmount,
+            discountPrice: adminTeamReviewModal.discountPrice || 0,
+            status: "final_approved"
+        };
+
+        assignTeamToBooking(adminTeamReviewModal.id, payload);
+        load();
+        setAdminTeamReviewModal(null);
     };
 
     const handleSaveSettings = () => {
@@ -106,6 +127,17 @@ export default function BookingManagement() {
 
     const unassignedCount = bookings.filter(b => (b.status || "").toLowerCase() === "unassigned").length;
     const queuedCount = bookings.filter(b => b.notificationStatus === "queued").length;
+
+    const getStatusLabel = (status) => {
+        const labels = {
+            vendor_assigned: "Price Set by Vendor",
+            admin_approved: "Price Approved",
+            user_accepted: "User Accepted",
+            team_assigned: "Team Assigned",
+            final_approved: "Ready for Service"
+        };
+        return labels[status] || (status || "").replace(/_/g, " ");
+    };
 
     return (
         <div className="space-y-6">
@@ -196,16 +228,26 @@ export default function BookingManagement() {
                                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                     <span className="text-[10px] font-black text-muted-foreground">#{b.id}</span>
                                                     <Badge variant="outline" className={`text-[8px] font-black px-1.5 py-0 h-4 border-0 ${statusColors[b.status] || ""}`}>
-                                                        {(b.status || "").replace("_", " ")}
+                                                        {getStatusLabel(b.status)}
                                                     </Badge>
                                                     {b.status === "vendor_assigned" && (
                                                         <Badge variant="outline" className="text-[8px] font-black px-1.5 py-0 h-4 bg-blue-500/10 text-blue-600 border-blue-500/20">
-                                                            Action Required
+                                                            Review Pricing
                                                         </Badge>
                                                     )}
                                                     {b.status === "admin_approved" && (
                                                         <Badge variant="outline" className="text-[8px] font-black px-1.5 py-0 h-4 bg-green-500/10 text-green-600 border-green-500/20">
                                                             Waiting for User
+                                                        </Badge>
+                                                    )}
+                                                    {b.status === "team_assigned" && (
+                                                        <Badge variant="outline" className="text-[8px] font-black px-1.5 py-0 h-4 bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
+                                                            Review Team
+                                                        </Badge>
+                                                    )}
+                                                    {b.status === "final_approved" && (
+                                                        <Badge variant="outline" className="text-[8px] font-black px-1.5 py-0 h-4 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                                                            Ready for Service
                                                         </Badge>
                                                     )}
                                                     {b.serviceType && (
@@ -230,8 +272,25 @@ export default function BookingManagement() {
                                                     <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{b.address?.area}</span>
                                                 </div>
 
+                                                {/* Price & Discount Display */}
+                                                {(b.bookingType === "customized" || b.eventType) && b.totalAmount > 0 && (
+                                                    <div className="flex items-center gap-3 mt-2">
+                                                        <span className="text-[10px] font-bold flex items-center gap-1">
+                                                            <IndianRupee className="h-3 w-3 text-primary" /> Price: <span className="font-black text-primary">₹{b.totalAmount?.toLocaleString()}</span>
+                                                        </span>
+                                                        {b.discountPrice > 0 && (
+                                                            <span className="text-[10px] font-bold text-green-600 flex items-center gap-1">
+                                                                <Percent className="h-3 w-3" /> Discount: <span className="font-black">₹{b.discountPrice?.toLocaleString()}</span>
+                                                            </span>
+                                                        )}
+                                                        <span className="text-[10px] font-black text-emerald-600">
+                                                            Final: ₹{((b.totalAmount || 0) - (b.discountPrice || 0)).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                )}
+
                                                 {/* Team Display for Customized */}
-                                                {b.teamMembers && (
+                                                {b.teamMembers && b.teamMembers.length > 0 && (
                                                     <div className="space-y-1 mt-2">
                                                         <p className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1">
                                                             <Users className="h-2.5 w-2.5" /> Team Assigned:
@@ -248,23 +307,29 @@ export default function BookingManagement() {
 
                                                 {b.maintainProvider && (
                                                     <p className="text-[9px] mt-1 text-emerald-600 font-bold flex items-center gap-1">
-                                                        <Zap className="h-3 w-3" /> Maintainer: {providers.find(p => (p.id || p.phone) === b.maintainProvider)?.name || b.maintainProvider}
+                                                        <Zap className="h-3 w-3" /> Lead Member: {providers.find(p => (p.id || p.phone) === b.maintainProvider)?.name || b.maintainProvider}
                                                     </p>
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <span className="text-lg font-black text-primary">₹{b.totalAmount?.toLocaleString()}</span>
+                                                {/* Step 3: Admin reviews vendor pricing */}
                                                 {b.status === "vendor_assigned" ? (
                                                     <Button size="sm" className="h-8 text-[10px] font-bold bg-blue-600 hover:bg-blue-700 rounded-lg gap-1"
                                                         onClick={() => {
                                                             setAdminReviewModal(b);
                                                             setReviewData({
-                                                                price: b.totalAmount,
-                                                                team: b.teamMembers?.map(m => m.id) || [],
-                                                                lead: b.maintainProvider || ""
+                                                                price: b.totalAmount || 0,
+                                                                discountPrice: b.discountPrice || 0
                                                             });
                                                         }}>
-                                                        <CheckCircle className="h-3 w-3" /> Review & Approve
+                                                        <CheckCircle className="h-3 w-3" /> Review Pricing
+                                                    </Button>
+                                                ) : b.status === "team_assigned" ? (
+                                                    /* Step 6: Admin reviews team and gives final approval */
+                                                    <Button size="sm" className="h-8 text-[10px] font-bold bg-cyan-600 hover:bg-cyan-700 rounded-lg gap-1"
+                                                        onClick={() => setAdminTeamReviewModal(b)}>
+                                                        <CheckCircle className="h-3 w-3" /> Approve Team
                                                     </Button>
                                                 ) : ["incoming", "pending", "Pending", "unassigned", "Unassigned", "rejected"].includes(b.status) && (
                                                     <Button size="sm" className="h-8 text-[10px] font-bold bg-primary rounded-lg gap-1" onClick={() => setAssignModal(b)}>
@@ -281,14 +346,14 @@ export default function BookingManagement() {
                 </TabsContent>
             </Tabs>
 
-            {/* Admin Review Modal */}
+            {/* ═══════ ADMIN PRICING REVIEW MODAL (Step 3) ═══════ */}
             {adminReviewModal && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAdminReviewModal(null)} />
                     <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
                         className="relative w-full max-w-lg bg-card rounded-[32px] border border-border p-5 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto scrollbar-hide">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-black italic uppercase tracking-tighter">Review Customized Request</h3>
+                            <h3 className="text-lg font-black italic uppercase tracking-tighter">Review Pricing</h3>
                             <button onClick={() => setAdminReviewModal(null)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center transition-colors"><X className="h-4 w-4" /></button>
                         </div>
 
@@ -348,51 +413,40 @@ export default function BookingManagement() {
                             )}
                         </div>
 
+                        {/* Price & Discount Price Fields (Admin can modify) */}
                         <div className="space-y-4">
                             <div>
-                                <label className="text-[10px] font-black uppercase text-muted-foreground mb-1.5 block ml-1">Final Price for User (₹)</label>
+                                <label className="text-[10px] font-black uppercase text-muted-foreground mb-1.5 block ml-1 flex items-center gap-1.5">
+                                    <IndianRupee className="h-3 w-3 text-primary" /> Booking Price (₹)
+                                </label>
                                 <Input type="number" value={reviewData.price} onChange={e => setReviewData({ ...reviewData, price: e.target.value })} className="h-12 rounded-xl" />
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-black uppercase text-muted-foreground mb-1.5 block ml-1">Team Members</label>
-                                <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
-                                    {providers.map(p => (
-                                        <button key={p.id || p.phone} onClick={() => {
-                                            const pId = String(p.id || p.phone);
-                                            const isSelected = reviewData.team.includes(pId);
-                                            const newTeam = isSelected ? reviewData.team.filter(i => i !== pId) : [...reviewData.team, pId];
+                                <label className="text-[10px] font-black uppercase text-muted-foreground mb-1.5 block ml-1 flex items-center gap-1.5">
+                                    <Percent className="h-3 w-3 text-green-600" /> Discount Price (₹)
+                                </label>
+                                <Input type="number" value={reviewData.discountPrice} onChange={e => setReviewData({ ...reviewData, discountPrice: e.target.value })} className="h-12 rounded-xl" />
+                            </div>
 
-                                            // Auto-set lead if not set
-                                            let newLead = reviewData.lead;
-                                            if (newTeam.length > 0 && !newLead) newLead = newTeam[0];
-                                            else if (newTeam.length === 0) newLead = "";
-                                            else if (isSelected && newLead === pId) newLead = newTeam[0] || "";
-
-                                            setReviewData({ ...reviewData, team: newTeam, lead: newLead });
-                                        }} className={`p-2 rounded-xl text-[10px] text-left border-2 transition-all ${reviewData.team.includes(String(p.id || p.phone)) ? "border-primary bg-primary/5 font-black" : "border-border bg-muted/20"}`}>
-                                            <p className="truncate">{p.name}</p>
-                                        </button>
-                                    ))}
+                            {reviewData.price > 0 && (
+                                <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black uppercase text-emerald-700">Final Price for User</span>
+                                        <span className="text-lg font-black text-emerald-700">₹{(parseFloat(reviewData.price) - (parseFloat(reviewData.discountPrice) || 0)).toLocaleString()}</span>
+                                    </div>
+                                    {parseFloat(reviewData.discountPrice) > 0 && (
+                                        <p className="text-[9px] text-emerald-600 mt-1 font-bold">
+                                            Original: ₹{parseFloat(reviewData.price).toLocaleString()} → Discount: ₹{parseFloat(reviewData.discountPrice).toLocaleString()}
+                                        </p>
+                                    )}
                                 </div>
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-muted-foreground mb-1.5 block ml-1">Maintainer (Lead)</label>
-                                <Select value={reviewData.lead} onValueChange={val => setReviewData({ ...reviewData, lead: val })}>
-                                    <SelectTrigger className="h-12 rounded-xl"><SelectValue placeholder="Select maintainer" /></SelectTrigger>
-                                    <SelectContent>
-                                        {providers.filter(p => reviewData.team.includes(p.id || p.phone)).map(p => (
-                                            <SelectItem key={p.id || p.phone} value={String(p.id || p.phone)}>{p.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                            )}
                         </div>
 
                         <div className="flex gap-3 pt-2">
                             <Button variant="outline" className="flex-1 h-12 rounded-2xl font-bold" onClick={() => setAdminReviewModal(null)}>Cancel</Button>
-                            <Button className="flex-[2] h-12 rounded-2xl font-black bg-black text-white hover:opacity-90 shadow-xl" onClick={handleAdminApprove}>
+                            <Button className="flex-[2] h-12 rounded-2xl font-black bg-black text-white hover:opacity-90 shadow-xl" onClick={handleAdminPriceApprove}>
                                 <CheckCircle className="h-4 w-4 mr-2" /> Approve & Forward to User
                             </Button>
                         </div>
@@ -401,7 +455,84 @@ export default function BookingManagement() {
                 document.body
             )}
 
-            {/* Assign SP Modal */}
+            {/* ═══════ ADMIN TEAM REVIEW MODAL (Step 6) ═══════ */}
+            {adminTeamReviewModal && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAdminTeamReviewModal(null)} />
+                    <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                        className="relative w-full max-w-lg bg-card rounded-[32px] border border-border p-5 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto scrollbar-hide">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-black italic uppercase tracking-tighter">Review Team Assignment</h3>
+                            <button onClick={() => setAdminTeamReviewModal(null)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center transition-colors"><X className="h-4 w-4" /></button>
+                        </div>
+
+                        <div className="bg-muted/40 rounded-3xl p-4 border border-border/50 space-y-3 shadow-inner">
+                            <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Booking</p>
+                                    <p className="text-xl font-black italic">#{adminTeamReviewModal.id}</p>
+                                </div>
+                                <Badge variant="outline" className="bg-cyan-50 text-cyan-600 border-cyan-200 px-3 py-1 rounded-full text-[10px] font-black uppercase">
+                                    Team Assigned
+                                </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 pt-1">
+                                <div>
+                                    <p className="text-[9px] font-black uppercase text-muted-foreground">Customer</p>
+                                    <p className="text-sm font-black">{adminTeamReviewModal.customerName}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black uppercase text-muted-foreground">Price</p>
+                                    <p className="text-sm font-black text-primary">₹{adminTeamReviewModal.totalAmount?.toLocaleString()}</p>
+                                    {adminTeamReviewModal.discountPrice > 0 && (
+                                        <p className="text-[9px] text-green-600 font-bold">Discount: ₹{adminTeamReviewModal.discountPrice}</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Team Members Display */}
+                        {adminTeamReviewModal.teamMembers && adminTeamReviewModal.teamMembers.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1 flex items-center gap-1.5">
+                                    <Users className="h-3 w-3" /> Assigned Team ({adminTeamReviewModal.teamMembers.length} members)
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {adminTeamReviewModal.teamMembers.map((m, i) => (
+                                        <div key={i} className={`p-2 rounded-xl text-[10px] border-2 ${m.id === adminTeamReviewModal.maintainProvider ? "border-primary bg-primary/5" : "border-border bg-muted/20"}`}>
+                                            <p className="font-bold truncate">{m.name}</p>
+                                            <p className="text-[8px] opacity-70">{m.serviceType}</p>
+                                            {m.id === adminTeamReviewModal.maintainProvider && (
+                                                <Badge className="text-[7px] mt-1 h-3.5 px-1 bg-primary/10 text-primary border-0">Lead</Badge>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Lead Member */}
+                        {adminTeamReviewModal.maintainProvider && (
+                            <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                                <p className="text-[10px] font-black uppercase text-emerald-700 mb-1">Lead Member</p>
+                                <p className="text-sm font-black text-emerald-700">
+                                    {providers.find(p => (p.id || p.phone) === adminTeamReviewModal.maintainProvider)?.name || adminTeamReviewModal.maintainProvider}
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="flex gap-3 pt-2">
+                            <Button variant="outline" className="flex-1 h-12 rounded-2xl font-bold" onClick={() => setAdminTeamReviewModal(null)}>Cancel</Button>
+                            <Button className="flex-[2] h-12 rounded-2xl font-black bg-black text-white hover:opacity-90 shadow-xl" onClick={handleAdminFinalApprove}>
+                                <CheckCircle className="h-4 w-4 mr-2" /> Final Approve
+                            </Button>
+                        </div>
+                    </motion.div>
+                </div>,
+                document.body
+            )}
+
+            {/* Assign SP Modal (Normal bookings) */}
             {assignModal && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <motion.div
@@ -444,32 +575,6 @@ export default function BookingManagement() {
                                     </Badge>
                                 </div>
                             </div>
-                            {assignModal.bookingType === "customized" && (
-                                <div className="pt-2 border-t border-border/30 space-y-3">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-0.5">
-                                            <p className="text-[9px] font-bold text-muted-foreground uppercase">Group Size</p>
-                                            <p className="text-xs font-black flex items-center gap-1.5"><Users className="h-3 w-3 text-primary" /> {assignModal.noOfPeople || "N/A"}</p>
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <p className="text-[9px] font-bold text-muted-foreground uppercase text-right">Preferred Time</p>
-                                            <p className="text-xs font-black text-right">{assignModal.slot?.time}</p>
-                                        </div>
-                                    </div>
-                                    {assignModal.selectedServices && (
-                                        <div className="space-y-1.5">
-                                            <p className="text-[9px] font-black uppercase text-purple-600 mb-0.5 flex items-center gap-1"><CheckSquare className="h-2.5 w-2.5" /> Services Requested:</p>
-                                            <div className="flex flex-wrap gap-1">
-                                                {assignModal.selectedServices.map((s, idx) => (
-                                                    <span key={idx} className="text-[9px] font-bold px-1.5 py-0.5 bg-white border border-purple-200 text-purple-700 rounded-md">
-                                                        {s.name}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
                             {assignModal.notes && (
                                 <div className="p-3 bg-white/50 rounded-xl border border-border/40">
                                     <p className="text-[9px] font-black uppercase text-pink-600 mb-1 flex items-center gap-1"><MessageSquare className="h-2.5 w-2.5" /> Enquiry Notes:</p>

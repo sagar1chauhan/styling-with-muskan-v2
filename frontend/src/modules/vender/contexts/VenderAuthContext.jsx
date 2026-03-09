@@ -175,12 +175,19 @@ export const VenderAuthProvider = ({ children }) => {
         if (target) {
             const updatedBooking = {
                 ...target,
-                assignedProvider: payload.maintainerProvider,
-                maintainProvider: payload.maintainerProvider,
-                teamMembers: payload.teamMembers, // Array of {id, name, serviceType}
                 totalAmount: payload.price,
-                status: "vendor_assigned" // Send to Admin for approval
+                discountPrice: payload.discountPrice || 0,
+                status: payload.status // vendor_assigned, team_assigned, etc.
             };
+
+            // Only set team fields if provided (Step 5: team assignment)
+            if (payload.maintainerProvider) {
+                updatedBooking.assignedProvider = payload.maintainerProvider;
+                updatedBooking.maintainProvider = payload.maintainerProvider;
+            }
+            if (payload.teamMembers && payload.teamMembers.length > 0) {
+                updatedBooking.teamMembers = payload.teamMembers;
+            }
 
             const existingIndex = bookings.findIndex(b => b.id === bookingId);
             if (existingIndex > -1) {

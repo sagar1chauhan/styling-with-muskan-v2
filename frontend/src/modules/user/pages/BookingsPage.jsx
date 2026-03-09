@@ -6,7 +6,7 @@ import { useBookings } from "@/modules/user/contexts/BookingContext";
 import {
     ArrowLeft, Calendar, Clock, ChevronRight,
     MapPin, ShoppingBag, Star, RefreshCcw,
-    MessageSquare, Phone, Zap, Sparkles, Users, LayoutGrid
+    MessageSquare, Phone, Zap, Sparkles, Users, LayoutGrid, IndianRupee, Percent, CheckCircle2
 } from "lucide-react";
 import ChatModal from "@/modules/user/components/salon/ChatModal";
 import CallingOverlay from "@/modules/user/components/salon/CallingOverlay";
@@ -19,7 +19,7 @@ import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext
 const BookingsPage = () => {
     const navigate = useNavigate();
     const { gender } = useGenderTheme();
-    const { bookings, acceptCustomizedBooking, rejectCustomizedBooking } = useBookings();
+    const { bookings, acceptCustomizedBooking, confirmCustomizedBooking, rejectCustomizedBooking } = useBookings();
     const [mainType, setMainType] = useState("normal"); // 'normal' or 'customize'
     const [activeTab, setActiveTab] = useState("Upcoming");
     const [chatBooking, setChatBooking] = useState(null);
@@ -32,17 +32,37 @@ const BookingsPage = () => {
 
     // Get raw enquiries
     const rawEnquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
-    // Get global bookings to find admin_approved quotes
+    // Get global bookings to find status updates
     const globalBookings = JSON.parse(localStorage.getItem("muskan-bookings") || "[]");
 
-    // Merge: if an enquiry has a matching booking with 'admin_approved', use that data
+    // Merge: overlay booking data from global bookings onto enquiries
     const combinedEnquiries = rawEnquiries.map(enq => {
-        const quote = globalBookings.find(b => b.id === enq.id && b.status === "admin_approved");
-        if (quote) {
-            return { ...enq, ...quote, status: "Quote Ready", isQuote: true };
+        const booking = globalBookings.find(b => b.id === enq.id);
+        if (booking) {
+            const status = booking.status;
+            if (status === "admin_approved") {
+                // Step 4: Admin approved pricing, show quote to user
+                return { ...enq, ...booking, status: "Quote Ready", isQuote: true, displayPhase: "pricing" };
+            } else if (status === "user_accepted") {
+                // Step 5: User accepted, waiting for vendor team assignment
+                return { ...enq, ...booking, status: "Awaiting Team", displayPhase: "team_pending" };
+            } else if (status === "team_assigned") {
+                // Step 6: Vendor assigned team, waiting for admin final approval
+                return { ...enq, ...booking, status: "Team Under Review", displayPhase: "team_review" };
+            } else if (status === "final_approved") {
+                // Step 7: Admin final approved! Show to user for final confirmation
+                return { ...enq, ...booking, status: "Ready to Start", isReady: true, displayPhase: "final" };
+            } else if (status === "vendor_assigned") {
+                // Step 2: Vendor set price, waiting for admin
+                return { ...enq, ...booking, status: "Under Review", displayPhase: "vendor_pricing" };
+            } else if (status === "accepted") {
+                // Already a normal booking, remove from enquiries view
+                return null;
+            }
+            return { ...enq, ...booking };
         }
         return enq;
-    }).reverse();
+    }).filter(Boolean).reverse();
 
     useEffect(() => {
         const checkAutoFeedback = () => {
@@ -89,6 +109,28 @@ const BookingsPage = () => {
             };
         }
         setProviderModalData(foundProvider);
+    };
+
+    const getPhaseColor = (phase) => {
+        switch (phase) {
+            case "pricing": return "bg-green-100 text-green-700";
+            case "team_pending": return "bg-blue-100 text-blue-700";
+            case "team_review": return "bg-cyan-100 text-cyan-700";
+            case "final": return "bg-emerald-100 text-emerald-700";
+            case "vendor_pricing": return "bg-amber-100 text-amber-700";
+            default: return "bg-primary/10 text-primary";
+        }
+    };
+
+    const getPhaseDescription = (phase) => {
+        switch (phase) {
+            case "pricing": return "Pricing has been approved. Review and accept the quote.";
+            case "team_pending": return "Your acceptance is confirmed. Vendor is now assigning the team.";
+            case "team_review": return "Team has been assigned. Admin is reviewing the assignment.";
+            case "final": return "Everything is set! Accept to start the service like a normal booking.";
+            case "vendor_pricing": return "Vendor is setting the pricing. You'll be notified once admin approves.";
+            default: return "Your enquiry is being processed.";
+        }
     };
 
     return (
@@ -146,9 +188,16 @@ const BookingsPage = () => {
                         {/* Bookings List */}
                         <div className="space-y-4">
                             {bookings
-                                .filter(b => activeTab === "Upcoming"
-                                    ? b.status?.toLowerCase() !== "completed"
-                                    : b.status?.toLowerCase() === "completed")
+                                .filter(b => {
+                                    // Exclude customized bookings from normal tab unless they are confirmed (accepted/completed)
+                                    if (b.bookingType === "customized" || b.eventType) {
+                                        const st = (b.status || "").toLowerCase();
+                                        if (!["accepted", "completed", "travelling", "arrived", "in_progress"].includes(st)) return false;
+                                    }
+                                    return activeTab === "Upcoming"
+                                        ? b.status?.toLowerCase() !== "completed"
+                                        : b.status?.toLowerCase() === "completed";
+                                })
                                 .map((booking, i) => (
                                     <motion.div
                                         key={booking.id}
@@ -274,7 +323,13 @@ const BookingsPage = () => {
                                 ))}
                         </div>
 
-                        {bookings.filter(b => activeTab === "Upcoming" ? b.status !== "Completed" : b.status === "Completed").length === 0 && (
+                        {bookings.filter(b => {
+                            if (b.bookingType === "customized" || b.eventType) {
+                                const st = (b.status || "").toLowerCase();
+                                if (!["accepted", "completed", "travelling", "arrived", "in_progress"].includes(st)) return false;
+                            }
+                            return activeTab === "Upcoming" ? b.status !== "Completed" : b.status === "Completed";
+                        }).length === 0 && (
                             <div className="py-20 text-center">
                                 <div className="w-20 h-20 bg-accent rounded-full flex items-center justify-center mx-auto mb-4 scale-110">
                                     <ShoppingBag className="w-10 h-10 text-muted-foreground/30" />
@@ -301,24 +356,37 @@ const BookingsPage = () => {
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: i * 0.1 }}
-                                    className={`glass-strong rounded-3xl p-5 border shadow-sm relative overflow-hidden ${enq.isQuote ? "border-primary/30 ring-1 ring-primary/10" : "border-primary/10"}`}
+                                    className={`glass-strong rounded-3xl p-5 border shadow-sm relative overflow-hidden ${enq.isQuote ? "border-primary/30 ring-1 ring-primary/10" : enq.isReady ? "border-emerald-300 ring-1 ring-emerald-100" : "border-primary/10"}`}
                                 >
                                     <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-12 -mt-12" />
 
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
-                                            <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded ${enq.isQuote ? "bg-green-100 text-green-700" : "bg-primary/10 text-primary"}`}>
-                                                {enq.isQuote ? "Quote Approved" : "Enquiry Details"}
+                                            <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded ${getPhaseColor(enq.displayPhase)}`}>
+                                                {enq.status || "Enquiry Details"}
                                             </span>
                                             <h3 className="text-lg font-black mt-2 font-display">{enq.eventType}</h3>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-bold text-muted-foreground uppercase">{enq.id}</p>
-                                            <span className={`inline-block mt-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter shadow-sm ${enq.isQuote ? "bg-green-600 text-white" : "bg-amber-100 text-amber-600"}`}>
+                                            <span className={`inline-block mt-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter shadow-sm ${enq.isReady ? "bg-emerald-600 text-white" : enq.isQuote ? "bg-green-600 text-white" : "bg-amber-100 text-amber-600"}`}>
                                                 {enq.status || 'Pending Review'}
                                             </span>
                                         </div>
                                     </div>
+
+                                    {/* Phase description */}
+                                    {enq.displayPhase && (
+                                        <div className={`mb-3 p-3 rounded-xl border ${
+                                            enq.displayPhase === "final" ? "bg-emerald-50 border-emerald-100" :
+                                            enq.displayPhase === "pricing" ? "bg-green-50 border-green-100" :
+                                            "bg-muted/30 border-border/30"
+                                        }`}>
+                                            <p className="text-[10px] font-bold text-foreground/70 leading-relaxed">
+                                                {getPhaseDescription(enq.displayPhase)}
+                                            </p>
+                                        </div>
+                                    )}
 
                                     <div className="grid grid-cols-2 gap-4 mb-3">
                                         <div className="space-y-1">
@@ -338,9 +406,24 @@ const BookingsPage = () => {
                                                 <Users className="w-4 h-4 text-primary" />
                                                 {enq.noOfPeople} People
                                             </div>
-                                            {enq.isQuote && (
-                                                <div className="flex items-center gap-2 text-sm font-black text-primary">
-                                                    ₹{enq.totalAmount?.toLocaleString()}
+                                            {/* Price & Discount Display */}
+                                            {(enq.totalAmount > 0) && (
+                                                <div className="space-y-0.5">
+                                                    <div className="flex items-center gap-1 text-sm font-black text-primary">
+                                                        <IndianRupee className="w-3 h-3" />
+                                                        ₹{enq.totalAmount?.toLocaleString()}
+                                                    </div>
+                                                    {enq.discountPrice > 0 && (
+                                                        <div className="flex items-center gap-1 text-[10px] font-bold text-green-600">
+                                                            <Percent className="w-2.5 h-2.5" />
+                                                            Discount: ₹{enq.discountPrice?.toLocaleString()}
+                                                        </div>
+                                                    )}
+                                                    {enq.discountPrice > 0 && (
+                                                        <p className="text-[10px] font-black text-emerald-700">
+                                                            Final: ₹{((enq.totalAmount || 0) - (enq.discountPrice || 0)).toLocaleString()}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -367,13 +450,17 @@ const BookingsPage = () => {
                                         </div>
                                     )}
 
-                                    {enq.isQuote && enq.teamMembers && (
+                                    {/* Team display - show when team is assigned (after final approval) */}
+                                    {(enq.isReady || enq.displayPhase === "team_review") && enq.teamMembers && enq.teamMembers.length > 0 && (
                                         <div className="mb-4 p-3 bg-primary/5 rounded-2xl border border-primary/10">
                                             <p className="text-[10px] font-black uppercase text-primary mb-2">Assigned Experts Team</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {enq.teamMembers.map((m, idx) => (
                                                     <span key={idx} className="text-[9px] font-bold px-2 py-1 bg-white border border-primary/10 rounded-lg flex items-center gap-1">
                                                         <Sparkles className="w-2.5 h-2.5 text-primary" /> {m.name}
+                                                        {m.id === enq.maintainProvider && (
+                                                            <span className="text-[7px] bg-primary/10 text-primary px-1 rounded ml-0.5">Lead</span>
+                                                        )}
                                                     </span>
                                                 ))}
                                             </div>
@@ -387,6 +474,7 @@ const BookingsPage = () => {
                                         </div>
                                     )}
 
+                                    {/* Step 4: Quote Ready - User Accept/Reject */}
                                     {enq.isQuote ? (
                                         <div className="mt-5 flex gap-3">
                                             <button
@@ -399,7 +487,23 @@ const BookingsPage = () => {
                                                 onClick={() => acceptCustomizedBooking(enq)}
                                                 className="flex-[2] py-3 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
                                             >
-                                                Accept & Confirm
+                                                Accept Quote
+                                            </button>
+                                        </div>
+                                    ) : enq.isReady ? (
+                                        /* Step 7: Final approved - User confirms to start normal booking flow */
+                                        <div className="mt-5 flex gap-3">
+                                            <button
+                                                onClick={() => rejectCustomizedBooking(enq)}
+                                                className="flex-1 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm hover:bg-red-100 active:scale-95 transition-all"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => confirmCustomizedBooking(enq)}
+                                                className="flex-[2] py-3 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-200 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <CheckCircle2 className="w-4 h-4" /> Confirm & Start
                                             </button>
                                         </div>
                                     ) : (

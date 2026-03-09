@@ -137,24 +137,45 @@ export const BookingProvider = ({ children }) => {
         setBookings(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
     };
 
+    // Step 4: User accepts the admin-approved quote
+    // This changes status to user_accepted so vendor can now assign team
     const acceptCustomizedBooking = (bookingData) => {
-        // 1. Add to user's local bookings
+        // 1. Update global SP bookings to user_accepted (vendor will now assign team)
+        const spBookings = JSON.parse(localStorage.getItem("muskan-bookings") || "[]");
+        const updatedSpBookings = spBookings.map(b =>
+            b.id === bookingData.id ? { ...b, status: "user_accepted", userAcceptedAt: new Date().toISOString() } : b
+        );
+        localStorage.setItem("muskan-bookings", JSON.stringify(updatedSpBookings));
+
+        // 2. Update enquiry status
+        const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
+        const updatedEnquiries = enquiries.map(e =>
+            e.id === bookingData.id ? { ...e, status: "user_accepted" } : e
+        );
+        localStorage.setItem("muskan-enquiries", JSON.stringify(updatedEnquiries));
+    };
+
+    // Step 7: After admin gives final_approved, user sees the booking as a normal booking
+    // Only lead member sees this on their side. This converts it into a normal accepted booking.
+    const confirmCustomizedBooking = (bookingData) => {
+        // Add to user's local bookings as a normal accepted booking
         const newBooking = {
             ...bookingData,
             status: "accepted",
-            paymentStatus: "PAID", // Assume payment is done upon acceptance
-            acceptedAt: new Date().toISOString()
+            paymentStatus: "PAID",
+            acceptedAt: new Date().toISOString(),
+            otp: Math.floor(1000 + Math.random() * 9000).toString()
         };
         setBookings(prev => [newBooking, ...prev]);
 
-        // 2. Update global SP bookings
+        // Update global SP bookings
         const spBookings = JSON.parse(localStorage.getItem("muskan-bookings") || "[]");
         const updatedSpBookings = spBookings.map(b =>
             b.id === bookingData.id ? { ...b, status: "accepted", paymentStatus: "PAID" } : b
         );
         localStorage.setItem("muskan-bookings", JSON.stringify(updatedSpBookings));
 
-        // 3. Remove from enquiries
+        // Remove from enquiries
         const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
         const filteredEnquiries = enquiries.filter(e => e.id !== bookingData.id);
         localStorage.setItem("muskan-enquiries", JSON.stringify(filteredEnquiries));
@@ -177,7 +198,7 @@ export const BookingProvider = ({ children }) => {
     };
 
     return (
-        <BookingContext.Provider value={{ bookings, addBooking, cancelBooking, updateBooking, acceptCustomizedBooking, rejectCustomizedBooking }}>
+        <BookingContext.Provider value={{ bookings, addBooking, cancelBooking, updateBooking, acceptCustomizedBooking, confirmCustomizedBooking, rejectCustomizedBooking }}>
             {children}
         </BookingContext.Provider>
     );
