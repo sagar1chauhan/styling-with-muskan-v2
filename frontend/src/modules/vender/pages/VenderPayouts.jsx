@@ -12,10 +12,13 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } 
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
 
 export default function VenderPayouts() {
-    const { getServiceProviders, getAllBookings, hydrated, isLoggedIn } = useVenderAuth();
+    const { getServiceProviders, getAllBookings, hydrated, isLoggedIn,updatePayoutStatus } = useVenderAuth();
     const [search, setSearch] = useState("");
     const [providers, setProviders] = useState([]);
     const [bookings, setBookings] = useState([]);
+    
+  
+    const [bookingsState, setBookingsState] = useState([]);
     const load = async () => {
         try {
             if (!hydrated || !isLoggedIn) return;
@@ -39,6 +42,14 @@ export default function VenderPayouts() {
         return () => { cancelled = true; };
     }, [hydrated, isLoggedIn]);
     const completedBookings = bookings.filter(b => b.status === "completed");
+
+
+    useEffect(() => {
+        setBookingsState(getAllBookings());
+    }, []);
+
+    const providers = getServiceProviders().filter(sp => sp.approvalStatus === "approved");
+    const completedBookings = bookingsState.filter(b => b.status === "completed" && b.assignedProvider);
     const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
     const commissionRate = 0.15;
     const totalCommission = Math.round(totalRevenue * commissionRate);
@@ -58,8 +69,26 @@ export default function VenderPayouts() {
             date: (b.createdAt || "").slice(0, 10),
         };
     });
+    // Dynamic payout history from completed bookings
+    const payouts = completedBookings.map(b => {
+        const provider = providers.find(p => p.id === b.assignedProvider || p.phone === b.assignedProvider);
+        return {
+            id: b.id,
+            spName: provider ? provider.name : "Unknown SP",
+            amount: Math.round((b.totalAmount || 0) * (1 - commissionRate)), // Pay structure: 85% to provider
+            status: b.payoutStatus || "pending",
+            date: b.slot?.date || b.date || "N/A"
+        };
+    }).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-    const filteredPayouts = payouts.filter(p => p.spName.toLowerCase().includes(search.toLowerCase()) || p.id.includes(search));
+    const handleStatusUpdate = (id, newStatus) => {
+        if (updatePayoutStatus) {
+            updatePayoutStatus(id, newStatus);
+            setBookingsState(getAllBookings());
+        }
+    };
+
+    const filteredPayouts = payouts.filter(p => p.spName.toLowerCase().includes(search.toLowerCase()) || p.id?.includes(search));
 
     const statusConfig = {
         completed: { label: "Paid", icon: CheckCircle, color: "bg-green-100 text-green-700 border-green-200" },
@@ -139,10 +168,24 @@ export default function VenderPayouts() {
                                                 <SIcon className="h-2.5 w-2.5" /> {sc.label}
                                             </Badge>
                                             {/* Actions could call an admin payout API in future */}
+                                            {payout.status === "pending" && (
+                                                <div className="flex gap-1">
+                                                    <Button size="sm" onClick={() => handleStatusUpdate(payout.id, "completed")} className="h-7 text-[10px] font-bold bg-green-600 hover:bg-green-700 rounded-lg px-2">Release</Button>
+                                                    <Button size="sm" onClick={() => handleStatusUpdate(payout.id, "on_hold")} variant="outline" className="h-7 text-[10px] font-bold border-red-200 text-red-600 rounded-lg px-2 hover:bg-red-50">Hold</Button>
+                                                </div>
+                                            )}
+                                            {payout.status === "on_hold" && (
+                                                <Button size="sm" onClick={() => handleStatusUpdate(payout.id, "pending")} className="h-7 text-[10px] font-bold bg-primary rounded-lg px-2">Un-Hold</Button>
+                                            )}
                                         </div>
                                     </motion.div>
                                 );
                             })}
+                            {filteredPayouts.length === 0 && (
+                                <div className="text-center p-8 text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-border">
+                                    No payouts tracking right now. Payouts generate automatically for completed bookings.
+                                </div>
+                            )}
                         </motion.div>
                     </CardContent>
                 </Card>

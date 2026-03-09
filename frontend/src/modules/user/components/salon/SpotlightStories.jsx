@@ -1,46 +1,10 @@
 import { motion } from "framer-motion";
 import { Play, Zap, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
-const spotlightStories = [
-    {
-        id: 1,
-        title: "Home Makeup Art",
-        category: "Makeup",
-        video: "https://assets.mixkit.co/videos/preview/mixkit-makeup-artist-applying-eyeshadow-on-a-customer-34167-large.mp4",
-        poster: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=400&h=600&fit=crop"
-    },
-    {
-        id: 2,
-        title: "Hair Transformation",
-        category: "Hair",
-        video: "https://assets.mixkit.co/videos/preview/mixkit-stylist-combing-a-customer-s-hair-34162-large.mp4",
-        poster: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=600&fit=crop"
-    },
-    {
-        id: 3,
-        title: "Skin Rejuvenation",
-        category: "Skin",
-        video: "https://assets.mixkit.co/videos/preview/mixkit-beautician-performing-a-facial-treatment-on-a-customer-34164-large.mp4",
-        poster: "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=400&h=600&fit=crop"
-    },
-    {
-        id: 4,
-        title: "Bridal Perfection",
-        category: "Bridal",
-        video: "https://assets.mixkit.co/videos/preview/mixkit-hair-stylist-spraying-hair-of-a-customer-34163-large.mp4",
-        poster: "https://images.unsplash.com/photo-1583089892943-e02e5b017b6a?w=400&h=600&fit=crop"
-    },
-    {
-        id: 5,
-        title: "Classic Styling",
-        category: "Hair",
-        video: "https://assets.mixkit.co/videos/preview/mixkit-woman-smiling-while-beautician-applies-a-face-mask-34158-large.mp4",
-        poster: "https://images.unsplash.com/photo-1559599101-f09722fb4948?w=400&h=600&fit=crop"
-    },
-];
+import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 
 const SpotlightStories = () => {
+    const { spotlights } = useUserModuleData();
     const scrollRef = useRef(null);
     const [isHovered, setIsHovered] = useState(false);
     const [muted, setMuted] = useState(true);
@@ -77,6 +41,8 @@ const SpotlightStories = () => {
         });
     }, []);
 
+    if (!spotlights || spotlights.length === 0) return null;
+
     return (
         <section className="py-12 px-4 overflow-hidden bg-accent/20 border-y border-border/50">
             <div className="max-w-6xl mx-auto">
@@ -108,7 +74,7 @@ const SpotlightStories = () => {
                         ref={scrollRef}
                         className="flex overflow-x-auto hide-scrollbar gap-5 pb-6 snap-x snap-mandatory scroll-smooth"
                     >
-                        {spotlightStories.map((story) => (
+                        {spotlights.map((story) => (
                             <motion.div
                                 key={story.id}
                                 whileHover={{ scale: 1.02 }}

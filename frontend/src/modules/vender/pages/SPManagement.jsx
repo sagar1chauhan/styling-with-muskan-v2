@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Users, Search, CheckCircle, XCircle, Ban, Eye, Shield, UserCheck,
-    Phone, Mail, Calendar, FileText, ChevronRight, Filter, RefreshCw,
+    Phone, Mail, Calendar, FileText, ChevronRight, Filter, RefreshCw, Star
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/modules/user/components/ui/card";
 import { Button } from "@/modules/user/components/ui/button";
@@ -30,6 +30,26 @@ export default function SPManagement() {
         } catch {}
     };
     useEffect(() => { loadProviders(); }, [hydrated, isLoggedIn]);
+    const [feedback, setFeedback] = useState([]);
+    const [allBookings, setAllBookings] = useState([]);
+
+    const loadProviders = () => {
+        setProviders(getServiceProviders());
+        setFeedback(JSON.parse(localStorage.getItem('muskan-feedback') || '[]'));
+        setAllBookings(JSON.parse(localStorage.getItem('muskan-bookings') || '[]'));
+    };
+    useEffect(() => { loadProviders(); }, []);
+
+    const getSPRating = (sp) => {
+        const spFeedback = feedback.filter(f => (f.providerName === sp.name || f.assignedProvider === sp.id) && f.type === 'customer_to_provider');
+        if (spFeedback.length === 0) return 0;
+        const sum = spFeedback.reduce((a, b) => a + b.rating, 0);
+        return (sum / spFeedback.length).toFixed(1);
+    };
+
+    const getSPJobs = (sp) => {
+        return allBookings.filter(b => b.assignedProvider === sp.id || b.providerName === sp.name).length;
+    };
 
     const filtered = providers.filter(sp => {
         const matchSearch = sp.name?.toLowerCase().includes(search.toLowerCase()) || sp.phone?.includes(search);
@@ -120,7 +140,8 @@ export default function SPManagement() {
                                                             </div>
                                                             <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-medium">
                                                                 <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{sp.phone}</span>
-                                                                {sp.email && <span className="flex items-center gap-1 hidden sm:flex"><Mail className="h-3 w-3" />{sp.email}</span>}
+                                                                <span className="flex items-center gap-1"><Star className="h-3 w-3 text-amber-500 fill-amber-500" />{getSPRating(sp) || "N/A"}</span>
+                                                                <span className="flex items-center gap-1 hidden sm:flex"><CheckCircle className="h-3 w-3 text-primary" />{getSPJobs(sp)} Jobs</span>
                                                             </div>
                                                         </div>
                                                         {/* Actions */}

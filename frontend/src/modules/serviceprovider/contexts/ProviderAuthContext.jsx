@@ -134,6 +134,19 @@ export const ProviderAuthProvider = ({ children }) => {
         setProvider(prev => ({ ...prev, approvalStatus: "rejected" }));
     };
 
+    const upgradeToPro = () => {
+        const expiresAt = new Date();
+        expiresAt.setMonth(expiresAt.getMonth() + 1); // 1 Month duration for Pro
+
+        const updatedProvider = { 
+            ...provider, 
+            isPro: true,
+            proExpiry: expiresAt.toISOString(),
+            proPlan: "monthly"
+        };
+        setProvider(updatedProvider);
+    };
+
     return (
         <ProviderAuthContext.Provider value={{
             provider,
@@ -149,6 +162,7 @@ export const ProviderAuthProvider = ({ children }) => {
             logout,
             adminApprove,
             adminReject,
+            upgradeToPro
         }}>
             {children}
         </ProviderAuthContext.Provider>

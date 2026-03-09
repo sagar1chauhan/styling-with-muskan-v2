@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, MapPin, Clock, Calendar, Check, Navigation, Camera, ChevronRight, Shield, IndianRupee, Map as MapIcon, UserCircle, Package, CheckCircle2, Smartphone, Wallet } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Calendar, Check, Navigation, Camera, ChevronRight, Shield, IndianRupee, Map as MapIcon, UserCircle, Package, CheckCircle2, Smartphone, Wallet, Star, MessageSquare } from "lucide-react";
 import { useProviderBookings } from "@/modules/serviceprovider/contexts/ProviderBookingContext";
 import { Button } from "@/modules/user/components/ui/button";
 
@@ -11,6 +11,7 @@ const statusSteps = [
     { key: "arrived", label: "Arrived", icon: MapPin },
     { key: "in_progress", label: "In Progress", icon: Clock },
     { key: "payment", label: "Payment", icon: IndianRupee },
+    { key: "documentation", label: "Photos", icon: Camera },
     { key: "completed", label: "Completed", icon: CheckCircle2 },
 ];
 
@@ -25,6 +26,8 @@ const ProviderBookingDetailPage = () => {
     const [feedback, setFeedback] = useState("");
     const [showOTP, setShowOTP] = useState(false);
     const [showComplete, setShowComplete] = useState(false);
+    const [customerRating, setCustomerRating] = useState(0);
+    const [customerNote, setCustomerNote] = useState("");
 
     if (!booking) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
@@ -55,6 +58,24 @@ const ProviderBookingDetailPage = () => {
     };
 
     const handleComplete = () => {
+        // Save provider feedback about customer
+        if (customerRating > 0) {
+            const fb = {
+                id: `FB${Date.now()}`,
+                bookingId: booking.id,
+                customerName: booking.customerName || "Customer",
+                providerName: "Service Provider",
+                serviceName: (booking.services?.[0]?.name || booking.items?.[0]?.name || "Service"),
+                rating: customerRating,
+                comment: customerNote || feedback,
+                tags: [],
+                type: "provider_to_customer",
+                createdAt: new Date().toISOString(),
+            };
+            const existing = JSON.parse(localStorage.getItem("muskan-feedback") || "[]");
+            existing.unshift(fb);
+            localStorage.setItem("muskan-feedback", JSON.stringify(existing));
+        }
         updateBookingStatus(id, "completed");
         setShowComplete(false);
     };
@@ -64,8 +85,14 @@ const ProviderBookingDetailPage = () => {
     };
 
     const handleFinalizePayment = (method) => {
-        // In a real app, this would update the booking's payment details in the database
-        updateBookingStatus(id, "completed");
+        // Mock credit to vendor wallet if online
+        if (method === "online") {
+            const vendorId = booking.vendorId || "default_vendor";
+            const currentWallet = JSON.parse(localStorage.getItem(`swm_vendor_wallet_${vendorId}`) || "0");
+            localStorage.setItem(`swm_vendor_wallet_${vendorId}`, JSON.stringify(currentWallet + (booking.balanceAmount || booking.totalAmount || 0)));
+            alert("Online Payment Logged: Amount credited to City Vendor Wallet.");
+        }
+        updateBookingStatus(id, "documentation");
     };
 
     const getNextAction = () => {
@@ -74,7 +101,8 @@ const ProviderBookingDetailPage = () => {
             case "travelling": return { label: "Mark as Arrived", icon: MapPin, action: () => updateBookingStatus(id, "arrived") };
             case "arrived": return { label: "Verify Customer OTP", icon: Shield, action: () => setShowOTP(true) };
             case "in_progress": return { label: "Collect Service Payment", icon: IndianRupee, action: () => handleCollectPayment() };
-            case "payment": return { label: "Finalize & Complete", icon: CheckCircle2, action: () => setShowComplete(true) };
+            case "payment": return null; // Actions inside payment card
+            case "documentation": return { label: "Finalize & Complete", icon: CheckCircle2, action: () => setShowComplete(true) };
             default: return null;
         }
     };
@@ -261,30 +289,32 @@ const ProviderBookingDetailPage = () => {
                 </div>
 
                 {/* Images Section */}
-                {(booking.status === "in_progress" || booking.status === "completed") && (
+                {(booking.status === "in_progress" || booking.status === "documentation" || booking.status === "completed") && (
                     <div className="space-y-4">
                         {/* Provider Verification Section */}
                         <div className="bg-white border border-gray-100 rounded-[20px] p-5 shadow-sm shadow-purple-50">
                             <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-4 flex items-center gap-2"><Shield className="w-3.5 h-3.5 text-amber-500" /> Provider Verification</h3>
                             <div className="grid grid-cols-2 gap-3">
                                 {[
-                                    { key: "product", label: "Product", icon: Package, data: booking.productImages || [], addFn: addProductImages },
-                                    { key: "provider", label: "Provider Live", icon: UserCircle, data: booking.providerImages || [], addFn: addProviderImages }
-                                ].map(phase => (
+                                    { key: "product", label: "Product", icon: Package, data: booking.productImages || [], addFn: addProductImages, show: true },
+                                    { key: "provider", label: "Provider Live", icon: UserCircle, data: booking.providerImages || [], addFn: addProviderImages, show: booking.status !== "in_progress" }
+                                ].filter(p => p.show).map(phase => (
                                     <div key={phase.key} className="space-y-3">
                                         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">{phase.label} Photo</p>
-                                        <label className="block bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 p-5 text-center cursor-pointer hover:border-purple-300 hover:bg-purple-50 transition-all">
-                                            <input type="file" accept="image/*" capture="environment" className="hidden"
-                                                onChange={e => {
-                                                    const file = e.target.files[0];
-                                                    if (file) {
-                                                        const url = URL.createObjectURL(file);
-                                                        phase.addFn(id, [url]);
-                                                    }
-                                                }} />
-                                            <phase.icon className="w-5 h-5 mx-auto text-gray-400 mb-1 group-hover:text-purple-600" />
-                                            <span className="text-[9px] font-black text-gray-400 tracking-widest uppercase">Snap {phase.label}</span>
-                                        </label>
+                                        {booking.status !== "completed" && (
+                                            <label className="block bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 p-5 text-center cursor-pointer hover:border-purple-300 hover:bg-purple-50 transition-all">
+                                                <input type="file" accept="image/*" capture="environment" className="hidden"
+                                                    onChange={e => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                            const url = URL.createObjectURL(file);
+                                                            phase.addFn(id, [url]);
+                                                        }
+                                                    }} />
+                                                <phase.icon className="w-5 h-5 mx-auto text-gray-400 mb-1 group-hover:text-purple-600" />
+                                                <span className="text-[9px] font-black text-gray-400 tracking-widest uppercase">Snap {phase.label}</span>
+                                            </label>
+                                        )}
                                         <div className="flex gap-1.5 flex-wrap">
                                             {phase.data.map((img, i) => (
                                                 <div key={i} className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden border border-gray-200 shadow-sm"><img src={img} className="w-full h-full object-cover" alt="" /></div>
@@ -300,23 +330,25 @@ const ProviderBookingDetailPage = () => {
                             <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-4 flex items-center gap-2"><Camera className="w-3.5 h-3.5 text-purple-600" /> Service Documentation</h3>
                             <div className="grid grid-cols-2 gap-3">
                                 {[
-                                    { key: "before", label: "Before", data: booking.beforeImages || [], addFn: addBeforeImages },
-                                    { key: "after", label: "After", data: booking.afterImages || [], addFn: addAfterImages }
-                                ].map(phase => (
+                                    { key: "before", label: "Before", data: booking.beforeImages || [], addFn: addBeforeImages, show: true },
+                                    { key: "after", label: "After", data: booking.afterImages || [], addFn: addAfterImages, show: booking.status !== "in_progress" }
+                                ].filter(p => p.show).map(phase => (
                                     <div key={phase.key} className="space-y-3">
                                         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">{phase.label} Service</p>
-                                        <label className="block bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 p-5 text-center cursor-pointer hover:border-purple-300 hover:bg-purple-50 transition-all">
-                                            <input type="file" accept="image/*" capture="environment" className="hidden"
-                                                onChange={e => {
-                                                    const file = e.target.files[0];
-                                                    if (file) {
-                                                        const url = URL.createObjectURL(file);
-                                                        phase.addFn(id, [url]);
-                                                    }
-                                                }} />
-                                            <Camera className="w-5 h-5 mx-auto text-gray-400 mb-1 group-hover:text-purple-600" />
-                                            <span className="text-[9px] font-black text-gray-400 tracking-widest uppercase">Snap Photo</span>
-                                        </label>
+                                        {booking.status !== "completed" && (
+                                            <label className="block bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 p-5 text-center cursor-pointer hover:border-purple-300 hover:bg-purple-50 transition-all">
+                                                <input type="file" accept="image/*" capture="environment" className="hidden"
+                                                    onChange={e => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                            const url = URL.createObjectURL(file);
+                                                            phase.addFn(id, [url]);
+                                                        }
+                                                    }} />
+                                                <Camera className="w-5 h-5 mx-auto text-gray-400 mb-1 group-hover:text-purple-600" />
+                                                <span className="text-[9px] font-black text-gray-400 tracking-widest uppercase">Snap Photo</span>
+                                            </label>
+                                        )}
                                         <div className="flex gap-1.5 flex-wrap">
                                             {phase.data.map((img, i) => (
                                                 <div key={i} className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden border border-gray-200 shadow-sm"><img src={img} className="w-full h-full object-cover" alt="" /></div>
@@ -369,6 +401,28 @@ const ProviderBookingDetailPage = () => {
                                 <textarea value={feedback} onChange={e => setFeedback(e.target.value)} placeholder="Any specific notes or details..."
                                     className="w-full h-28 px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-sm font-medium text-gray-900 resize-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all" />
                             </div>
+
+                            {/* Customer Rating Section */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                                    <Star className="w-3 h-3" /> Rate the Customer
+                                </label>
+                                <div className="flex gap-2 justify-center py-2">
+                                    {[1, 2, 3, 4, 5].map(s => (
+                                        <button key={s} onClick={() => setCustomerRating(s)} className="transition-transform hover:scale-125 active:scale-95">
+                                            <Star className={`w-7 h-7 transition-colors ${s <= customerRating ? "fill-amber-400 text-amber-400" : "text-gray-200"}`} />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                                    <MessageSquare className="w-3 h-3" /> Customer Note (Optional)
+                                </label>
+                                <textarea value={customerNote} onChange={e => setCustomerNote(e.target.value)} placeholder="How was the customer? On time, cooperative, etc..."
+                                    className="w-full h-20 px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-sm font-medium text-gray-900 resize-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all" />
+                            </div>
                             <Button onClick={handleComplete} className="w-full h-14 rounded-2xl font-black text-base bg-green-600 hover:bg-green-700 text-white shadow-xl shadow-green-200 transition-all">Submit & Finish</Button>
                         </motion.div>
                     </div>
@@ -387,7 +441,7 @@ const ProviderBookingDetailPage = () => {
                     </div>
                 )
             }
-        </div >
+        </div>
     );
 };
 

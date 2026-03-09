@@ -159,6 +159,24 @@ const AddressModal = ({ isOpen, onClose, onSave, initialAddress }) => {
                                     </div>
                                 </div>
 
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">City / Zone*</label>
+                                    <select
+                                        required
+                                        value={address.city || ""}
+                                        onChange={e => setAddress({ ...address, city: e.target.value })}
+                                        className="w-full h-12 px-4 rounded-xl bg-accent border-none text-base focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                                    >
+                                        <option value="" disabled>Select your city</option>
+                                        <option value="Indore">Indore</option>
+                                        <option value="Bhopal">Bhopal</option>
+                                        <option value="Mumbai">Mumbai</option>
+                                        <option value="Delhi">Delhi</option>
+                                        <option value="Pune">Pune</option>
+                                        <option value="Bangalore">Bangalore</option>
+                                    </select>
+                                </div>
+
                                 <div className="grid grid-cols-3 gap-3 pt-2">
                                     {[
                                         { id: 'home', icon: Home, label: 'Home' },

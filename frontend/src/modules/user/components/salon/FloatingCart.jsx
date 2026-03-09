@@ -3,16 +3,17 @@ import { ShoppingBag, ChevronRight, Sparkles } from "lucide-react";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 
-const FloatingCart = ({ isVisible = true }) => {
+const FloatingCart = () => {
     const { totalItems, totalPrice, setIsCartOpen, isCartOpen, getGroupedItems, setActiveCheckoutType, isFloatingSummaryOpen, setIsFloatingSummaryOpen } = useCart();
     const { isLoggedIn } = useAuth();
 
-    // Only show if user is logged in AND has items AND cart is not already open AND external isVisible is true AND summary state is open
-    if (totalItems === 0 || !isLoggedIn || isCartOpen || !isVisible || !isFloatingSummaryOpen) return null;
+    // Only show if user is logged in AND has items AND cart is not already open AND summary state is open
+    if (totalItems === 0 || !isLoggedIn || isCartOpen || !isFloatingSummaryOpen) return null;
 
     const handleOpenCart = (type = null) => {
         setActiveCheckoutType(type);
         setIsCartOpen(true);
+        setIsFloatingSummaryOpen(false);
     };
 
     return (
@@ -21,7 +22,7 @@ const FloatingCart = ({ isVisible = true }) => {
                 initial={{ y: 100, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 100, opacity: 0 }}
-                className="fixed bottom-24 lg:bottom-24 left-4 right-4 z-[100] max-w-xs sm:max-w-md mx-auto pointer-events-none"
+                className="fixed bottom-20 lg:bottom-24 left-4 right-4 z-[45] max-w-xs sm:max-w-md mx-auto pointer-events-none"
             >
                 <div
                     className="w-full bg-gradient-to-r from-primary to-primary/80 p-3 rounded-2xl shadow-2xl shadow-primary/30 flex flex-col gap-2 group overflow-hidden relative pointer-events-auto"
@@ -77,4 +78,3 @@ const FloatingCart = ({ isVisible = true }) => {
 };
 
 export default FloatingCart;
-

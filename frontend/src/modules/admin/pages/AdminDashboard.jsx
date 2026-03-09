@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { LayoutDashboard, Users, Store, CalendarRange, IndianRupee, TrendingUp, TrendingDown, UserPlus, ShieldAlert, ArrowUpRight, Percent } from "lucide-react";
+import { LayoutDashboard, Users, Store, CalendarRange, IndianRupee, TrendingUp, TrendingDown, UserPlus, ShieldAlert, ArrowUpRight, Percent, MapPin, Map } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/modules/user/components/ui/card";
 import { Button } from "@/modules/user/components/ui/button";
 import { Badge } from "@/modules/user/components/ui/badge";
@@ -112,6 +112,55 @@ export default function AdminDashboard() {
         })();
         return () => { cancelled = true; };
     }, [allBookings]);
+        const vendors = getAllVendors();
+        const sps = getAllServiceProviders();
+        const providerBookings = getAllBookings();
+        const userBookings = getUserBookings();
+        const sos = getSOSAlerts();
+        const allBookings = [...providerBookings, ...userBookings];
+        const completed = providerBookings.filter(b => b.status === "completed");
+        const cancelled = providerBookings.filter(b => ["cancelled", "rejected"].includes(b.status));
+
+        setStats({
+            totalVendors: vendors.length,
+            totalSPs: sps.length,
+            activeSPs: sps.filter(sp => sp.approvalStatus === "approved").length,
+            pendingSPs: sps.filter(sp => sp.approvalStatus === "pending").length,
+            totalBookings: providerBookings.length,
+            activeBookings: providerBookings.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes(b.status)).length,
+            totalRevenue: completed.reduce((s, b) => s + (b.totalAmount || 0), 0),
+            commissionEarned: Math.round(completed.reduce((s, b) => s + (b.totalAmount || 0), 0) * 0.15),
+            cancellationRate: providerBookings.length > 0 ? Math.round((cancelled.length / providerBookings.length) * 100) : 0,
+            customerCount: new Set(providerBookings.map(b => b.customerId)).size,
+            sosAlerts: sos.filter(s => s.status !== "resolved").length,
+            zones: getZones(allBookings)
+        });
+    }, []);
+
+    const getZones = (bookings) => {
+        const zonesMap = {};
+        if (Array.isArray(bookings)) {
+            bookings.forEach(b => {
+                const z = b.address?.area || b.address?.city;
+                if (z) {
+                    zonesMap[z] = (zonesMap[z] || 0) + 1;
+                }
+            });
+        }
+
+        let zonesArray = Object.entries(zonesMap);
+
+        if (zonesArray.length === 0) {
+            zonesArray = [
+                ["Andheri West", 145],
+                ["Powai", 112],
+                ["Bandra", 98],
+                ["Navi Mumbai", 12],
+                ["Thane", 8]
+            ];
+        }
+        return zonesArray.sort((a, b) => b[1] - a[1]);
+    };
 
     const statCards = [
         { title: "Total Revenue", value: `₹${(stats.totalRevenue || 0).toLocaleString()}`, icon: IndianRupee, color: "from-indigo-500/20 to-indigo-500/5", iconBg: "bg-indigo-500/20 text-indigo-400", trend: "+18%", up: true },
@@ -207,6 +256,54 @@ export default function AdminDashboard() {
                                     <Area type="monotone" dataKey="bookings" stroke="hsl(var(--primary))" fill="url(#bookingGrad)" strokeWidth={2} />
                                 </AreaChart>
                             </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                {/* Zone Analysis */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="lg:col-span-2">
+                    <Card className="border-border/50 shadow-none">
+                        <CardHeader className="pb-3 border-b border-border/50">
+                            <CardTitle className="text-base font-bold flex items-center gap-2"><Map className="h-4 w-4 text-primary" /> Zone-wise Analysis</CardTitle>
+                            <CardDescription className="text-xs">Geographic performance mapping</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border/50">
+                                {/* Top Zones */}
+                                <div className="p-4 space-y-4">
+                                    <div className="flex items-center gap-2 text-sm font-black text-emerald-600">
+                                        <div className="p-1.5 rounded-lg bg-emerald-100"><TrendingUp className="h-4 w-4" /></div> Most Active Zones
+                                    </div>
+                                    <div className="space-y-3">
+                                        {stats.zones?.slice(0, 3).map((zone, i) => (
+                                            <div key={i} className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-8 w-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-xs">#{i + 1}</div>
+                                                    <span className="text-sm font-bold flex items-center gap-1.5"><MapPin className="h-3 w-3 text-muted-foreground" /> {zone[0]}</span>
+                                                </div>
+                                                <span className="text-sm font-black">{zone[1]} Bookings</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                {/* Low Zones */}
+                                <div className="p-4 space-y-4">
+                                    <div className="flex items-center gap-2 text-sm font-black text-red-600">
+                                        <div className="p-1.5 rounded-lg bg-red-100"><TrendingDown className="h-4 w-4" /></div> Low-Performing Zones
+                                    </div>
+                                    <div className="space-y-3">
+                                        {stats.zones?.slice(-3).reverse().map((zone, i) => (
+                                            <div key={i} className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-8 w-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center font-black text-xs text-center leading-none">!</div>
+                                                    <span className="text-sm font-bold flex items-center gap-1.5"><MapPin className="h-3 w-3 text-muted-foreground" /> {zone[0]}</span>
+                                                </div>
+                                                <span className="text-sm font-black opacity-70">{zone[1]} Bookings</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </motion.div>

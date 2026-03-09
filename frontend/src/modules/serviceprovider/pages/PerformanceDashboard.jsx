@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Card,
     CardContent,
@@ -9,7 +10,13 @@ import {
 import { Progress } from "@/modules/user/components/ui/progress";
 import { Badge } from "@/modules/user/components/ui/badge";
 import { Button } from "@/modules/user/components/ui/button";
-import { AlertCircle, Star, XCircle, Clock, ShieldCheck, PauseCircle, Briefcase, DownloadIcon, MoreVerticalIcon, AwardIcon } from "lucide-react";
+import { 
+    AlertCircle, Star, XCircle, Clock, ShieldCheck, PauseCircle, 
+    Briefcase, DownloadIcon, MoreVerticalIcon, AwardIcon, TrendingUp, TrendingDown, Zap 
+} from "lucide-react";
+import { 
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+} from "recharts";
 import { Link } from "react-router-dom";
 import { useProviderAuth } from "../contexts/ProviderAuthContext";
 import { api } from "@/modules/user/lib/api";
@@ -45,6 +52,26 @@ export default function PerformanceDashboard() {
         isActive: provider?.approvalStatus === "approved",
         weeklyTrend: summary?.performance?.weeklyTrend ?? [],
     }), [summary, provider?.approvalStatus]);
+import { motion } from "framer-motion";
+
+export default function PerformanceDashboard() {
+    const [metrics, setMetrics] = useState({
+        rating: 4.8,
+        responseRate: 98,
+        cancellations: 4,
+        grade: "A+",
+        isActive: true,
+    });
+
+    useEffect(() => {
+        const feedback = JSON.parse(localStorage.getItem('muskan-feedback') || '[]');
+        const spFeedback = feedback.filter(f => f.type === 'customer_to_provider');
+        if (spFeedback.length > 0) {
+            const sum = spFeedback.reduce((a, b) => a + b.rating, 0);
+            const avg = sum / spFeedback.length;
+            setMetrics(prev => ({ ...prev, rating: avg }));
+        }
+    }, []);
 
     const isPaused = metrics.rating < 4.7 || !metrics.isActive;
 
@@ -184,18 +211,26 @@ export default function PerformanceDashboard() {
                     </CardContent>
                 </Card>
 
-                {/* Weekly Performance Trend Section (New) */}
+                {/* Weekly Performance Trend Section */}
                 <div className="col-span-2 lg:col-span-3 mt-4">
-                    <Card className="shadow-md border-slate-100 overflow-hidden">
-                        <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-                            <div className="flex justify-between items-center">
+                    <Card className="shadow-md border-slate-100 overflow-hidden bg-white rounded-3xl">
+                        <CardHeader className="bg-slate-50/30 border-b border-slate-100/50 pb-6 pt-7 px-6">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div>
-                                    <CardTitle className="text-lg font-bold">Weekly Performance Trend</CardTitle>
-                                    <CardDescription>Based on response ratio & job completion</CardDescription>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className="p-1.5 bg-purple-100 rounded-lg">
+                                            <TrendingUp className="h-4 w-4 text-purple-600" />
+                                        </div>
+                                        <CardTitle className="text-lg font-black tracking-tight text-slate-900">Weekly Performance Trend</CardTitle>
+                                    </div>
+                                    <CardDescription className="text-xs font-medium text-slate-500">Live efficiency & satisfaction tracking</CardDescription>
                                 </div>
-                                <div className="text-right">
-                                    <span className="text-2xl font-black text-slate-900">Top 5%</span>
-                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">Current Rank</p>
+                                <div className="bg-slate-900 text-white rounded-2xl px-5 py-3 shadow-xl shadow-slate-200 flex items-center gap-4 shrink-0 transition-transform hover:scale-105 duration-300">
+                                    <div className="text-right border-r border-white/10 pr-4">
+                                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest leading-none mb-1">Current Rank</p>
+                                        <span className="text-xl font-black text-white italic tracking-tighter">#Top 5%</span>
+                                    </div>
+                                    <Zap className="h-5 w-5 text-amber-400 fill-amber-400 animate-pulse" />
                                 </div>
                             </div>
                         </CardHeader>
@@ -222,34 +257,111 @@ export default function PerformanceDashboard() {
                                         <span className="text-xs font-bold text-slate-500">{item.day}</span>
                                     </div>
                                 ))}
+                        <CardContent className="p-0 sm:p-6 overflow-hidden">
+                            {/* Interactive Performance Graph */}
+                            <div className="h-[280px] w-full mt-6 bg-white relative px-2 sm:px-0">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart 
+                                        data={[
+                                            { day: "Mon", score: 72, quality: 85, jobs: 4 },
+                                            { day: "Tue", score: 85, quality: 90, jobs: 6 },
+                                            { day: "Wed", score: 68, quality: 78, jobs: 3 },
+                                            { day: "Thu", score: 94, quality: 96, jobs: 8 },
+                                            { day: "Fri", score: 88, quality: 92, jobs: 7 },
+                                            { day: "Sat", score: 98, quality: 99, jobs: 12 },
+                                            { day: "Sun", score: 90, quality: 92, jobs: 9 },
+                                        ]}
+                                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                    >
+                                        <defs>
+                                            <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
+                                                <stop offset="95%" stopColor="#c084fc" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis 
+                                            dataKey="day" 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }}
+                                            dy={10}
+                                        />
+                                        <YAxis 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                                            domain={[0, 100]}
+                                        />
+                                        <Tooltip 
+                                            content={({ active, payload, label }) => {
+                                                if (active && payload && payload.length) {
+                                                    return (
+                                                        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-2xl backdrop-blur-md">
+                                                            <p className="text-white font-black text-xs uppercase tracking-widest mb-3 border-b border-white/10 pb-2">{label}</p>
+                                                            <div className="space-y-2">
+                                                                <div className="flex items-center justify-between gap-6">
+                                                                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-tight">Efficiency</span>
+                                                                    <span className="text-purple-400 font-black text-xs">{payload[0].value}%</span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between gap-6">
+                                                                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-tight">Quality Score</span>
+                                                                    <span className="text-emerald-400 font-black text-xs">{payload[0].payload.quality}%</span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between gap-6 pt-1">
+                                                                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-tight">Jobs Done</span>
+                                                                    <span className="text-amber-400 font-black text-xs underline decoration-2">{payload[0].payload.jobs}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                        />
+                                        <Area 
+                                            type="monotone" 
+                                            dataKey="score" 
+                                            stroke="#8b5cf6" 
+                                            strokeWidth={4} 
+                                            fillOpacity={1} 
+                                            fill="url(#colorScore)" 
+                                            animationDuration={2000}
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
                             </div>
 
-                            <div className="mt-8 grid grid-cols-2 gap-4">
-                                <div className="bg-green-50 p-4 rounded-2xl border border-green-100">
-                                    <p className="text-[10px] text-green-600 font-black uppercase tracking-widest">Avg Response Time</p>
-                                    <p className="text-xl font-bold text-green-900">12 Mins</p>
-                                    <div className="mt-1 flex items-center gap-1 text-[10px] text-green-600 font-bold">
-                                        <span>↓ 4 mins from last week</span>
+                            <div className="mt-8 px-6 pb-6 grid grid-cols-2 gap-4">
+                                <motion.div 
+                                    whileHover={{ y: -5 }}
+                                    className="bg-emerald-50/50 p-5 rounded-[24px] border border-emerald-100 relative overflow-hidden group"
+                                >
+                                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                        <Clock className="h-10 w-10 text-emerald-600" />
                                     </div>
-                                </div>
-                                <div className="bg-purple-50 p-4 rounded-2xl border border-purple-100">
-                                    <p className="text-[10px] text-purple-600 font-black uppercase tracking-widest">Job Conversion</p>
-                                    <p className="text-xl font-bold text-purple-900">92%</p>
-                                    <div className="mt-1 flex items-center gap-1 text-[10px] text-purple-600 font-bold">
-                                        <span>↑ 5% from last week</span>
+                                    <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest leading-none mb-3">Avg Response Time</p>
+                                    <p className="text-2xl font-black text-emerald-900">12 Mins</p>
+                                    <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-600 font-black bg-emerald-100/50 w-fit px-2 py-0.5 rounded-full">
+                                        <TrendingDown className="h-3 w-3" /> 4 mins faster
                                     </div>
-                                </div>
+                                </motion.div>
+                                <motion.div 
+                                    whileHover={{ y: -5 }}
+                                    className="bg-purple-50/50 p-5 rounded-[24px] border border-purple-100 relative overflow-hidden group"
+                                >
+                                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                        <Briefcase className="h-10 w-10 text-purple-600" />
+                                    </div>
+                                    <p className="text-[10px] text-purple-600 font-black uppercase tracking-widest leading-none mb-3">Job Conversion</p>
+                                    <p className="text-2xl font-black text-purple-900">92%</p>
+                                    <div className="mt-2 flex items-center gap-1.5 text-[10px] text-purple-600 font-black bg-purple-100/50 w-fit px-2 py-0.5 rounded-full">
+                                        <TrendingUp className="h-3 w-3" /> 5% Increase
+                                    </div>
+                                </motion.div>
                             </div>
                         </CardContent>
                     </Card>
-
-                    <style dangerouslySetInnerHTML={{
-                        __html: `
-                        @keyframes growUp {
-                            from { transform: scaleY(0); }
-                            to { transform: scaleY(1); }
-                        }
-                    `}} />
 
                     {/* Detailed Compliance/Badges */}
                     <Card className="shadow-sm border-purple-200 bg-purple-50/30 mt-6 overflow-hidden">

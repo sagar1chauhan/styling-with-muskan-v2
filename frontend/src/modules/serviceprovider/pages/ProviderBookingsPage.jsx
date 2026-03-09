@@ -35,11 +35,11 @@ const BookingCard = ({ booking, type, onAccept, onReject, onNavigate }) => {
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                     <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md ${booking.bookingType === "instant" ? "bg-amber-50 text-amber-600 border border-amber-200" : "bg-purple-50 text-purple-600 border border-purple-100"}`}>
-                        {booking.bookingType === "instant" ? "Instant" : "Scheduled"}
+                        {booking.bookingType === "instant" ? "Booked" : "Scheduled"}
                     </span>
                     {isFirstTime ? (
                         <span className="text-[9px] font-black uppercase px-2 py-1 flex items-center gap-1 rounded-md bg-red-50 text-red-600 border border-red-200">
-                            UnVerify
+                            Newly
                         </span>
                     ) : (
                         <span className="text-[9px] font-black uppercase px-2 py-1 flex items-center gap-1 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200">

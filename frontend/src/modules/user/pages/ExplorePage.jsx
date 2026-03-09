@@ -11,8 +11,6 @@ import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useWishlist } from "@/modules/user/contexts/WishlistContext";
 import { Button } from "@/modules/user/components/ui/button";
 import { shareContent } from "@/modules/user/lib/utils";
-import FloatingCart from "@/modules/user/components/salon/FloatingCart";
-import ExpressCheckout from "@/modules/user/components/salon/ExpressCheckout";
 import FilterModal from "@/modules/user/components/salon/FilterModal";
 
 const ExplorePage = () => {
@@ -20,10 +18,17 @@ const ExplorePage = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { gender } = useGenderTheme();
-    const { totalItems, addToCart, bookingType: contextBookingType, setBookingType } = useCart();
-    const { isLoggedIn, setIsLoginModalOpen } = useAuth();
+    const { totalItems, cartItems, addToCart, bookingType: contextBookingType, setBookingType, isFloatingSummaryOpen, setIsFloatingSummaryOpen } = useCart();
+    const { isLoggedIn, setIsLoginModalOpen, user } = useAuth();
     const { toggleWishlist, isInWishlist } = useWishlist();
-    const { services, categories, serviceTypes: SERVICE_TYPES } = useUserModuleData();
+    const { services, categories, serviceTypes: SERVICE_TYPES, checkAvailability } = useUserModuleData();
+
+    const userCity = user?.address?.city || null;
+
+    const availableServiceTypes = useMemo(() =>
+        SERVICE_TYPES.filter(t => checkAvailability(t, userCity)),
+        [SERVICE_TYPES, userCity, checkAvailability]
+    );
 
     const searchParams = new URLSearchParams(location.search);
     const queryParam = searchParams.get('q') || "";
@@ -71,9 +76,10 @@ const ExplorePage = () => {
         categories.filter(c =>
             c.gender === gender &&
             c.serviceType === activeType &&
-            c.bookingType === activeBooking
+            c.bookingType === activeBooking &&
+            checkAvailability(c, userCity)
         ),
-        [gender, activeType, activeBooking]
+        [gender, activeType, activeBooking, categories, checkAvailability, userCity]
     );
 
     // If activeCategory is not in the filtered list (e.g. after type change), reset it
@@ -93,14 +99,15 @@ const ExplorePage = () => {
             const matchesGender = s.gender === gender;
             const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesCategory = searchQuery.length > 0 ? true : s.category === activeCategory;
+            const isAvailable = checkAvailability(s, userCity);
 
             let matchesFilter = true;
             if (activeFilter === "Top Selling") matchesFilter = s.rating >= 4.7;
             else if (activeFilter === "Premium") matchesFilter = s.price > 2000;
 
-            return matchesCategory && matchesGender && matchesSearch && matchesFilter;
+            return matchesCategory && matchesGender && matchesSearch && matchesFilter && isAvailable;
         });
-    }, [activeCategory, gender, searchQuery, activeFilter]);
+    }, [activeCategory, gender, searchQuery, activeFilter, services, checkAvailability, userCity]);
 
     const handleTypeChange = (typeId) => {
         const firstCat = categories.find(c =>
@@ -137,8 +144,8 @@ const ExplorePage = () => {
                             className="w-full h-10 pl-10 bg-accent/50 rounded-xl border-none text-sm focus:ring-2 focus:ring-primary/20 transition-all"
                         />
                     </div>
-                    <button className="w-10 h-10 rounded-2xl bg-accent flex items-center justify-center">
-                        <Filter className="w-4 h-4" onClick={() => setIsFilterModalOpen(true)} />
+                    <button onClick={() => setIsFilterModalOpen(true)} className="w-10 h-10 rounded-2xl bg-accent flex items-center justify-center transition-all hover:bg-primary/10">
+                        <Filter className="w-4 h-4" />
                     </button>
                 </div>
             </header>
@@ -171,7 +178,7 @@ const ExplorePage = () => {
                         </div>
                     )}
 
-                    {SERVICE_TYPES.map((type) => (
+                    {availableServiceTypes.map((type) => (
                         <button
                             key={type.id}
                             onClick={() => {
@@ -269,9 +276,15 @@ const ExplorePage = () => {
                                         </div>
                                         <Button
                                             onClick={(e) => { e.stopPropagation(); if (!isLoggedIn) setIsLoginModalOpen(true); else addToCart(service); }}
-                                            className="h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider bg-white text-primary border-2 border-primary/20 hover:bg-primary hover:text-white transition-all shadow-sm"
+                                            className={`h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm ${(() => {
+                                                const inCart = cartItems.find(item => item.id === service.id);
+                                                return inCart ? 'bg-primary text-white border-2 border-primary hover:bg-primary/90' : 'bg-white text-primary border-2 border-primary/20 hover:bg-primary hover:text-white';
+                                            })()}`}
                                         >
-                                            Add
+                                            {(() => {
+                                                const inCart = cartItems.find(item => item.id === service.id);
+                                                return inCart ? `${inCart.quantity} Added` : 'Add';
+                                            })()}
                                         </Button>
                                     </div>
                                 </div>
@@ -281,8 +294,6 @@ const ExplorePage = () => {
                 </main>
             </div>
 
-            <FloatingCart isVisible={!isFilterModalOpen} />
-            <ExpressCheckout />
             <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} />
         </div >
     );

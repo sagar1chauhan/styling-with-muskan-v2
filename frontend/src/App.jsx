@@ -31,6 +31,10 @@ import NotFound from "@/modules/user/pages/NotFound";
 import UserRegisterPage from "@/modules/user/pages/UserRegisterPage";
 import WishlistPage from "@/modules/user/pages/WishlistPage";
 import UserLoginPage from "@/modules/user/pages/UserLoginPage";
+import SubscriptionPlans from "@/modules/user/pages/SubscriptionPlans";
+import FloatingCart from "@/modules/user/components/salon/FloatingCart";
+import BottomNav from "@/modules/user/components/salon/BottomNav";
+import ExpressCheckout from "@/modules/user/components/salon/ExpressCheckout";
 
 // Service Provider Module
 import ProviderLayout from "@/modules/serviceprovider/components/ProviderLayout";
@@ -39,6 +43,7 @@ import LeadCreditManager from "@/modules/serviceprovider/pages/LeadCreditManager
 import AvailabilityCalendar from "@/modules/serviceprovider/pages/AvailabilityCalendar";
 import PerformanceDashboard from "@/modules/serviceprovider/pages/PerformanceDashboard";
 import ProviderProfile from "@/modules/serviceprovider/pages/ProviderProfile";
+import ProviderSubscription from "@/modules/serviceprovider/pages/ProviderSubscription";
 import AdminFinanceSuite from "@/modules/serviceprovider/pages/AdminFinanceSuite";
 import JobHistory from "@/modules/serviceprovider/pages/JobHistory";
 import TrainingHub from "@/modules/serviceprovider/pages/TrainingHub";
@@ -67,7 +72,9 @@ import SPManagement from "@/modules/vender/pages/SPManagement";
 import VenderBookings from "@/modules/vender/pages/VenderBookings";
 import VenderPayouts from "@/modules/vender/pages/VenderPayouts";
 import VenderSOSMonitor from "@/modules/vender/pages/VenderSOSMonitor";
+import VenderFeedback from "@/modules/vender/pages/VenderFeedback";
 import VenderProfile from "@/modules/vender/pages/VenderProfile";
+import VenderSubscription from "@/modules/vender/pages/VenderSubscription";
 
 // Admin Module
 import { AdminAuthProvider } from "@/modules/admin/contexts/AdminAuthContext";
@@ -76,6 +83,7 @@ import AdminLoginPage from "@/modules/admin/pages/AdminLoginPage";
 import AdminDashboard from "@/modules/admin/pages/AdminDashboard";
 import VendorManagement from "@/modules/admin/pages/VendorManagement";
 import SPOversight from "@/modules/admin/pages/SPOversight";
+import CustomerOversight from "@/modules/admin/pages/CustomerOversight";
 import BookingManagement from "@/modules/admin/pages/BookingManagement";
 import FinanceManagement from "@/modules/admin/pages/FinanceManagement";
 import MarketingControl from "@/modules/admin/pages/MarketingControl";
@@ -83,6 +91,8 @@ import CouponSystem from "@/modules/admin/pages/CouponSystem";
 import ReferralSystem from "@/modules/admin/pages/ReferralSystem";
 import SOSMonitor from "@/modules/admin/pages/SOSMonitor";
 import UserModuleManagement from "@/modules/admin/pages/UserModuleManagement";
+import FeedbackManagement from "@/modules/admin/pages/FeedbackManagement";
+import TrainingManagement from "@/modules/admin/pages/TrainingManagement";
 
 const queryClient = new QueryClient();
 
@@ -124,6 +134,7 @@ const App = () => {
                                 <Route path="/coupons" element={<CouponsPage />} />
                                 <Route path="/support" element={<SupportPage />} />
                                 <Route path="/wishlist" element={<WishlistPage />} />
+                                <Route path="/plus-subscription" element={<SubscriptionPlans />} />
 
                                 {/* Service Provider Module */}
                                 <Route path="/provider/login" element={<ProviderLoginPage />} />
@@ -138,6 +149,7 @@ const App = () => {
                                   <Route path="availability" element={<AvailabilityCalendar />} />
                                   <Route path="performance" element={<PerformanceDashboard />} />
                                   <Route path="profile" element={<ProviderProfile />} />
+                                  <Route path="subscription" element={<ProviderSubscription />} />
                                   <Route path="admin" element={<AdminFinanceSuite />} />
                                   <Route path="history" element={<JobHistory />} />
                                   <Route path="training" element={<TrainingHub />} />
@@ -157,7 +169,9 @@ const App = () => {
                                   <Route path="service-providers" element={<SPManagement />} />
                                   <Route path="bookings" element={<VenderBookings />} />
                                   <Route path="payouts" element={<VenderPayouts />} />
+                                  <Route path="subscription" element={<VenderSubscription />} />
                                   <Route path="sos" element={<VenderSOSMonitor />} />
+                                  <Route path="feedback" element={<VenderFeedback />} />
                                   <Route path="profile" element={<VenderProfile />} />
                                 </Route>
 
@@ -168,6 +182,7 @@ const App = () => {
                                   <Route path="dashboard" element={<AdminDashboard />} />
                                   <Route path="vendors" element={<VendorManagement />} />
                                   <Route path="service-providers" element={<SPOversight />} />
+                                  <Route path="customers" element={<CustomerOversight />} />
                                   <Route path="bookings" element={<BookingManagement />} />
                                   <Route path="finance" element={<FinanceManagement />} />
                                   <Route path="banners" element={<MarketingControl />} />
@@ -175,6 +190,8 @@ const App = () => {
                                   <Route path="referrals" element={<ReferralSystem />} />
                                   <Route path="sos" element={<SOSMonitor />} />
                                   <Route path="user-data" element={<UserModuleManagement />} />
+                                  <Route path="training" element={<TrainingManagement />} />
+                                  <Route path="feedback" element={<FeedbackManagement />} />
                                 </Route>
 
                                 {/* Common Typos / Legacy Redirects */}
@@ -185,6 +202,9 @@ const App = () => {
                                 <Route path="*" element={<NotFound />} />
                               </Routes>
                               <LoginModal />
+                              <FloatingCart />
+                              <ExpressCheckout />
+                              <BottomNav />
                             </AdminAuthProvider>
                           </VenderAuthProvider>
                         </ProviderBookingProvider>

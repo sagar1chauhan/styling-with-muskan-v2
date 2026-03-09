@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarRange, Search, MapPin, Clock, User, Users, RefreshCw, CheckCircle, Bell, BellOff, Settings2, Tag, Zap, X } from "lucide-react";
+import { CalendarRange, Search, MapPin, Clock, User, Users, RefreshCw, CheckCircle, Bell, BellOff, Settings2, Tag, Zap, X, Phone, MessageSquare, Sparkles, LayoutGrid, CheckSquare, IndianRupee, Percent } from "lucide-react";
 import { Card, CardContent } from "@/modules/user/components/ui/card";
 import { Button } from "@/modules/user/components/ui/button";
 import { Badge } from "@/modules/user/components/ui/badge";
@@ -17,6 +17,9 @@ const statusColors = {
     arrived: "bg-purple-500/15 text-purple-600", in_progress: "bg-violet-500/15 text-violet-600",
     completed: "bg-green-500/15 text-green-600", cancelled: "bg-red-500/15 text-red-600",
     rejected: "bg-red-500/15 text-red-600", "Unassigned": "bg-orange-500/15 text-orange-600",
+    vendor_assigned: "bg-blue-500/15 text-blue-600", admin_approved: "bg-green-500/15 text-green-600",
+    user_accepted: "bg-teal-500/15 text-teal-600", team_assigned: "bg-cyan-500/15 text-cyan-600",
+    final_approved: "bg-emerald-500/15 text-emerald-600"
 };
 
 const notifColors = {
@@ -28,7 +31,7 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } 
 const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
 
 export default function BookingManagement() {
-    const { getAllBookings, getAllServiceProviders, assignSPToBooking } = useAdminAuth();
+    const { getAllBookings, getAllServiceProviders, assignSPToBooking, assignTeamToBooking } = useAdminAuth();
     const { officeSettings, setOfficeSettings, providers: moduleProviders } = useUserModuleData();
     const [bookings, setBookings] = useState([]);
     const [providers, setProviders] = useState([]);
@@ -39,6 +42,11 @@ export default function BookingManagement() {
     const [selectedSP, setSelectedSP] = useState("");
     const [showSettings, setShowSettings] = useState(false);
     const [tempSettings, setTempSettings] = useState(officeSettings);
+    // Admin review modal for price approval (Step 3)
+    const [adminReviewModal, setAdminReviewModal] = useState(null);
+    const [reviewData, setReviewData] = useState({ price: 0, discountPrice: 0 });
+    // Admin team review modal for final approval (Step 6)
+    const [adminTeamReviewModal, setAdminTeamReviewModal] = useState(null);
 
     const load = async () => {
         try {
@@ -52,6 +60,13 @@ export default function BookingManagement() {
             setBookings([]);
             setProviders(moduleProviders || []);
         }
+    const load = () => {
+        setBookings(getAllBookings());
+        const spFromDb = getAllServiceProviders().filter(sp => sp.approvalStatus === "approved");
+        // Combine module providers with SP database providers, avoid duplicates
+        const dbIds = new Set(spFromDb.map(sp => sp.id || sp.phone));
+        const extraProviders = (moduleProviders || []).filter(p => !dbIds.has(p.id || p.phone));
+        setProviders([...spFromDb, ...extraProviders]);
     };
     useEffect(() => { load(); }, []);
 
@@ -61,8 +76,9 @@ export default function BookingManagement() {
 
         let tabMatch = true;
         if (tab === "active") tabMatch = ["accepted", "travelling", "arrived", "in_progress"].includes(status);
-        else if (tab === "pending") tabMatch = ["incoming", "pending", "unassigned"].includes(status);
+        else if (tab === "pending") tabMatch = ["incoming", "pending", "unassigned", "vendor_assigned", "admin_approved", "user_accepted", "team_assigned", "final_approved"].includes(status);
         else if (tab === "completed") tabMatch = status === "completed";
+        else if (tab === "missed") tabMatch = ["cancelled", "missed", "rejected"].includes(status);
 
         let typeMatch = true;
         if (typeFilter !== "all") {
@@ -82,6 +98,40 @@ export default function BookingManagement() {
         }
     };
 
+    // Step 3: Admin reviews/modifies price & discount, then approves → status becomes admin_approved
+    const handleAdminPriceApprove = () => {
+        if (!adminReviewModal) return;
+
+        const payload = {
+            maintainerProvider: "",
+            teamMembers: [],
+            price: parseFloat(reviewData.price),
+            discountPrice: parseFloat(reviewData.discountPrice) || 0,
+            status: "admin_approved"
+        };
+
+        assignTeamToBooking(adminReviewModal.id, payload);
+        load();
+        setAdminReviewModal(null);
+    };
+
+    // Step 6: Admin reviews team assignment and gives final approval
+    const handleAdminFinalApprove = () => {
+        if (!adminTeamReviewModal) return;
+
+        const payload = {
+            maintainerProvider: adminTeamReviewModal.maintainProvider,
+            teamMembers: adminTeamReviewModal.teamMembers || [],
+            price: adminTeamReviewModal.totalAmount,
+            discountPrice: adminTeamReviewModal.discountPrice || 0,
+            status: "final_approved"
+        };
+
+        assignTeamToBooking(adminTeamReviewModal.id, payload);
+        load();
+        setAdminTeamReviewModal(null);
+    };
+
     const handleSaveSettings = () => {
         setOfficeSettings(tempSettings);
         setShowSettings(false);
@@ -89,6 +139,17 @@ export default function BookingManagement() {
 
     const unassignedCount = bookings.filter(b => (b.status || "").toLowerCase() === "unassigned").length;
     const queuedCount = bookings.filter(b => b.notificationStatus === "queued").length;
+
+    const getStatusLabel = (status) => {
+        const labels = {
+            vendor_assigned: "Price Set by Vendor",
+            admin_approved: "Price Approved",
+            user_accepted: "User Accepted",
+            team_assigned: "Team Assigned",
+            final_approved: "Ready for Service"
+        };
+        return labels[status] || (status || "").replace(/_/g, " ");
+    };
 
     return (
         <div className="space-y-6">
@@ -145,6 +206,7 @@ export default function BookingManagement() {
                         <TabsTrigger value="pending" className="rounded-lg text-xs font-bold">Pending / Unassigned</TabsTrigger>
                         <TabsTrigger value="active" className="rounded-lg text-xs font-bold">Active</TabsTrigger>
                         <TabsTrigger value="completed" className="rounded-lg text-xs font-bold">Done</TabsTrigger>
+                        <TabsTrigger value="missed" className="rounded-lg text-xs font-bold">Missed</TabsTrigger>
                     </TabsList>
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
                         <SelectTrigger className="w-[160px] h-10 rounded-xl bg-muted/30 border-border/50">
@@ -152,7 +214,7 @@ export default function BookingManagement() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">All Types</SelectItem>
-                            <SelectItem value="instant">Instant</SelectItem>
+                            <SelectItem value="instant">Booked</SelectItem>
                             <SelectItem value="prebooking">Pre-booking</SelectItem>
                             <SelectItem value="customized">Customized</SelectItem>
                         </SelectContent>
@@ -178,8 +240,28 @@ export default function BookingManagement() {
                                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                     <span className="text-[10px] font-black text-muted-foreground">#{b.id}</span>
                                                     <Badge variant="outline" className={`text-[8px] font-black px-1.5 py-0 h-4 border-0 ${statusColors[b.status] || ""}`}>
-                                                        {(b.status || "").replace("_", " ")}
+                                                        {getStatusLabel(b.status)}
                                                     </Badge>
+                                                    {b.status === "vendor_assigned" && (
+                                                        <Badge variant="outline" className="text-[8px] font-black px-1.5 py-0 h-4 bg-blue-500/10 text-blue-600 border-blue-500/20">
+                                                            Review Pricing
+                                                        </Badge>
+                                                    )}
+                                                    {b.status === "admin_approved" && (
+                                                        <Badge variant="outline" className="text-[8px] font-black px-1.5 py-0 h-4 bg-green-500/10 text-green-600 border-green-500/20">
+                                                            Waiting for User
+                                                        </Badge>
+                                                    )}
+                                                    {b.status === "team_assigned" && (
+                                                        <Badge variant="outline" className="text-[8px] font-black px-1.5 py-0 h-4 bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
+                                                            Review Team
+                                                        </Badge>
+                                                    )}
+                                                    {b.status === "final_approved" && (
+                                                        <Badge variant="outline" className="text-[8px] font-black px-1.5 py-0 h-4 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                                                            Ready for Service
+                                                        </Badge>
+                                                    )}
                                                     {b.serviceType && (
                                                         <Badge variant="outline" className="text-[8px] font-bold px-1.5 py-0 h-4 bg-purple-50 text-purple-600 border-purple-200">
                                                             <Tag className="h-2.5 w-2.5 mr-0.5" />{b.serviceType}
@@ -190,35 +272,78 @@ export default function BookingManagement() {
                                                             <Tag className="h-2.5 w-2.5 mr-0.5" />{b.bookingType}
                                                         </Badge>
                                                     )}
-                                                    {b.notificationStatus && (
-                                                        <Badge variant="outline" className={`text-[8px] font-bold px-1.5 py-0 h-4 border ${notifColors[b.notificationStatus] || ""}`}>
-                                                            {b.notificationStatus === "queued" ? <><BellOff className="h-2.5 w-2.5 mr-0.5" />Queued</> : <><Bell className="h-2.5 w-2.5 mr-0.5" />Sent</>}
-                                                        </Badge>
-                                                    )}
                                                 </div>
-                                                <p className="text-sm font-bold flex items-center gap-1.5"><User className="h-3.5 w-3.5 text-muted-foreground" />{b.customerName || "Customer"}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-bold flex items-center gap-1.5">
+                                                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        {b.customerName || "Customer"}
+                                                    </p>
+                                                </div>
                                                 <div className="flex flex-wrap gap-3 mt-1 text-[10px] text-muted-foreground font-medium">
                                                     <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{b.slot?.time} • {b.slot?.date}</span>
                                                     <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{b.address?.area}</span>
                                                 </div>
-                                                <div className="flex flex-wrap gap-1 mt-1.5">
-                                                    {b.items?.map((s, i) => <span key={i} className="text-[9px] font-semibold bg-muted/50 px-1.5 py-0.5 rounded">{s.name}</span>)}
-                                                    {b.services?.map((s, i) => <span key={i} className="text-[9px] font-semibold bg-muted/50 px-1.5 py-0.5 rounded">{s.name}</span>)}
-                                                </div>
-                                                {b.notificationScheduledAt && (
-                                                    <p className="text-[9px] mt-1 text-yellow-600 font-bold flex items-center gap-1">
-                                                        <BellOff className="h-3 w-3" /> SP notification scheduled: {b.notificationScheduledAt}
-                                                    </p>
+
+                                                {/* Price & Discount Display */}
+                                                {(b.bookingType === "customized" || b.eventType) && b.totalAmount > 0 && (
+                                                    <div className="flex items-center gap-3 mt-2">
+                                                        <span className="text-[10px] font-bold flex items-center gap-1">
+                                                            <IndianRupee className="h-3 w-3 text-primary" /> Price: <span className="font-black text-primary">₹{b.totalAmount?.toLocaleString()}</span>
+                                                        </span>
+                                                        {b.discountPrice > 0 && (
+                                                            <span className="text-[10px] font-bold text-green-600 flex items-center gap-1">
+                                                                <Percent className="h-3 w-3" /> Discount: <span className="font-black">₹{b.discountPrice?.toLocaleString()}</span>
+                                                            </span>
+                                                        )}
+                                                        <span className="text-[10px] font-black text-emerald-600">
+                                                            Final: ₹{((b.totalAmount || 0) - (b.discountPrice || 0)).toLocaleString()}
+                                                        </span>
+                                                    </div>
                                                 )}
-                                                {b.assignedProvider && (
+
+                                                {/* Team Display for Customized */}
+                                                {b.teamMembers && b.teamMembers.length > 0 && (
+                                                    <div className="space-y-1 mt-2">
+                                                        <p className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+                                                            <Users className="h-2.5 w-2.5" /> Team Assigned:
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {b.teamMembers.map((m, i) => (
+                                                                <span key={i} className="text-[8px] font-bold px-1.5 py-0.5 bg-muted rounded border border-border">
+                                                                    {m.name} ({m.serviceType})
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {b.maintainProvider && (
                                                     <p className="text-[9px] mt-1 text-emerald-600 font-bold flex items-center gap-1">
-                                                        <Zap className="h-3 w-3" /> Auto-assigned to: {b.assignedProvider}
+                                                        <Zap className="h-3 w-3" /> Lead Member: {providers.find(p => (p.id || p.phone) === b.maintainProvider)?.name || b.maintainProvider}
                                                     </p>
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <span className="text-lg font-black text-primary">₹{b.totalAmount?.toLocaleString()}</span>
-                                                {["incoming", "pending", "Pending", "unassigned", "Unassigned"].includes(b.status) && (
+                                                {/* Step 3: Admin reviews vendor pricing */}
+                                                {b.status === "vendor_assigned" ? (
+                                                    <Button size="sm" className="h-8 text-[10px] font-bold bg-blue-600 hover:bg-blue-700 rounded-lg gap-1"
+                                                        onClick={() => {
+                                                            setAdminReviewModal(b);
+                                                            setReviewData({
+                                                                price: b.totalAmount || 0,
+                                                                discountPrice: b.discountPrice || 0
+                                                            });
+                                                        }}>
+                                                        <CheckCircle className="h-3 w-3" /> Review Pricing
+                                                    </Button>
+                                                ) : b.status === "team_assigned" ? (
+                                                    /* Step 6: Admin reviews team and gives final approval */
+                                                    <Button size="sm" className="h-8 text-[10px] font-bold bg-cyan-600 hover:bg-cyan-700 rounded-lg gap-1"
+                                                        onClick={() => setAdminTeamReviewModal(b)}>
+                                                        <CheckCircle className="h-3 w-3" /> Approve Team
+                                                    </Button>
+                                                ) : ["incoming", "pending", "Pending", "unassigned", "Unassigned", "rejected"].includes(b.status) && (
                                                     <Button size="sm" className="h-8 text-[10px] font-bold bg-primary rounded-lg gap-1" onClick={() => setAssignModal(b)}>
                                                         <Users className="h-3 w-3" />{b.assignedProvider ? "Re-assign" : "Assign"}
                                                     </Button>
@@ -233,7 +358,193 @@ export default function BookingManagement() {
                 </TabsContent>
             </Tabs>
 
-            {/* Assign SP Modal */}
+            {/* ═══════ ADMIN PRICING REVIEW MODAL (Step 3) ═══════ */}
+            {adminReviewModal && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAdminReviewModal(null)} />
+                    <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                        className="relative w-full max-w-lg bg-card rounded-[32px] border border-border p-5 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto scrollbar-hide">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-black italic uppercase tracking-tighter">Review Pricing</h3>
+                            <button onClick={() => setAdminReviewModal(null)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center transition-colors"><X className="h-4 w-4" /></button>
+                        </div>
+
+                        <div className="bg-muted/40 rounded-3xl p-4 border border-border/50 space-y-3 shadow-inner relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <Sparkles className="h-10 w-10" />
+                            </div>
+                            <div className="flex justify-between items-start relative z-10">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5"><Tag className="h-3 w-3" /> Booking Reference</p>
+                                    <p className="text-xl font-black italic">#{adminReviewModal.id}</p>
+                                </div>
+                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                    {adminReviewModal.serviceType}
+                                </Badge>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 relative z-10 pt-1">
+                                <div className="space-y-0.5">
+                                    <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Customer Details</p>
+                                    <p className="text-sm font-black">{adminReviewModal.customerName}</p>
+                                    <p className="text-[10px] font-bold text-muted-foreground flex items-center gap-1.5"><Phone className="h-2.5 w-2.5 text-primary" /> {adminReviewModal.phone || "Not provided"}</p>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Event Scale</p>
+                                    <p className="text-sm font-black text-primary flex items-center gap-2 italic"><Users className="h-3.5 w-3.5" /> {adminReviewModal.noOfPeople || "N/A"} People</p>
+                                    <p className="text-[10px] font-bold text-muted-foreground flex items-center gap-1.5"><Clock className="h-2.5 w-2.5" /> {adminReviewModal.slot?.time}</p>
+                                </div>
+                            </div>
+
+                            {(adminReviewModal.categoryName || adminReviewModal.selectedServices) && (
+                                <div className="grid grid-cols-1 gap-4 relative z-10 pt-2 border-t border-border/30">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5"><LayoutGrid className="h-3 w-3 text-primary" /> Service Category</p>
+                                        <p className="text-sm font-black">{adminReviewModal.categoryName || adminReviewModal.serviceType}</p>
+                                    </div>
+                                    {adminReviewModal.selectedServices && (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Requested Services</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {adminReviewModal.selectedServices.map((s, idx) => (
+                                                    <Badge key={idx} variant="outline" className="bg-white border-primary/20 text-primary text-[10px] py-0.5 px-2">
+                                                        {s.name}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {adminReviewModal.notes && (
+                                <div className="bg-white/50 dark:bg-black/20 rounded-2xl p-3 border border-border/40 relative z-10 shadow-sm">
+                                    <p className="text-[9px] font-black uppercase text-pink-600 mb-1 flex items-center gap-1.5"><MessageSquare className="h-3 w-3" /> Extra Requirements:</p>
+                                    <p className="text-[11px] font-medium leading-[1.5] text-foreground italic">"{adminReviewModal.notes}"</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Price & Discount Price Fields (Admin can modify) */}
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-muted-foreground mb-1.5 block ml-1 flex items-center gap-1.5">
+                                    <IndianRupee className="h-3 w-3 text-primary" /> Booking Price (₹)
+                                </label>
+                                <Input type="number" value={reviewData.price} onChange={e => setReviewData({ ...reviewData, price: e.target.value })} className="h-12 rounded-xl" />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-muted-foreground mb-1.5 block ml-1 flex items-center gap-1.5">
+                                    <Percent className="h-3 w-3 text-green-600" /> Discount Price (₹)
+                                </label>
+                                <Input type="number" value={reviewData.discountPrice} onChange={e => setReviewData({ ...reviewData, discountPrice: e.target.value })} className="h-12 rounded-xl" />
+                            </div>
+
+                            {reviewData.price > 0 && (
+                                <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black uppercase text-emerald-700">Final Price for User</span>
+                                        <span className="text-lg font-black text-emerald-700">₹{(parseFloat(reviewData.price) - (parseFloat(reviewData.discountPrice) || 0)).toLocaleString()}</span>
+                                    </div>
+                                    {parseFloat(reviewData.discountPrice) > 0 && (
+                                        <p className="text-[9px] text-emerald-600 mt-1 font-bold">
+                                            Original: ₹{parseFloat(reviewData.price).toLocaleString()} → Discount: ₹{parseFloat(reviewData.discountPrice).toLocaleString()}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                            <Button variant="outline" className="flex-1 h-12 rounded-2xl font-bold" onClick={() => setAdminReviewModal(null)}>Cancel</Button>
+                            <Button className="flex-[2] h-12 rounded-2xl font-black bg-black text-white hover:opacity-90 shadow-xl" onClick={handleAdminPriceApprove}>
+                                <CheckCircle className="h-4 w-4 mr-2" /> Approve & Forward to User
+                            </Button>
+                        </div>
+                    </motion.div>
+                </div>,
+                document.body
+            )}
+
+            {/* ═══════ ADMIN TEAM REVIEW MODAL (Step 6) ═══════ */}
+            {adminTeamReviewModal && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAdminTeamReviewModal(null)} />
+                    <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                        className="relative w-full max-w-lg bg-card rounded-[32px] border border-border p-5 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto scrollbar-hide">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-black italic uppercase tracking-tighter">Review Team Assignment</h3>
+                            <button onClick={() => setAdminTeamReviewModal(null)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center transition-colors"><X className="h-4 w-4" /></button>
+                        </div>
+
+                        <div className="bg-muted/40 rounded-3xl p-4 border border-border/50 space-y-3 shadow-inner">
+                            <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Booking</p>
+                                    <p className="text-xl font-black italic">#{adminTeamReviewModal.id}</p>
+                                </div>
+                                <Badge variant="outline" className="bg-cyan-50 text-cyan-600 border-cyan-200 px-3 py-1 rounded-full text-[10px] font-black uppercase">
+                                    Team Assigned
+                                </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 pt-1">
+                                <div>
+                                    <p className="text-[9px] font-black uppercase text-muted-foreground">Customer</p>
+                                    <p className="text-sm font-black">{adminTeamReviewModal.customerName}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black uppercase text-muted-foreground">Price</p>
+                                    <p className="text-sm font-black text-primary">₹{adminTeamReviewModal.totalAmount?.toLocaleString()}</p>
+                                    {adminTeamReviewModal.discountPrice > 0 && (
+                                        <p className="text-[9px] text-green-600 font-bold">Discount: ₹{adminTeamReviewModal.discountPrice}</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Team Members Display */}
+                        {adminTeamReviewModal.teamMembers && adminTeamReviewModal.teamMembers.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1 flex items-center gap-1.5">
+                                    <Users className="h-3 w-3" /> Assigned Team ({adminTeamReviewModal.teamMembers.length} members)
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {adminTeamReviewModal.teamMembers.map((m, i) => (
+                                        <div key={i} className={`p-2 rounded-xl text-[10px] border-2 ${m.id === adminTeamReviewModal.maintainProvider ? "border-primary bg-primary/5" : "border-border bg-muted/20"}`}>
+                                            <p className="font-bold truncate">{m.name}</p>
+                                            <p className="text-[8px] opacity-70">{m.serviceType}</p>
+                                            {m.id === adminTeamReviewModal.maintainProvider && (
+                                                <Badge className="text-[7px] mt-1 h-3.5 px-1 bg-primary/10 text-primary border-0">Lead</Badge>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Lead Member */}
+                        {adminTeamReviewModal.maintainProvider && (
+                            <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                                <p className="text-[10px] font-black uppercase text-emerald-700 mb-1">Lead Member</p>
+                                <p className="text-sm font-black text-emerald-700">
+                                    {providers.find(p => (p.id || p.phone) === adminTeamReviewModal.maintainProvider)?.name || adminTeamReviewModal.maintainProvider}
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="flex gap-3 pt-2">
+                            <Button variant="outline" className="flex-1 h-12 rounded-2xl font-bold" onClick={() => setAdminTeamReviewModal(null)}>Cancel</Button>
+                            <Button className="flex-[2] h-12 rounded-2xl font-black bg-black text-white hover:opacity-90 shadow-xl" onClick={handleAdminFinalApprove}>
+                                <CheckCircle className="h-4 w-4 mr-2" /> Final Approve
+                            </Button>
+                        </div>
+                    </motion.div>
+                </div>,
+                document.body
+            )}
+
+            {/* Assign SP Modal (Normal bookings) */}
             {assignModal && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <motion.div
@@ -247,24 +558,40 @@ export default function BookingManagement() {
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="relative w-full max-w-lg md:w-[480px] bg-card rounded-[32px] border border-border p-8 space-y-6 shadow-2xl"
+                        className="relative w-full max-w-lg md:w-[480px] bg-card rounded-[32px] border border-border p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-hide"
                     >
                         <div className="flex items-center justify-between">
                             <h3 className="text-lg font-black tracking-tight">Assign Service Provider</h3>
-                            <button onClick={() => setAssignModal(null)} className="w-10 h-10 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors">
-                                <X className="h-5 w-5" />
+                            <button onClick={() => setAssignModal(null)} className="w-8 h-8 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors">
+                                <X className="h-4 w-4" />
                             </button>
                         </div>
-                        <div className="bg-muted/50 rounded-2xl p-4 space-y-2 border border-border/50">
-                            <p className="text-sm font-bold">Booking #{assignModal.id}</p>
-                            <div className="flex items-center justify-between">
-                                <p className="text-xs text-muted-foreground">{assignModal.customerName}</p>
-                                <span className="text-sm font-black text-primary">₹{assignModal.totalAmount?.toLocaleString()}</span>
+                        <div className="bg-muted/50 rounded-2xl p-4 space-y-3 border border-border/50 shadow-inner">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Reference</p>
+                                    <p className="text-sm font-black">#{assignModal.id}</p>
+                                </div>
+                                <span className="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-full italic">₹{assignModal.totalAmount?.toLocaleString()}</span>
                             </div>
-                            {assignModal.serviceType && (
-                                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 mt-1 uppercase tracking-wider font-black px-2 py-0.5">
-                                    <Tag className="h-3 w-3 mr-1.5" />{assignModal.serviceType}
-                                </Badge>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-0.5">
+                                    <p className="text-[9px] font-bold text-muted-foreground uppercase">Customer</p>
+                                    <p className="text-xs font-black">{assignModal.customerName}</p>
+                                    <p className="text-[10px] font-medium text-muted-foreground italic flex items-center gap-1"><Phone className="h-2.5 w-2.5 text-primary" /> {assignModal.phone || "No phone"}</p>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className="text-[9px] font-bold text-muted-foreground uppercase">Service Category</p>
+                                    <Badge variant="outline" className="text-[9px] bg-primary/10 text-primary border-primary/20 uppercase tracking-wider font-black px-1.5 py-0">
+                                        {assignModal.serviceType || "General"}
+                                    </Badge>
+                                </div>
+                            </div>
+                            {assignModal.notes && (
+                                <div className="p-3 bg-white/50 rounded-xl border border-border/40">
+                                    <p className="text-[9px] font-black uppercase text-pink-600 mb-1 flex items-center gap-1"><MessageSquare className="h-2.5 w-2.5" /> Enquiry Notes:</p>
+                                    <p className="text-[11px] font-semibold text-foreground italic leading-tight">"{assignModal.notes}"</p>
+                                </div>
                             )}
                         </div>
                         <div className="space-y-2">
@@ -275,7 +602,7 @@ export default function BookingManagement() {
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl">
                                     {providers.length > 0 ? providers.map(p => (
-                                        <SelectItem key={p.id || p.phone} value={p.id || p.phone} className="rounded-lg">
+                                        <SelectItem key={p.id || p.phone} value={String(p.id || p.phone)} className="rounded-lg">
                                             <div className="flex flex-col py-0.5">
                                                 <span className="font-bold text-sm">{p.name}</span>
                                                 <span className="text-[10px] text-muted-foreground">{p.phone} {p.specialties ? `• ${p.specialties.join(", ")}` : ""}</span>

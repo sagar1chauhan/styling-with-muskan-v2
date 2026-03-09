@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     LayoutDashboard, Users, Store, CalendarRange, Wallet, ShieldAlert,
-    Image, Ticket, Gift, BarChart3, LogOut, Bell, Menu, X, ChevronRight, Shield, Layers
+    Image, Ticket, Gift, BarChart3, LogOut, Bell, Menu, X, ChevronRight, Shield, Layers, User, MessageSquare, LayoutGrid
 } from "lucide-react";
 import { cn } from "@/modules/user/lib/utils";
 import { useAdminAuth } from "@/modules/admin/contexts/AdminAuthContext";
@@ -32,7 +32,10 @@ const AdminLayout = () => {
             links: [
                 { name: "Vendors", path: "/admin/vendors", icon: Store },
                 { name: "Service Providers", path: "/admin/service-providers", icon: Users },
+                { name: "Customers", path: "/admin/customers", icon: User },
                 { name: "Bookings", path: "/admin/bookings", icon: CalendarRange },
+                { name: "Training", path: "/admin/training", icon: LayoutGrid },
+                { name: "Feedback", path: "/admin/feedback", icon: MessageSquare },
                 { name: "App Data", path: "/admin/user-data", icon: Layers },
             ],
         },
@@ -64,7 +67,7 @@ const AdminLayout = () => {
     return (
         <div className="flex min-h-screen w-full bg-background">
             {/* Desktop Sidebar */}
-            <aside className="fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col bg-sidebar-background md:flex overflow-hidden">
+            <aside className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col bg-sidebar-background md:flex overflow-hidden border-r border-border/50 shadow-xl">
                 {/* Logo */}
                 <div className="flex h-[70px] items-center gap-3 border-b border-sidebar-border px-5">
                     <motion.div whileHover={{ scale: 1.05, rotate: 3 }}
@@ -87,11 +90,11 @@ const AdminLayout = () => {
                                     const Icon = link.icon;
                                     const active = isActive(link.path);
                                     return (
-                                        <motion.div key={link.path} whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }}>
+                                        <motion.div key={link.path} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.97 }}>
                                             <Link to={link.path}
                                                 className={cn(
                                                     "flex items-center gap-3 rounded-xl px-3 py-2 text-[12px] font-semibold transition-all duration-200",
-                                                    active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
+                                                    active ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-md" : "text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
                                                 )}>
                                                 <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center transition-colors text-[11px]",
                                                     active ? "bg-primary text-white" : "bg-sidebar-border/20")}>
@@ -110,7 +113,7 @@ const AdminLayout = () => {
 
                 {/* Bottom */}
                 <div className="border-t border-sidebar-border p-3">
-                    <motion.button whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }} onClick={handleLogout}
+                    <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.97 }} onClick={handleLogout}
                         className="flex items-center gap-3 w-full rounded-xl px-3 py-2 text-[12px] font-semibold text-sidebar-foreground/40 hover:text-red-400 hover:bg-red-500/10 transition-all">
                         <div className="h-7 w-7 rounded-lg bg-sidebar-border/20 flex items-center justify-center"><LogOut className="h-3.5 w-3.5" /></div>
                         Logout
@@ -168,7 +171,7 @@ const AdminLayout = () => {
             </AnimatePresence>
 
             {/* Main */}
-            <div className="flex flex-col flex-1 md:pl-[260px]">
+            <div className="flex flex-col flex-1 md:pl-[220px]">
                 <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/80 backdrop-blur-xl px-4 md:px-8">
                     <div className="flex items-center gap-3">
                         <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 hover:bg-muted rounded-lg"><Menu className="h-5 w-5" /></button>

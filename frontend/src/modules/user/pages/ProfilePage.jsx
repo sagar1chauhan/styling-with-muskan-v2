@@ -3,8 +3,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
-import { ArrowLeft, ChevronRight, Wallet, MapPin, Gift, Ticket, HelpCircle, LogOut, User, Calendar, Edit2, ShieldCheck } from "lucide-react";
+
 import { api } from "@/modules/user/lib/api";
+
+import { motion, AnimatePresence } from "framer-motion";
+
+
+
+import { ArrowLeft, ChevronRight, Wallet, MapPin, Gift, Ticket, HelpCircle, LogOut, User, Calendar, Edit2, ShieldCheck, Zap, Sparkles } from "lucide-react";
 
 /**
  * ProfilePage Component
@@ -36,6 +42,20 @@ const ProfilePage = () => {
     })();
     return () => { cancelled = true; };
   }, [loading, isLoggedIn]);
+  const { user, logout } = useAuth();
+  const [showPopup, setShowPopup] = useState(false);
+
+  const handleGenderSwitch = (g) => {
+    if (g === "men") {
+        const isMenEnabled = JSON.parse(localStorage.getItem('swm_men_enabled') ?? 'false');
+        if (!isMenEnabled) {
+            setShowPopup(true);
+            setTimeout(() => setShowPopup(false), 2500);
+            return;
+        }
+    }
+    setGender(g);
+  };
 
   const handleLogout = () => {
     console.log("[User] logout clicked");
@@ -100,19 +120,70 @@ const ProfilePage = () => {
           </button>
         </motion.div>
 
+        {/* SWM Plus Subscription Banner */}
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            onClick={() => navigate('/plus-subscription')}
+            className={`rounded-2xl p-4 md:p-5 relative overflow-hidden flex items-center justify-between cursor-pointer border shadow-sm transition-all hover:shadow-md
+                ${user?.isPlusMember 
+                    ? 'bg-slate-900 text-white border-slate-800' 
+                    : 'bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border-indigo-500/20'}`}
+        >
+            <div className={`absolute top-0 right-0 p-8 opacity-10 ${user?.isPlusMember ? 'text-amber-400' : 'text-indigo-600'}`}>
+                <Zap className="w-32 h-32" />
+            </div>
+            
+            <div className="relative z-10 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                    <h3 className={`font-black tracking-tight ${user?.isPlusMember ? 'text-amber-400' : 'text-indigo-900'} text-lg leading-none`}>
+                        SWM Plus
+                    </h3>
+                    {user?.isPlusMember && (
+                        <span className="bg-amber-400 text-slate-900 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">
+                            Active
+                        </span>
+                    )}
+                </div>
+                {user?.isPlusMember ? (
+                    <p className="text-xs font-medium text-slate-400 mt-1 max-w-[200px]">
+                        Enjoying 10% off and zero convenience fees.
+                    </p>
+                ) : (
+                    <p className="text-xs font-bold text-indigo-700/80 mt-1">
+                        Get flat 10% off on all bookings
+                    </p>
+                )}
+            </div>
+
+            <div className="relative z-10 shrink-0">
+                {user?.isPlusMember ? (
+                    <div className="flex flex-col items-end">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Valid Till</span>
+                        <span className="text-sm font-black text-white">{new Date(user.plusExpiry).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
+                    </div>
+                ) : (
+                    <div className="bg-indigo-600 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg shadow-indigo-500/30 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" /> Join Now
+                    </div>
+                )}
+            </div>
+        </motion.div>
+
         {/* Gender Switch */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="glass-strong rounded-2xl p-4 border border-border/50"
+          transition={{ delay: 0.15 }}
+          className="glass-strong rounded-2xl p-4 border border-border/50 relative overflow-hidden"
         >
           <p className="text-[10px] font-bold mb-3 uppercase tracking-widest text-muted-foreground">Service Category</p>
-          <div className="flex gap-3">
+          <div className="flex gap-3 relative z-10">
             {["women", "men"].map((g) => (
               <button
                 key={g}
-                onClick={() => setGender(g)}
+                onClick={() => handleGenderSwitch(g)}
                 className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all border-2 ${gender === g
                   ? "bg-primary text-primary-foreground border-primary glow-primary shadow-lg"
                   : "bg-accent text-accent-foreground border-transparent opacity-60"
@@ -122,6 +193,20 @@ const ProfilePage = () => {
               </button>
             ))}
           </div>
+
+          <AnimatePresence>
+              {showPopup && (
+                  <motion.div 
+                      initial={{ opacity: 0, y: 10 }} 
+                      animate={{ opacity: 1, y: 0 }} 
+                      exit={{ opacity: 0, y: 10 }} 
+                      className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm p-4"
+                  >
+                      <p className="font-bold text-foreground text-sm">🚧 Currently Unavailable</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 text-center font-medium">This service category is launching soon!</p>
+                  </motion.div>
+              )}
+          </AnimatePresence>
         </motion.div>
 
         {/* Menu Items */}
@@ -131,7 +216,7 @@ const ProfilePage = () => {
               key={item.label}
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 + i * 0.03 }}
+              transition={{ delay: 0.2 + i * 0.03 }}
               onClick={() => navigate(item.path)}
               className="w-full glass-strong rounded-[20px] p-3 flex items-center gap-4 hover:bg-accent/50 transition-all border border-border/40 hover:scale-[1.01] active:scale-[0.99]"
             >

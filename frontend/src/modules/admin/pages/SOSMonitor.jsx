@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ShieldAlert, Phone, MapPin, Clock, CheckCircle, AlertTriangle, RefreshCw } from "lucide-react";
+import { ShieldAlert, Phone, MapPin, Clock, CheckCircle, AlertTriangle, RefreshCw, Bell, Map } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/modules/user/components/ui/card";
 import { Button } from "@/modules/user/components/ui/button";
 import { Badge } from "@/modules/user/components/ui/badge";
@@ -43,19 +43,22 @@ export default function SOSMonitor() {
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <Badge className="bg-red-500/15 text-red-400 border-red-500/30 text-[8px] font-black">{a.type === "provider" ? "SP" : "CUSTOMER"}</Badge>
+                                            <Badge className="bg-red-500/15 text-red-500 border-red-500/30 text-[8px] font-black uppercase">{a.type === "provider" ? "SP" : "CUSTOMER"}</Badge>
+                                            <Badge className="bg-orange-500/15 text-orange-500 border-orange-500/30 text-[8px] font-black uppercase">{a.alarmType || "Security Threat"}</Badge>
                                             <span className="text-[10px] text-muted-foreground">#{a.id}</span>
                                         </div>
                                         <p className="text-sm font-bold">{a.userName || "Unknown"}</p>
                                         <div className="flex flex-wrap gap-3 mt-1 text-[10px] text-muted-foreground font-medium">
+                                            <span className="flex items-center gap-1 text-red-500 font-bold"><Bell className="h-3 w-3" /> Notified: Admin, Family & Vendor</span>
                                             <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{a.phone || "N/A"}</span>
                                             <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{a.location || "Shared"}</span>
                                             <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{a.time || "Now"}</span>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                                        <Button className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold gap-1"><Map className="h-3.5 w-3.5" /> Track</Button>
                                         <Button className="h-9 bg-red-600 hover:bg-red-700 rounded-xl font-bold gap-1"><Phone className="h-3.5 w-3.5" /> Call</Button>
-                                        <Button variant="outline" className="h-9 rounded-xl font-bold gap-1" onClick={() => { resolveSOSAlert(a.id); load(); }}><CheckCircle className="h-3.5 w-3.5" /> Resolve</Button>
+                                        <Button variant="outline" className="h-9 rounded-xl font-bold gap-1 hover:bg-green-500/10 hover:text-green-500 hover:border-green-500/30" onClick={() => { resolveSOSAlert(a.id); load(); }}><CheckCircle className="h-3.5 w-3.5" /> Resolve</Button>
                                     </div>
                                 </CardContent>
                             </Card>

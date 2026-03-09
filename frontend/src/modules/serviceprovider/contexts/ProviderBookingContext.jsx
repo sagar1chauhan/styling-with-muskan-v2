@@ -31,8 +31,8 @@ export const ProviderBookingProvider = ({ children }) => {
     // Only show bookings explicitly assigned to this provider
     const myBookings = bookings.filter(b => b.assignedProvider === providerId);
 
-    const incomingBookings = myBookings.filter(b => b.status === "incoming" || b.status === "pending" || b.status === "Pending");
-    const pendingBookings = myBookings.filter(b => b.status === "pending" || b.status === "Pending");
+    const incomingBookings = myBookings.filter(b => b.status === "incoming" || b.status === "pending" || b.status === "Pending" || b.status === "final_approved");
+    const pendingBookings = myBookings.filter(b => b.status === "pending" || b.status === "Pending" || b.status === "final_approved");
     const activeBookings = myBookings.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes(b.status));
     const completedBookings = myBookings.filter(b => b.status === "completed");
     const cancelledBookings = myBookings.filter(b => ["cancelled", "rejected"].includes(b.status));

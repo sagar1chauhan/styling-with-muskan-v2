@@ -21,6 +21,7 @@ import {
     Mail,
     Phone,
     MapPin,
+    Crown,
     Briefcase
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/modules/user/components/ui/avatar";
@@ -35,6 +36,7 @@ import { Button } from "@/modules/user/components/ui/button";
 
 const menuItems = [
     { icon: Trophy, label: "Weekly performance", path: "/provider/performance" },
+    { icon: Crown, label: "SWM Pro Partner", path: "/provider/subscription", color: "text-amber-500 font-bold" },
     { icon: Calendar, label: "Calendar", path: "/provider/availability" },
     { icon: Map, label: "My Hub", path: "/provider/hub" },
     { icon: Wallet, label: "Credits", path: "/provider/credits" },
@@ -44,7 +46,6 @@ const menuItems = [
     { icon: ShoppingBag, label: "stylingwithmuskan shop", path: "/provider/shop" },
     { icon: LifeBuoy, label: "stylingwithmuskan support", path: "/provider/support" },
     { icon: AlertTriangle, label: "SOS", path: "/provider/sos", color: "text-red-500 font-bold" },
-    { icon: MessageSquare, label: "Raise a ticket", path: "/provider/tickets" },
     { icon: RefreshCw, label: "Check for updates", path: "#", version: "v2.1.0" },
 ];
 
@@ -64,6 +65,7 @@ export default function ProviderProfile() {
         }
         return () => { cancelled = true; };
     }, [provider?.phone]);
+    const [categoryRequested, setCategoryRequested] = useState(false);
 
     // Provide default fallbacks if provider context is missing somehow
     const safeProvider = provider || {};
@@ -82,6 +84,23 @@ export default function ProviderProfile() {
     const handleLogout = () => {
         logout();
         navigate("/provider/login");
+    };
+
+    const handleCategoryRequest = () => {
+        if (!provider) return;
+        const requests = JSON.parse(localStorage.getItem("muskan-category-requests") || "[]");
+        const newRequest = {
+            id: `REQ${Date.now()}`,
+            providerId: provider.id,
+            providerName: provider.name,
+            providerPhone: provider.phone,
+            currentCategory: providerDetails.category,
+            status: "pending",
+            createdAt: new Date().toISOString()
+        };
+        requests.unshift(newRequest);
+        localStorage.setItem("muskan-category-requests", JSON.stringify(requests));
+        setCategoryRequested(true);
     };
 
     return (
@@ -146,12 +165,23 @@ export default function ProviderProfile() {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4">
-                                            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+                                            <div className="h-10 w-10 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
                                                 <Briefcase className="h-5 w-5" />
                                             </div>
-                                            <div>
-                                                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Category</p>
-                                                <p className="text-[17px] font-semibold text-slate-900">{providerDetails.category}</p>
+                                            <div className="flex-1 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Category</p>
+                                                    <p className="text-[17px] font-semibold text-slate-900">{providerDetails.category}</p>
+                                                </div>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className={`h-7 px-2 text-[10px] uppercase font-black tracking-widest ${categoryRequested ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50'}`}
+                                                    onClick={handleCategoryRequest}
+                                                    disabled={categoryRequested}
+                                                >
+                                                    {categoryRequested ? "Requested" : "+ Request New"}
+                                                </Button>
                                             </div>
                                         </div>
                                     </div>

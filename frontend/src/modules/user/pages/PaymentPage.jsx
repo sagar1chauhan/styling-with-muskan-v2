@@ -194,7 +194,7 @@ const PaymentPage = () => {
                     <Button
                         disabled={isProcessing}
                         onClick={handlePayment}
-                        className="w-full h-15 rounded-2xl bg-gradient-theme text-white text-lg font-bold shadow-xl shadow-primary/20 gap-3 group relative overflow-hidden border-none"
+                        className="w-full h-14 py-0 rounded-2xl bg-primary hover:bg-primary/90 text-white text-lg font-bold shadow-xl shadow-primary/20 gap-3 group relative overflow-hidden border-none flex items-center justify-center"
                     >
                         {isProcessing ? (
                             <div className="flex items-center gap-2">

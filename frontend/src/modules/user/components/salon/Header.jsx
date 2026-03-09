@@ -19,7 +19,7 @@ const desktopNavItems = [
 const Header = () => {
   const { gender } = useGenderTheme();
   const { user, isAddressModalOpen, setIsAddressModalOpen } = useAuth();
-  const { totalItems, setIsCartOpen } = useCart();
+  const { totalItems } = useCart();
   const { wishlistCount } = useWishlist();
   const [searchQuery, setSearchQuery] = useState("");
   const location = useLocation();
@@ -46,7 +46,7 @@ const Header = () => {
           >
             <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary group-hover:scale-110 transition-transform flex-shrink-0" />
             <span className="font-medium truncate">
-              {user?.address ? `${user.address.type || 'Home'}` : "Location"}
+              {user?.address?.city || user?.address?.area || "Location"}
             </span>
             <ChevronDown className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
           </button>

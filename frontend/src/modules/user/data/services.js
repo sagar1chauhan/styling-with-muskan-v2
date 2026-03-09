@@ -31,7 +31,7 @@ export const SERVICE_TYPES = [
 export const BOOKING_TYPE_CONFIG = [
     {
         id: "instant",
-        label: "Instant Booking",
+        label: "Booked",
         icon: "⚡",
         description: "Pro reaches within 60 mins"
     },
@@ -279,4 +279,57 @@ export const mockProviders = [
         totalJobs: 420,
         specialties: ["skin", "hair"]
     }
+];
+
+export const initialSpotlights = [
+    {
+        id: "1",
+        title: "Home Makeup Art",
+        category: "Makeup",
+        video: "https://assets.mixkit.co/videos/preview/mixkit-makeup-artist-applying-eyeshadow-on-a-customer-34167-large.mp4",
+        poster: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=400&h=600&fit=crop"
+    },
+    {
+        id: "2",
+        title: "Hair Transformation",
+        category: "Hair",
+        video: "https://assets.mixkit.co/videos/preview/mixkit-stylist-combing-a-customer-s-hair-34162-large.mp4",
+        poster: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=600&fit=crop"
+    },
+    {
+        id: "3",
+        title: "Skin Rejuvenation",
+        category: "Skin",
+        video: "https://assets.mixkit.co/videos/preview/mixkit-beautician-performing-a-facial-treatment-on-a-customer-34164-large.mp4",
+        poster: "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=400&h=600&fit=crop"
+    },
+    {
+        id: "4",
+        title: "Bridal Perfection",
+        category: "Bridal",
+        video: "https://assets.mixkit.co/videos/preview/mixkit-hair-stylist-spraying-hair-of-a-customer-34163-large.mp4",
+        poster: "https://images.unsplash.com/photo-1583089892943-e02e5b017b6a?w=400&h=600&fit=crop"
+    },
+    {
+        id: "5",
+        title: "Classic Styling",
+        category: "Hair",
+        video: "https://assets.mixkit.co/videos/preview/mixkit-woman-smiling-while-beautician-applies-a-face-mask-34158-large.mp4",
+        poster: "https://images.unsplash.com/photo-1559599101-f09722fb4948?w=400&h=600&fit=crop"
+    }
+];
+
+export const initialGallery = [
+    { id: "1", image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=1000&h=800&fit=crop", title: "Luxury Suite" },
+    { id: "2", image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=1000&h=800&fit=crop", title: "Makeup Studio" },
+    { id: "3", image: "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=1000&h=800&fit=crop", title: "Private Spa Area" },
+    { id: "4", image: "https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=1000&h=800&fit=crop", title: "Relaxation Lounge" },
+    { id: "5", image: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=1000&h=800&fit=crop", title: "Style Zone" },
+];
+
+export const initialTestimonials = [
+    { id: "1", name: "Kabita Debnath", rating: 5, feedback: "My experience was fabulous. I used this app for the first time and loved it. This was a very wonderful experience from beginning. I would highly recommend her.", image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&crop=face" },
+    { id: "2", name: "Sneha Roy", rating: 4, feedback: "The beautician was very professional and skilled. I've tried other salon services, but this is the best. Their prices are reasonable and service is top-notch.", image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&crop=face" },
+    { id: "3", name: "Priya Sharma", rating: 5, feedback: "Excellent service at my doorstep! The team is always on time and maintain great hygiene. Highly recommend for bridal makeup.", image: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&crop=face" },
+    { id: "4", name: "Anjali Gupta", rating: 5, feedback: "Absolutely loved the facial! My skin feels so much better. The professional was very informative about skin types.", image: "https://images.unsplash.com/photo-1554151228-14d9def656e4?w=100&h=100&crop=face" },
 ];

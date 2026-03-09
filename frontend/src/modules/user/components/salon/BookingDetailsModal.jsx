@@ -154,23 +154,65 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
 
                             {/* Service Items */}
                             <div className="space-y-4">
-                                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Services Booked</h3>
-                                <div className="space-y-3">
-                                    {booking.items?.map((item, idx) => (
-                                        <div key={idx} className="flex gap-4 p-3 bg-white rounded-2xl border border-border/40 shadow-sm">
-                                            <div className="w-16 h-16 rounded-xl overflow-hidden bg-accent flex-shrink-0">
-                                                <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
+                                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground">
+                                    {(booking.bookingType === 'customized' || booking.selectedServices) ? 'Customized Package' : 'Services Booked'}
+                                </h3>
+
+                                {(booking.bookingType === 'customized' || booking.selectedServices) && (
+                                    <div className="p-4 bg-purple-50/50 rounded-2xl border border-purple-100 space-y-3">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase text-purple-600 mb-0.5">Category</p>
+                                                <p className="text-sm font-bold">{booking.categoryName || booking.serviceType}</p>
                                             </div>
-                                            <div className="flex-1 min-w-0 py-1 flex flex-col justify-between">
-                                                <h4 className="font-bold text-sm truncate">{item.name}</h4>
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs text-muted-foreground font-medium">Qty: 1</span>
-                                                    <span className="font-black text-primary">₹{item.price}</span>
+                                            {booking.eventType && (
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-black uppercase text-purple-600 mb-0.5">Event</p>
+                                                    <p className="text-xs font-bold text-gray-700">{booking.eventType}</p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {booking.selectedServices && (
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase text-purple-600 mb-1.5">Services Requested</p>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {booking.selectedServices.map((s, idx) => (
+                                                        <span key={idx} className="text-[10px] font-bold px-2 py-1 bg-white border border-purple-200 text-purple-700 rounded-lg shadow-sm">
+                                                            {s.name}
+                                                        </span>
+                                                    ))}
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                        )}
+
+                                        {booking.noOfPeople && (
+                                            <div className="pt-2 border-t border-purple-100 flex items-center justify-between text-xs font-bold text-gray-700">
+                                                <span>Group Size</span>
+                                                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md">{booking.noOfPeople} People</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {booking.items && booking.items.length > 0 && (
+                                    <div className="space-y-3">
+                                        {booking.items.map((item, idx) => (
+                                            <div key={idx} className="flex gap-4 p-3 bg-white rounded-2xl border border-border/40 shadow-sm">
+                                                <div className="w-16 h-16 rounded-xl overflow-hidden bg-accent flex-shrink-0">
+                                                    <img src={item.image || "https://placehold.co/100x100"} className="w-full h-full object-cover" alt={item.name} />
+                                                </div>
+                                                <div className="flex-1 min-w-0 py-1 flex flex-col justify-between">
+                                                    <h4 className="font-bold text-sm truncate">{item.name}</h4>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs text-muted-foreground font-medium">Qty: 1</span>
+                                                        <span className="font-black text-primary">₹{item.price}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Schedule & Pro */}
@@ -218,7 +260,7 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                                 <div className="p-5 bg-white rounded-3xl border border-border/40 shadow-sm space-y-3">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-muted-foreground font-medium">Item Total</span>
-                                        <span className="font-bold font-display tracking-tight text-foreground">₹{booking.totalAmount - (booking.convenienceFee || 0) + (booking.discount || 0)}</span>
+                                        <span className="font-bold font-display tracking-tight text-foreground">₹{(booking.totalAmount || 0) - (booking.convenienceFee || 0) + (booking.discount || 0)}</span>
                                     </div>
                                     {booking.convenienceFee && (
                                         <div className="flex justify-between text-sm">
@@ -237,7 +279,7 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                                     <div className="space-y-2">
                                         <div className="flex justify-between text-xs font-bold text-muted-foreground">
                                             <span>Full Service Value</span>
-                                            <span>₹{booking.totalAmount.toLocaleString()}</span>
+                                            <span>₹{(booking.totalAmount || 0).toLocaleString()}</span>
                                         </div>
                                         <div className="flex justify-between text-xs font-bold text-green-600">
                                             <span>Amount Prepaid</span>

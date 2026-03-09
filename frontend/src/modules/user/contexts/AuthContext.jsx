@@ -48,6 +48,15 @@ export const AuthProvider = ({ children }) => {
         }
         setUser(u);
         setHasAddress((u.addresses || []).length > 0);
+    const login = (userData) => {
+        const user = {
+            ...userData,
+            id: userData.id || `U${Date.now()}`,
+            isVerified: userData.isVerified || false,
+            referralCode: userData.referralCode || "",
+            address: userData.address || null,
+            isPlusMember: userData.isPlusMember || false,
+        };
         setIsLoggedIn(true);
     };
 
@@ -89,6 +98,17 @@ export const AuthProvider = ({ children }) => {
     const updateProfile = async (payload) => {
         const { user: updated } = await api.updateProfile(payload);
         setUser(updated);
+    };
+
+    const joinPlus = () => {
+        if (!user) return;
+        const updatedUser = { 
+            ...user, 
+            isPlusMember: true,
+            plusExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
+        };
+        setUser(updatedUser);
+        localStorage.setItem('smd_user', JSON.stringify(updatedUser));
     };
 
     return (
