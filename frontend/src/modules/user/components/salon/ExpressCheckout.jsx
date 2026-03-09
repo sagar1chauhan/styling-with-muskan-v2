@@ -106,6 +106,8 @@ const ExpressCheckout = () => {
         return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
     };
 
+    const primaryAddress = user?.addresses?.[0] || null;
+
     return (
         <>
             <AnimatePresence>
@@ -186,7 +188,7 @@ const ExpressCheckout = () => {
                                             <div>
                                                 <p className={`text-sm font-bold ${hasAddress ? "text-green-900" : "text-blue-900"}`}>2. Service Address</p>
                                                 <p className={`text-[10px] ${hasAddress ? "text-green-700" : "text-blue-700"}`}>
-                                                    {hasAddress ? `${user.address.houseNo}, ${user.address.area}` : "Tap to add your location"}
+                                                    {hasAddress && primaryAddress ? `${primaryAddress.houseNo || ""}${primaryAddress.houseNo ? ", " : ""}${primaryAddress.area || ""}` : "Tap to add your location"}
                                                 </p>
                                             </div>
                                         </div>

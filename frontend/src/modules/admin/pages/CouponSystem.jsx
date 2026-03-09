@@ -26,12 +26,19 @@ export default function CouponSystem() {
         zone: "", firstTimeOnly: false, expiryDate: "", isActive: true,
     });
 
-    const load = () => setCoupons(getCoupons());
+    const load = async () => {
+        try {
+            const items = await getCoupons();
+            setCoupons(Array.isArray(items) ? items : []);
+        } catch {
+            setCoupons([]);
+        }
+    };
     useEffect(() => { load(); }, []);
 
-    const handleAdd = (e) => {
+    const handleAdd = async (e) => {
         e.preventDefault();
-        addCoupon(form);
+        await addCoupon(form);
         setForm({ code: "", discountType: "percentage", discountValue: 10, minOrder: 0, maxDiscount: 500, perUserLimit: 1, totalLimit: 100, category: "All", zone: "", firstTimeOnly: false, expiryDate: "", isActive: true });
         setShowForm(false);
         load();

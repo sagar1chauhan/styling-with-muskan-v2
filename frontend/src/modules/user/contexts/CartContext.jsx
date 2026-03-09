@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useUserModuleData } from "./UserModuleDataContext.jsx";
+import { api } from "@/modules/user/lib/api";
 
 const CartContext = createContext(undefined);
 
@@ -11,56 +13,15 @@ export const useCart = () => {
 };
 
 export const CartProvider = ({ children }) => {
-    // We cannot easily use useUserModuleData here if CartProvider is inside it, but we can fallback to localStorage or just assume it's initialized. 
-    // Wait, better to not initialize categories statically, but parse from context or simply let the components do it.
-    // Actually, `categories` is only used inside functions here. I will just read from localStorage dynamically or let the components supply the category type if possible.
-    // For now, let's just use localStorage "swm_categories" directly here since this is context.
+    const { categories: categoriesData } = useUserModuleData();
+    const getCategories = () => categoriesData || [];
 
-    // helper to get categories
-    const getCategories = () => {
-        const saved = localStorage.getItem("swm_categories");
-        return saved ? JSON.parse(saved) : [];
-    };
-
-    const [cartItems, setCartItems] = useState(() => {
-        const savedCart = localStorage.getItem("cart");
-        if (savedCart) {
-            try {
-                const items = JSON.parse(savedCart);
-                return items.map(item => {
-                    const cats = getCategories();
-                    const cat = item.category ? cats.find(c => c.id === item.category) : null;
-                    const type = cat?.serviceType || item.serviceType || "other";
-                    return { ...item, serviceType: type };
-                });
-            } catch (e) {
-                return [];
-            }
-        }
-        return [];
-    });
+    const [cartItems, setCartItems] = useState([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
-    const [selectedSlot, setSelectedSlot] = useState(() => {
-        const savedSlot = localStorage.getItem("selectedSlot");
-        return savedSlot ? JSON.parse(savedSlot) : null;
-    });
-    const [bookingType, setBookingType] = useState(() => {
-        return localStorage.getItem("bookingType") || "instant";
-    });
+    const [selectedSlot, setSelectedSlot] = useState(null);
+    const [bookingType, setBookingType] = useState("instant");
 
-
-    useEffect(() => {
-        localStorage.setItem("cart", JSON.stringify(cartItems));
-    }, [cartItems]);
-
-    useEffect(() => {
-        localStorage.setItem("selectedSlot", JSON.stringify(selectedSlot));
-    }, [selectedSlot]);
-
-    useEffect(() => {
-        localStorage.setItem("bookingType", bookingType);
-    }, [bookingType]);
-
+    // no localStorage persistence; keep in-memory for now
 
 
     const totalItems = cartItems.reduce((total, item) => total + (item.quantity || 1), 0);
@@ -71,6 +32,7 @@ export const CartProvider = ({ children }) => {
         }
         return total;
     }, 0);
+    const [serverTotals, setServerTotals] = useState({ total: 0, discount: 0, finalTotal: 0, couponApplied: null });
 
     const getGroupedItems = () => {
         const groups = {};
@@ -149,6 +111,25 @@ export const CartProvider = ({ children }) => {
         }
     }, [isCartOpen]);
 
+    useEffect(() => {
+        let cancelled = false;
+        const run = async () => {
+            try {
+                const items = cartItems.map(it => ({ name: it.name, price: it.price, quantity: it.quantity || 1, duration: it.duration, category: it.category, serviceType: it.serviceType }));
+                if (items.length > 0) {
+                    const totals = await api.bookings.quote({ items });
+                    if (!cancelled) setServerTotals(totals);
+                } else {
+                    if (!cancelled) setServerTotals({ total: 0, discount: 0, finalTotal: 0, couponApplied: null });
+                }
+            } catch {
+                if (!cancelled) setServerTotals({ total: totalPrice, discount: 0, finalTotal: totalPrice, couponApplied: null });
+            }
+        };
+        run();
+        return () => { cancelled = true; };
+    }, [cartItems]);
+
     return (
         <CartContext.Provider
             value={{
@@ -156,6 +137,7 @@ export const CartProvider = ({ children }) => {
                 totalItems,
                 totalPrice,
                 totalSavings,
+                serverTotals,
                 isCartOpen,
                 setIsCartOpen,
                 isFloatingSummaryOpen,

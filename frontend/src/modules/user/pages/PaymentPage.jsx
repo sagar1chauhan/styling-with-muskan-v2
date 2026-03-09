@@ -20,7 +20,7 @@ const PaymentPage = () => {
     const { gender } = useGenderTheme();
     const { cartItems, totalPrice, totalSavings, selectedSlot, clearCart, clearGroup, getGroupedItems } = useCart();
     const { user } = useAuth();
-    const { addBooking } = useBookings();
+    const { loadBookings } = useBookings();
     const { categories } = useUserModuleData();
 
     const [selectedMethod, setSelectedMethod] = useState("upi");
@@ -52,30 +52,7 @@ const PaymentPage = () => {
 
         // Simulate payment process
         setTimeout(() => {
-            const bookingData = {
-                items: displayItems.map(item => ({
-                    ...item,
-                    // strip large image data to save storage
-                    image: typeof item.image === 'string' && item.image.startsWith('data:') ? '' : item.image,
-                    steps: undefined,
-                })),
-                totalAmount: finalTotal,
-                savings: totalSavings + (passedState?.discount || 0),
-                bookingType: displayItems.some(item => {
-                    const category = categories?.find(c => c.id === item.category);
-                    return (category?.bookingType || item.bookingType || "").toLowerCase() === "instant";
-                }) ? "instant" : "prebook",
-                slot: selectedSlot,
-                address: user?.address,
-                customerName: user?.name || user?.phone || "Customer",
-                paymentMethod: selectedMethod,
-                paymentStatus: selectedMethod === 'cod' ? "Pay after service" : (isPartiallyPaid ? "Partially Paid" : "Paid"),
-                prepaidAmount: selectedMethod === 'cod' ? 0 : (isPartiallyPaid ? advanceAmount : finalTotal),
-                balanceAmount: selectedMethod === 'cod' ? finalTotal : (isPartiallyPaid ? remainingAmount : 0),
-                status: "Pending"
-            };
-
-            addBooking(bookingData);
+            loadBookings();
             setIsProcessing(false);
             setIsSuccess(true);
 

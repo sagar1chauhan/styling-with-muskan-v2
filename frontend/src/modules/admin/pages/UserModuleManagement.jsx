@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { Plus, Edit2, Trash2, Search, X, Camera, Image as ImageIcon } from "lucide-react";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 import { Button } from "@/modules/user/components/ui/button";
+import { api } from "@/modules/user/lib/api";
+import { toast } from "sonner";
 
 const ImageUpload = ({ label, value, onChange, className = "" }) => {
     const fileInputRef = useRef(null);
@@ -411,8 +413,23 @@ const UserModuleManagement = () => {
         setIsAddModalOpen(true);
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this item?")) return;
+        try {
+            if (activeTab === "parent_categories") {
+                await api.admin.deleteParent(id);
+                deleteServiceType(id);
+            } else if (activeTab === "categories") {
+                await api.admin.deleteCategory(id);
+                deleteCategory(id);
+            } else if (activeTab === "services") {
+                await api.admin.deleteService(id);
+                deleteService(id);
+            }
+            toast.success("Deleted");
+        } catch (e) {
+            toast.error(e?.message || "Delete failed");
+        }
         if (activeTab === "parent_categories") deleteServiceType(id);
         else if (activeTab === "categories") deleteCategory(id);
         else if (activeTab === "services") deleteService(id);
@@ -421,7 +438,7 @@ const UserModuleManagement = () => {
         else if (activeTab === "testimonials") deleteTestimonial(id);
     };
 
-    const handleSave = (e) => {
+    const handleSave = async (e) => {
         e.preventDefault();
         const payload = { ...formData };
 
@@ -430,6 +447,27 @@ const UserModuleManagement = () => {
             payload.includes = payload.includes.split(',').map(s => s.trim()).filter(s => s !== '');
         }
 
+        const isCreate = !payload.id;
+        if (isCreate) payload.id = Date.now().toString();
+        try {
+            if (activeTab === "parent_categories") {
+                if (isCreate) await api.admin.addParent(payload);
+                else await api.admin.updateParent(payload.id, payload);
+                if (isCreate) addServiceType(payload); else updateServiceType(payload.id, payload);
+            } else if (activeTab === "categories") {
+                if (isCreate) await api.admin.addCategory(payload);
+                else await api.admin.updateCategory(payload.id, payload);
+                if (isCreate) addCategory(payload); else updateCategory(payload.id, payload);
+            } else if (activeTab === "services") {
+                if (isCreate) await api.admin.addService(payload);
+                else await api.admin.updateService(payload.id, payload);
+                if (isCreate) addService(payload); else updateService(payload.id, payload);
+            }
+            toast.success(isCreate ? "Created" : "Updated");
+        } catch (e) {
+            toast.error(e?.message || "Server action failed");
+        } finally {
+            setIsAddModalOpen(false);
         if (!payload.id) {
             payload.id = Date.now().toString();
             if (activeTab === "parent_categories") addServiceType(payload);
@@ -446,7 +484,6 @@ const UserModuleManagement = () => {
             else if (activeTab === "gallery") updateGallery(payload.id, payload);
             else if (activeTab === "testimonials") updateTestimonial(payload.id, payload);
         }
-        setIsAddModalOpen(false);
     };
 
     const getDataForTab = () => {

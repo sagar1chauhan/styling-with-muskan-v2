@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ChevronLeft,
@@ -26,6 +26,8 @@ import {
 } from "@/modules/user/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format, addHours, isBefore, isWeekend } from "date-fns";
+import { api } from "@/modules/user/lib/api";
+import { useProviderAuth } from "@/modules/serviceprovider/contexts/ProviderAuthContext";
 
 const timeSlots = [
     "07:00 AM", "08:00 AM", "09:00 AM", "10:00 AM",
@@ -47,9 +49,17 @@ export default function AvailabilityCalendar() {
     const [leaveStart, setLeaveStart] = useState("");
     const [leaveEnd, setLeaveEnd] = useState("");
     const [leaveReason, setLeaveReason] = useState("");
-    const [leaves, setLeaves] = useState([
-        { id: 1, startDate: "Mar 05, 2024", endDate: "Mar 06, 2024", reason: "Personal work", status: "approved" }
-    ]);
+    const [leaves, setLeaves] = useState([]);
+    const { isLoggedIn } = useProviderAuth();
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!isLoggedIn) return;
+        api.provider.leaves.list().then(({ leaves }) => {
+            if (!cancelled) setLeaves(leaves || []);
+        }).catch(() => {});
+        return () => { cancelled = true; };
+    }, [isLoggedIn]);
 
     const monthDays = useMemo(() => {
         const year = currentMonth.getFullYear();
@@ -97,45 +107,29 @@ export default function AvailabilityCalendar() {
         toast.success(`Turned ${val ? 'ON' : 'OFF'} all slots for this day`);
     };
 
-    const handleLeaveSubmit = () => {
+    const handleLeaveSubmit = async () => {
         if (!leaveStart) return;
-
-        const requestTime = new Date();
-        const leaveStartTime = new Date(leaveStart);
-        const isLeaveWeekend = isWeekend(leaveStartTime);
-
-        const hoursUntilLeave = (leaveStartTime - requestTime) / (1000 * 60 * 60);
-
-        if (isLeaveWeekend) {
-            if (hoursUntilLeave < 24) {
-                toast.error("Weekend leaves must be requested at least 24 hours in advance for admin approval.");
-                return;
-            }
-        } else {
-            if (hoursUntilLeave < 12) {
-                toast.error("Weekday leaves must be requested at least 12 hours in advance.");
-                return;
-            }
+        try {
+            await api.provider.leaves.create({
+                type: leaveType,
+                startAt: leaveStart,
+                endDate: leaveEnd,
+                reason: leaveReason
+            });
+            const { leaves: latest } = await api.provider.leaves.list();
+            setLeaves(latest || []);
+            setShowLeaveModal(false);
+            setLeaveStart(""); setLeaveEnd(""); setLeaveReason("");
+            toast.success("Leave request submitted • Pending approval");
+        } catch (e) {
+            toast.error(e?.message || "Failed to submit leave");
         }
-
-        const newLeave = {
-            id: Date.now(),
-            startDate: format(new Date(leaveStart), "MMM dd, yyyy"),
-            endDate: leaveEnd ? format(new Date(leaveEnd), "MMM dd, yyyy") : format(new Date(leaveStart), "MMM dd, yyyy"),
-            reason: leaveReason || "Professional Break",
-            status: isLeaveWeekend ? "pending admin" : "approved"
-        };
-
-        setLeaves([newLeave, ...leaves]);
-        setShowLeaveModal(false);
-        setLeaveStart(""); setLeaveEnd(""); setLeaveReason("");
-        toast.success(isLeaveWeekend ? "Sent for Admin Approval" : "Leave applied successfully!");
     };
 
     const totalHours = Object.values(currentDaySlots).filter(Boolean).length;
 
     return (
-        <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-50 via-background to-background min-h-screen pb-24 -m-4 md:m-0">
+        <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-50 via-background to-background min-h-screen pb-32 overflow-y-auto -m-4 md:m-0">
             <div className="max-w-4xl mx-auto p-4 space-y-6">
 
                 {/* Header - Beautician Style */}
@@ -201,18 +195,18 @@ export default function AvailabilityCalendar() {
                                 </div>
                                 <div className="space-y-3">
                                     {leaves.map(l => (
-                                        <div key={l.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 group hover:border-purple-200 transition-colors">
+                                        <div key={l._id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 group hover:border-purple-200 transition-colors">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:rotate-6 transition-transform">
                                                     <Plane className="w-4 h-4 text-slate-400" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-bold text-slate-900">{l.startDate} {l.endDate !== l.startDate && `— ${l.endDate}`}</p>
-                                                    <p className="text-[10px] text-slate-500 font-medium uppercase tracking-tight">{l.reason}</p>
+                                                    <p className="text-sm font-bold text-slate-900">{format(new Date(l.startAt), "MMM dd, yyyy")} {l.endDate && l.endDate !== format(new Date(l.startAt), "MMM dd, yyyy") && `— ${l.endDate}`}</p>
+                                                    <p className="text-[10px] text-slate-500 font-medium uppercase tracking-tight">{l.reason || "Professional Break"}</p>
                                                 </div>
                                             </div>
                                             <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full border shadow-sm ${l.status === "approved" ? "bg-green-50 text-green-600 border-green-100" :
-                                                    l.status === "pending admin" ? "bg-amber-50 text-amber-600 border-amber-100 animate-pulse" :
+                                                    l.status === "pending" ? "bg-amber-50 text-amber-600 border-amber-100 animate-pulse" :
                                                         "bg-slate-100 text-slate-400 border-slate-200"
                                                 }`}>
                                                 {l.status}
@@ -232,7 +226,7 @@ export default function AvailabilityCalendar() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -20 }}
-                                className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-2xl shadow-slate-200/60 sticky top-24"
+                                className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-2xl shadow-slate-200/60 sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto custom-scrollbar"
                             >
                                 <div className="flex items-center justify-between mb-8">
                                     <div>
@@ -332,7 +326,7 @@ export default function AvailabilityCalendar() {
                             initial={{ scale: 0.9, opacity: 0, y: 40 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 40 }}
-                            className="relative w-full max-w-sm bg-white border border-slate-100 rounded-[40px] p-8 shadow-3xl z-10"
+                            className="relative w-full max-w-sm bg-white border border-slate-100 rounded-[40px] p-8 shadow-3xl z-10 max-h-[95vh] flex flex-col"
                         >
                             <div className="flex flex-col items-center mb-6">
                                 <div className="h-16 w-16 bg-purple-50 rounded-3xl flex items-center justify-center text-purple-600 mb-4 shadow-sm rotate-12">
@@ -341,7 +335,7 @@ export default function AvailabilityCalendar() {
                                 <h3 className="font-black text-2xl text-slate-900 tracking-tighter">Request Time Off</h3>
                             </div>
 
-                            <div className="space-y-5">
+                            <div className="space-y-5 flex-1 overflow-y-auto custom-scrollbar pr-1">
                                 <div className="grid grid-cols-2 gap-3 mb-2">
                                     <button
                                         onClick={() => setLeaveType("Full Day")}
@@ -389,12 +383,10 @@ export default function AvailabilityCalendar() {
                                     />
                                 </div>
 
-                                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3">
+                            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3">
                                     <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                                     <p className="text-[10px] text-amber-800 font-bold leading-tight uppercase tracking-tighter">
-                                        {isWeekend(new Date(leaveStart || Date.now()))
-                                            ? "Weekend leaves require admin approval (apply 24h prior)."
-                                            : "Weekday leaves must be applied 12h prior."}
+                                    Leaves must be applied at least 4 hours prior. Pending admin approval.
                                     </p>
                                 </div>
 

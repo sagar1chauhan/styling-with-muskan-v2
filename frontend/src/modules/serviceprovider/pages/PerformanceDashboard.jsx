@@ -1,3 +1,4 @@
+import React, { useEffect, useMemo, useState } from "react";
 import React, { useState, useEffect } from "react";
 import {
     Card,
@@ -17,6 +18,40 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from "recharts";
 import { Link } from "react-router-dom";
+import { useProviderAuth } from "../contexts/ProviderAuthContext";
+import { api } from "@/modules/user/lib/api";
+
+export default function PerformanceDashboard() {
+    const { provider } = useProviderAuth();
+    const [summary, setSummary] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    useEffect(() => {
+        let cancel = false;
+        const run = async () => {
+            if (!provider?.phone) return;
+            setLoading(true);
+            setError("");
+            try {
+                const s = await api.provider.summary(provider.phone);
+                if (!cancel) setSummary(s);
+            } catch {
+                if (!cancel) setError("Failed to load performance");
+            } finally {
+                if (!cancel) setLoading(false);
+            }
+        };
+        run();
+        return () => { cancel = true; };
+    }, [provider?.phone]);
+    const metrics = useMemo(() => ({
+        rating: summary?.provider?.rating ?? 0,
+        responseRate: summary?.performance?.responseRate ?? 0,
+        cancellations: summary?.performance?.cancellations ?? 0,
+        grade: summary?.performance?.grade ?? "N/A",
+        isActive: provider?.approvalStatus === "approved",
+        weeklyTrend: summary?.performance?.weeklyTrend ?? [],
+    }), [summary, provider?.approvalStatus]);
 import { motion } from "framer-motion";
 
 export default function PerformanceDashboard() {
@@ -132,7 +167,7 @@ export default function PerformanceDashboard() {
                         </div>
                     </CardHeader>
                     <CardContent className="pb-4 px-4">
-                        <div className="text-2xl font-bold mt-2">18 hrs</div>
+                        <div className="text-2xl font-bold mt-2">{loading ? "…" : `${summary?.calendar?.availableHoursWeek ?? 0} hrs`}</div>
                         <p className="text-xs text-muted-foreground mt-1">Weekend hours</p>
                     </CardContent>
                 </Card>
@@ -145,7 +180,7 @@ export default function PerformanceDashboard() {
                         </div>
                     </CardHeader>
                     <CardContent className="pb-4 px-4">
-                        <div className="text-2xl font-bold mt-2">{metrics.cancellations}</div>
+                        <div className="text-2xl font-bold mt-2">{loading ? "…" : metrics.cancellations}</div>
                         <p className="text-xs text-muted-foreground mt-1">Cancellations</p>
                     </CardContent>
                 </Card>
@@ -158,7 +193,7 @@ export default function PerformanceDashboard() {
                         </div>
                     </CardHeader>
                     <CardContent className="pb-4 px-4">
-                        <div className="text-2xl font-bold mt-2">{metrics.responseRate}%</div>
+                        <div className="text-2xl font-bold mt-2">{loading ? "…" : `${metrics.responseRate}%`}</div>
                         <p className="text-xs text-muted-foreground mt-1">Response rate</p>
                     </CardContent>
                 </Card>
@@ -171,7 +206,7 @@ export default function PerformanceDashboard() {
                         </div>
                     </CardHeader>
                     <CardContent className="pb-4 px-4">
-                        <div className="text-2xl font-bold mt-2 text-purple-600">{metrics.grade}</div>
+                        <div className="text-2xl font-bold mt-2 text-purple-600">{loading ? "…" : metrics.grade}</div>
                         <p className="text-xs text-muted-foreground mt-1">Overall Grade</p>
                     </CardContent>
                 </Card>
@@ -199,6 +234,29 @@ export default function PerformanceDashboard() {
                                 </div>
                             </div>
                         </CardHeader>
+                        <CardContent className="p-6">
+                            {/* Animated Bar Chart */}
+                            <div className="flex items-end justify-between h-48 gap-2 pt-4">
+                                {(metrics.weeklyTrend.length ? metrics.weeklyTrend : [
+                                    { day: "Mon", value: 0, color: "bg-slate-200" },
+                                    { day: "Tue", value: 0, color: "bg-slate-200" },
+                                    { day: "Wed", value: 0, color: "bg-slate-200" },
+                                    { day: "Thu", value: 0, color: "bg-slate-200" },
+                                    { day: "Fri", value: 0, color: "bg-slate-200" },
+                                    { day: "Sat", value: 0, color: "bg-slate-200" },
+                                    { day: "Sun", value: 0, color: "bg-slate-200" },
+                                ]).map((item, idx) => (
+                                    <div key={idx} className="flex-1 flex flex-col items-center gap-3 group">
+                                        <div className="relative w-full flex flex-col justify-end h-full">
+                                            {/* Tooltip on hover */}
+                                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10 font-bold">
+                                                {item.value}% Response
+                                            </div>
+                                            <div className={`w-full rounded-t-lg transition-all duration-1000 ease-out hover:brightness-110 cursor-pointer ${item.color || "bg-slate-200"}`} style={{ height: `${item.value}%`, animation: `growUp 1s ease-out forwards ${idx * 0.1}s`, transform: "scaleY(0)", transformOrigin: "bottom" }} />
+                                        </div>
+                                        <span className="text-xs font-bold text-slate-500">{item.day}</span>
+                                    </div>
+                                ))}
                         <CardContent className="p-0 sm:p-6 overflow-hidden">
                             {/* Interactive Performance Graph */}
                             <div className="h-[280px] w-full mt-6 bg-white relative px-2 sm:px-0">

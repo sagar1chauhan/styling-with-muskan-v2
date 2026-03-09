@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { api } from "@/modules/user/lib/api";
 
 const VenderAuthContext = createContext(undefined);
 
@@ -8,43 +9,42 @@ export const useVenderAuth = () => {
     return context;
 };
 
-const STORAGE_KEY = "muskan-vendor-auth";
-const VENDORS_DB_KEY = "muskan-vendors";
-const SP_DB_KEY = "muskan-provider-db";
-const SP_BOOKINGS_KEY = "muskan-bookings";
-const SOS_KEY = "muskan-sos-alerts";
+const STORAGE_KEY = "swm_vendor";
 
 export const VenderAuthProvider = ({ children }) => {
-    const [vendor, setVendor] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved) : null;
-    });
+    const [vendor, setVendor] = useState(null);
+    const [hydrated, setHydrated] = useState(false);
 
     useEffect(() => {
-        if (vendor) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(vendor));
-            // Sync to vendors DB
-            const db = JSON.parse(localStorage.getItem(VENDORS_DB_KEY) || "{}");
-            db[vendor.id] = vendor;
-            localStorage.setItem(VENDORS_DB_KEY, JSON.stringify(db));
-        } else {
-            localStorage.removeItem(STORAGE_KEY);
-        }
-    }, [vendor]);
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) setVendor(JSON.parse(raw));
+        } catch {}
+        setHydrated(true);
+    }, []);
 
     const isLoggedIn = !!vendor;
     const isApproved = vendor?.status === "approved";
 
-    const login = (email, password) => {
-        const db = JSON.parse(localStorage.getItem(VENDORS_DB_KEY) || "{}");
-        const found = Object.values(db).find(v => v.email === email);
-        if (found) {
-            setVendor(found);
-            return { success: true };
-        }
-        return { success: false, error: "Vendor not found" };
+    const login = async (email, password) => {
+        const { vendor } = await api.vendor.login(email, password);
+        setVendor(vendor);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(vendor)); } catch {}
+        return { success: true };
     };
 
+    const requestOtp = async (phone) => { await api.vendor.requestOtp(phone); return { success: true }; };
+    const verifyOtp = async (phone, otp) => {
+        const { vendor } = await api.vendor.verifyOtp(phone, otp);
+        setVendor(vendor);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(vendor)); } catch {}
+        return { success: true };
+    };
+
+    const register = async (data) => {
+        const { vendor } = await api.vendor.register(data);
+        setVendor(vendor);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(vendor)); } catch {}
     const register = (data) => {
         const newVendor = {
             id: `VEN${Date.now()}`,
@@ -69,33 +69,21 @@ export const VenderAuthProvider = ({ children }) => {
 
     const logout = () => {
         setVendor(null);
-        localStorage.removeItem(STORAGE_KEY);
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        api.vendor.logout();
     };
 
     // Get all SPs in vendor's city
-    const getServiceProviders = () => {
-        const db = JSON.parse(localStorage.getItem(SP_DB_KEY) || "{}");
-        return Object.values(db).filter(sp => sp.registrationComplete);
-    };
+    const getServiceProviders = async () => (await api.vendor.providers()).providers || [];
 
     // Approve / Reject / Block / Suspend SP
-    const updateSPStatus = (spPhone, status) => {
-        const db = JSON.parse(localStorage.getItem(SP_DB_KEY) || "{}");
-        if (db[spPhone]) {
-            db[spPhone] = { ...db[spPhone], approvalStatus: status };
-            localStorage.setItem(SP_DB_KEY, JSON.stringify(db));
+    const updateSPStatus = async (id, status) => { await api.vendor.updateProviderStatus(id, status); };
 
-            // Also update active provider session if applicable
-            const activeProvider = localStorage.getItem("muskan-provider");
-            if (activeProvider) {
-                const parsed = JSON.parse(activeProvider);
-                if (parsed.phone === spPhone) {
-                    localStorage.setItem("muskan-provider", JSON.stringify({ ...parsed, approvalStatus: status }));
-                }
-            }
-        }
-    };
+    // Get all bookings
+    const getAllBookings = async () => (await api.vendor.bookings()).bookings || [];
 
+    // Assign SP to a booking
+    const assignSPToBooking = async (bookingId, spId) => { await api.vendor.assignBooking(bookingId, spId); };
     // Get all bookings including customized enquiries
     const getAllBookings = () => {
         const bookings = JSON.parse(localStorage.getItem(SP_BOOKINGS_KEY) || "[]");
@@ -200,16 +188,10 @@ export const VenderAuthProvider = ({ children }) => {
     };
 
     // Get SOS alerts
-    const getSOSAlerts = () => {
-        return JSON.parse(localStorage.getItem(SOS_KEY) || "[]");
-    };
+    const getSOSAlerts = async () => (await api.vendor.sos()).alerts || [];
 
     // Resolve SOS
-    const resolveSOSAlert = (alertId) => {
-        const alerts = JSON.parse(localStorage.getItem(SOS_KEY) || "[]");
-        const updated = alerts.map(a => a.id === alertId ? { ...a, status: "resolved" } : a);
-        localStorage.setItem(SOS_KEY, JSON.stringify(updated));
-    };
+    const resolveSOSAlert = async (alertId) => { await api.vendor.resolveSos(alertId); };
 
     // Update Payout Status for a Booking (SP payout)
     const updatePayoutStatus = (bookingId, status) => {
@@ -221,9 +203,12 @@ export const VenderAuthProvider = ({ children }) => {
     return (
         <VenderAuthContext.Provider value={{
             vendor,
+            hydrated,
             isLoggedIn,
             isApproved,
             login,
+            requestOtp,
+            verifyOtp,
             register,
             logout,
             getServiceProviders,

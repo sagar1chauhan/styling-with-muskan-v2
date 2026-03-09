@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState } from "react";
+import { api } from "@/modules/user/lib/api";
 
 const AdminAuthContext = createContext(undefined);
 
@@ -8,58 +9,33 @@ export const useAdminAuth = () => {
     return context;
 };
 
-const ADMIN_KEY = "muskan-admin";
-const VENDORS_DB_KEY = "muskan-vendors";
-const SP_DB_KEY = "muskan-provider-db";
-const SP_BOOKINGS_KEY = "muskan-bookings";
-const USER_BOOKINGS_KEY = "muskan-bookings";
-const COUPONS_KEY = "muskan-admin-coupons";
-const BANNERS_KEY = "muskan-admin-banners";
-const REFERRAL_KEY = "muskan-admin-referral";
-const SOS_KEY = "muskan-sos-alerts";
+const ADMIN_KEY = null;
 
 export const AdminAuthProvider = ({ children }) => {
-    const [admin, setAdmin] = useState(() => {
-        const saved = localStorage.getItem(ADMIN_KEY);
-        return saved ? JSON.parse(saved) : null;
-    });
-
-    useEffect(() => {
-        if (admin) localStorage.setItem(ADMIN_KEY, JSON.stringify(admin));
-        else localStorage.removeItem(ADMIN_KEY);
-    }, [admin]);
+    const [admin, setAdmin] = useState(null);
 
     const isLoggedIn = !!admin;
 
-    const login = (email, password) => {
-        // Demo: any email/password works, or match a stored admin
-        if (email && password) {
-            setAdmin({ id: "ADMIN001", name: "Super Admin", email, role: "superadmin", createdAt: new Date().toISOString() });
+    const login = async (email, password) => {
+        try {
+            const { admin } = await api.admin.login(email, password);
+            setAdmin(admin);
             return { success: true };
+        } catch (e) {
+            const msg = e?.message || "Login failed";
+            return { success: false, error: msg };
         }
-        return { success: false, error: "Invalid credentials" };
     };
 
-    const logout = () => { setAdmin(null); localStorage.removeItem(ADMIN_KEY); };
+    const logout = () => { setAdmin(null); api.admin.logout(); };
 
     // ───── VENDORS ─────
-    const getAllVendors = () => Object.values(JSON.parse(localStorage.getItem(VENDORS_DB_KEY) || "{}"));
-    const updateVendorStatus = (vendorId, status) => {
-        const db = JSON.parse(localStorage.getItem(VENDORS_DB_KEY) || "{}");
-        if (db[vendorId]) { db[vendorId].status = status; localStorage.setItem(VENDORS_DB_KEY, JSON.stringify(db)); }
-    };
+    const getAllVendors = async () => (await api.admin.vendors()).vendors;
+    const updateVendorStatus = async (vendorId, status) => { await api.admin.updateVendorStatus(vendorId, status); };
 
     // ───── SERVICE PROVIDERS ─────
-    const getAllServiceProviders = () => Object.values(JSON.parse(localStorage.getItem(SP_DB_KEY) || "{}")).filter(sp => sp.registrationComplete);
-    const updateSPStatus = (phone, status) => {
-        const db = JSON.parse(localStorage.getItem(SP_DB_KEY) || "{}");
-        if (db[phone]) {
-            db[phone].approvalStatus = status;
-            localStorage.setItem(SP_DB_KEY, JSON.stringify(db));
-            const active = localStorage.getItem("muskan-provider");
-            if (active) { const p = JSON.parse(active); if (p.phone === phone) localStorage.setItem("muskan-provider", JSON.stringify({ ...p, approvalStatus: status })); }
-        }
-    };
+    const getAllServiceProviders = async () => (await api.admin.providers()).providers;
+    const updateSPStatus = async (id, status) => { await api.admin.updateProviderStatus(id, status); };
 
     // ───── ENQUIRIES ─────
     const getEnquiries = () => JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
@@ -70,6 +46,9 @@ export const AdminAuthProvider = ({ children }) => {
     };
 
     // ───── BOOKINGS ─────
+    const getAllBookings = async () => (await api.admin.bookings()).bookings;
+    const getUserBookings = async () => (await api.admin.bookings()).bookings;
+    const assignSPToBooking = async (bookingId, spId) => { await api.admin.assignBooking(bookingId, spId); };
     const getAllBookings = () => {
         const bookings = JSON.parse(localStorage.getItem(SP_BOOKINGS_KEY) || "[]");
         const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
@@ -163,43 +142,65 @@ export const AdminAuthProvider = ({ children }) => {
     };
 
     // ───── COUPONS ─────
-    const getCoupons = () => JSON.parse(localStorage.getItem(COUPONS_KEY) || "[]");
-    const addCoupon = (coupon) => {
-        const coupons = getCoupons();
-        coupons.push({ ...coupon, id: `CPN${Date.now()}`, createdAt: new Date().toISOString() });
-        localStorage.setItem(COUPONS_KEY, JSON.stringify(coupons));
-    };
-    const deleteCoupon = (id) => {
-        const coupons = getCoupons().filter(c => c.id !== id);
-        localStorage.setItem(COUPONS_KEY, JSON.stringify(coupons));
-    };
+    const getCoupons = async () => (await api.admin.coupons()).coupons;
+    const addCoupon = async (coupon) => { await api.admin.addCoupon(coupon); };
+    const deleteCoupon = async (id) => { await api.admin.deleteCoupon(id); };
 
     // ───── BANNERS ─────
-    const getBanners = () => JSON.parse(localStorage.getItem(BANNERS_KEY) || "[]");
-    const addBanner = (banner) => {
-        const banners = getBanners();
-        banners.push({ ...banner, id: `BNR${Date.now()}`, createdAt: new Date().toISOString() });
-        localStorage.setItem(BANNERS_KEY, JSON.stringify(banners));
+    const getBanners = async () => {
+        const res = await api.content.banners();
+        const data = res?.data || { women: [], men: [] };
+        const flat = [];
+        for (const g of ["women", "men"]) {
+            for (const b of data[g] || []) {
+                flat.push({
+                    id: b.id,
+                    gender: g,
+                    title: b.title,
+                    imageUrl: b.image,
+                    linkTo: b.cta || "",
+                    priority: 1,
+                    startDate: "",
+                    endDate: "",
+                });
+            }
+        }
+        return flat;
     };
-    const deleteBanner = (id) => {
-        const banners = getBanners().filter(b => b.id !== id);
-        localStorage.setItem(BANNERS_KEY, JSON.stringify(banners));
+    const addBanner = async (banner) => {
+        const payload = {
+            id: Date.now(),
+            gender: "women",
+            title: banner.title,
+            subtitle: "",
+            gradient: "",
+            image: banner.imageUrl || "",
+            cta: banner.linkTo || "",
+        };
+        await api.admin.addBanner(payload);
+    };
+    const deleteBanner = async (id) => {
+        // Try removing from both genders to be safe
+        try { await api.admin.deleteBanner(id, "women"); } catch {}
+        try { await api.admin.deleteBanner(id, "men"); } catch {}
     };
 
     // ───── REFERRAL ─────
-    const getReferralSettings = () => JSON.parse(localStorage.getItem(REFERRAL_KEY) || '{"referrerBonus":100,"refereeBonus":50,"maxReferrals":10,"isActive":true}');
-    const updateReferralSettings = (settings) => localStorage.setItem(REFERRAL_KEY, JSON.stringify(settings));
+    const getReferralSettings = async () => (await api.admin.getReferral()).settings;
+    const updateReferralSettings = async (settings) => { await api.admin.updateReferral(settings); };
 
     // ───── SOS ─────
-    const getSOSAlerts = () => JSON.parse(localStorage.getItem(SOS_KEY) || "[]");
-    const resolveSOSAlert = (id) => {
-        const alerts = getSOSAlerts().map(a => a.id === id ? { ...a, status: "resolved" } : a);
-        localStorage.setItem(SOS_KEY, JSON.stringify(alerts));
-    };
+    const getSOSAlerts = async () => (await api.admin.sos()).alerts;
+    const resolveSOSAlert = async (id) => { await api.admin.resolveSos(id); };
 
     // ───── COMMISSION ─────
-    const getCommissionSettings = () => JSON.parse(localStorage.getItem("muskan-admin-commission") || '{"rate":15,"minPayout":500}');
-    const updateCommissionSettings = (settings) => localStorage.setItem("muskan-admin-commission", JSON.stringify(settings));
+    const getCommissionSettings = async () => (await api.admin.getCommission()).settings;
+    const updateCommissionSettings = async (settings) => { await api.admin.updateCommission(settings); };
+
+    // ───── METRICS ─────
+    const getMetricsOverview = async () => (await api.admin.metricsOverview()).overview;
+    const getRevenueByMonth = async () => (await api.admin.metricsRevenueByMonth()).series;
+    const getBookingTrend = async () => (await api.admin.metricsBookingTrend()).series;
 
     return (
         <AdminAuthContext.Provider value={{
@@ -213,6 +214,7 @@ export const AdminAuthProvider = ({ children }) => {
             getReferralSettings, updateReferralSettings,
             getSOSAlerts, resolveSOSAlert,
             getCommissionSettings, updateCommissionSettings,
+            getMetricsOverview, getRevenueByMonth, getBookingTrend,
         }}>
             {children}
         </AdminAuthContext.Provider>

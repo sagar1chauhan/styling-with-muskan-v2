@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { api } from "@/modules/user/lib/api";
 
 const AuthContext = createContext();
 
@@ -8,21 +9,45 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-    const [hasAddress, setHasAddress] = useState(false); // New address state
+    const [hasAddress, setHasAddress] = useState(false);
 
     useEffect(() => {
-        // Check for existing login session
-        const savedUser = localStorage.getItem('smd_user');
-        if (savedUser) {
-            const parsedUser = JSON.parse(savedUser);
-            setUser(parsedUser);
-            setIsLoggedIn(true);
-            // Mock: check if user has address
-            if (parsedUser.address) setHasAddress(true);
-        }
-        setLoading(false);
+        let cancelled = false;
+        (async () => {
+            try {
+                const { user } = await api.me();
+                if (cancelled) return;
+                setUser(user);
+                setIsLoggedIn(true);
+                setHasAddress((user.addresses || []).length > 0);
+            } catch {
+                // not logged in
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
     }, []);
 
+    const loginWithOtp = async ({ phone, otp, name, referralCode, intent = "login" }) => {
+        const res = await api.verifyOtp(phone, otp, intent);
+        console.log("[Auth] verifyOtp response", res);
+        const { user: u } = res;
+        // If new user and profile fields provided, update
+        if ((name && name.trim()) || (referralCode && referralCode.trim())) {
+            const profileRes = await api.updateProfile({
+                name: name?.trim(),
+                referralCode: (referralCode || "").trim()
+            });
+            console.log("[Auth] updateProfile response", profileRes);
+            const { user: updated } = profileRes;
+            setUser(updated);
+            setHasAddress((updated.addresses || []).length > 0);
+            setIsLoggedIn(true);
+            return;
+        }
+        setUser(u);
+        setHasAddress((u.addresses || []).length > 0);
     const login = (userData) => {
         const user = {
             ...userData,
@@ -33,31 +58,46 @@ export const AuthProvider = ({ children }) => {
             isPlusMember: userData.isPlusMember || false,
         };
         setIsLoggedIn(true);
-        setUser(user);
-        localStorage.setItem('smd_user', JSON.stringify(user));
     };
 
     const logout = () => {
-        setIsLoggedIn(false);
-        setUser(null);
-        setHasAddress(false);
-
-        // Clear all session related data
-        localStorage.removeItem('smd_user');
-        localStorage.removeItem('cart');
-        localStorage.removeItem('wishlist');
-        localStorage.removeItem('selectedSlot');
-        localStorage.removeItem('bookingType');
-
-        // Redirect to home and refresh to clear any in-memory state
-        window.location.href = "/home";
+        api.logout().then((res) => {
+            console.log("[Auth] logout response", res);
+        }).finally(() => {
+            setIsLoggedIn(false);
+            setUser(null);
+            setHasAddress(false);
+            window.location.href = "/home";
+        });
     };
 
     const updateAddress = (address) => {
-        const updatedUser = { ...user, address };
-        setUser(updatedUser);
-        setHasAddress(true);
-        localStorage.setItem('smd_user', JSON.stringify(updatedUser));
+        return api.addAddress(address).then(({ addresses }) => {
+            const updatedUser = { ...user, addresses };
+            setUser(updatedUser);
+            setHasAddress((addresses || []).length > 0);
+        });
+    };
+
+    const updateExistingAddress = (id, payload) => {
+        return api.updateAddress(id, payload).then(({ addresses }) => {
+            const updatedUser = { ...user, addresses };
+            setUser(updatedUser);
+            setHasAddress((addresses || []).length > 0);
+        });
+    };
+
+    const deleteAddress = (id) => {
+        return api.deleteAddress(id).then(({ addresses }) => {
+            const updatedUser = { ...user, addresses };
+            setUser(updatedUser);
+            setHasAddress((addresses || []).length > 0);
+        });
+    };
+
+    const updateProfile = async (payload) => {
+        const { user: updated } = await api.updateProfile(payload);
+        setUser(updated);
     };
 
     const joinPlus = () => {
@@ -75,7 +115,7 @@ export const AuthProvider = ({ children }) => {
         <AuthContext.Provider value={{
             isLoggedIn,
             user,
-            login,
+            loginWithOtp,
             logout,
             loading,
             isLoginModalOpen,
@@ -85,7 +125,9 @@ export const AuthProvider = ({ children }) => {
             hasAddress,
             setHasAddress,
             updateAddress,
-            joinPlus
+            updateExistingAddress,
+            deleteAddress,
+            updateProfile
         }}>
             {children}
         </AuthContext.Provider>

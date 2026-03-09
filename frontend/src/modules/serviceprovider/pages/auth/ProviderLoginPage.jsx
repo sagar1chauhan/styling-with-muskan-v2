@@ -18,27 +18,22 @@ import {
     SelectValue
 } from "@/modules/user/components/ui/select";
 import { useProviderAuth } from "@/modules/serviceprovider/contexts/ProviderAuthContext";
+import { api } from "@/modules/user/lib/api";
 
 export default function ProviderLoginPage() {
     const navigate = useNavigate();
-    const { login, isLoggedIn, isRegistered, isApproved, isPending, isRejected } = useProviderAuth();
+    const { requestOtp, verifyOtp, isLoggedIn, isRegistered, isApproved, isPending, isRejected } = useProviderAuth();
     const [step, setStep] = useState(1); // 1: Login, 2: OTP
     const [phone, setPhone] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [otp, setOtp] = useState(["", "", "", "", "", ""]);
     const [timer, setTimer] = useState(30);
+    const [error, setError] = useState("");
 
     useEffect(() => {
-        if (isLoggedIn) {
-            if (!isRegistered) {
-                navigate("/provider/register", { replace: true });
-            } else if (isApproved) {
-                navigate("/provider/dashboard", { replace: true });
-            } else if (isPending || isRejected) {
-                navigate("/provider/status", { replace: true });
-            }
-        }
-    }, [isLoggedIn, isRegistered, isApproved, isPending, isRejected, navigate]);
+        // Intentionally do not auto-redirect from login page based on stale local state.
+        // Navigation will happen explicitly after OTP verification.
+    }, [isLoggedIn, isRegistered, isApproved, isPending, isRejected]);
 
     useEffect(() => {
         let interval;
@@ -50,23 +45,33 @@ export default function ProviderLoginPage() {
         return () => clearInterval(interval);
     }, [step, timer]);
 
-    const handleContinue = () => {
-        if (phone.length === 10) {
-            setIsLoading(true);
-            setTimeout(() => {
-                setIsLoading(false);
-                setStep(2);
-                setTimer(30);
-            }, 1000);
+    const handleContinue = async () => {
+        if (phone.length !== 10) return;
+        setIsLoading(true);
+        try {
+            setError("");
+            await requestOtp(phone);
+            setStep(2);
+            setTimer(30);
+        } catch (e) {
+            setError(e?.message || "Failed to request OTP");
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    const handleVerifyOtp = () => {
+    const handleVerifyOtp = async () => {
         setIsLoading(true);
-        setTimeout(() => {
-            login(phone);
+        try {
+            setError("");
+            const code = otp.join("");
+            await verifyOtp(phone, code);
+            navigate("/provider/dashboard", { replace: true });
+        } catch (e) {
+            setError(e?.message || "Failed to verify OTP");
+        } finally {
             setIsLoading(false);
-        }, 1500);
+        }
     };
 
     const handleOtpChange = (index, value) => {
@@ -156,6 +161,7 @@ export default function ProviderLoginPage() {
                                     </div>
                                 </div>
                             </div>
+                            {error && <p className="text-[12px] font-bold text-red-600">{error}</p>}
 
                             <Button
                                 className="w-full h-14 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white font-black text-lg shadow-lg shadow-violet-200 transition-all active:scale-[0.98]"
@@ -192,6 +198,7 @@ export default function ProviderLoginPage() {
                             </div>
 
                             <div className="space-y-4">
+                                {error && <p className="text-[12px] font-bold text-red-600 text-center">{error}</p>}
                                 <Button
                                     className="w-full h-14 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white font-black text-lg shadow-lg shadow-violet-200"
                                     onClick={handleVerifyOtp}

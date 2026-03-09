@@ -55,10 +55,14 @@ export default function ProviderRegisterPage() {
         gender: "",
         dob: "",
         experience: "",
+        addressLine1: "",
+        area: "",
+        city: "",
         profilePhoto: null,
         aadharFront: null,
         aadharBack: null,
         panCard: null,
+        certifications: [],
         primaryCategory: [],
         specializations: [],
         bankName: "",
@@ -72,6 +76,7 @@ export default function ProviderRegisterPage() {
     const aadharFrontRef = useRef(null);
     const aadharBackRef = useRef(null);
     const panCardRef = useRef(null);
+    const certsInputRef = useRef(null);
 
     const handleFileChange = (field, file) => {
         if (file) {
@@ -81,6 +86,127 @@ export default function ProviderRegisterPage() {
             };
             reader.readAsDataURL(file);
         }
+    };
+
+    // Camera capture state
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
+    const [cameraError, setCameraError] = useState("");
+    const [isVideoReady, setIsVideoReady] = useState(false);
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const streamRef = useRef(null);
+
+    const startCamera = async () => {
+        setCameraError("");
+        setIsVideoReady(false);
+        try {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                throw new Error("Camera API not supported");
+            }
+            setIsCameraOpen(true);
+            await new Promise((r) => requestAnimationFrame(r));
+            const tryConstraints = async (c) => {
+                try {
+                    return await navigator.mediaDevices.getUserMedia(c);
+                } catch {
+                    return null;
+                }
+            };
+            let stream =
+                (await tryConstraints({ video: { facingMode: { ideal: "user" } }, audio: false })) ||
+                (await tryConstraints({ video: { facingMode: { ideal: "environment" } }, audio: false })) ||
+                (await tryConstraints({ video: true, audio: false }));
+            if (!stream) throw new Error("Unable to access camera");
+            streamRef.current = stream;
+            if (videoRef.current) {
+                const v = videoRef.current;
+                v.srcObject = stream;
+                try { v.setAttribute("playsinline", "true"); } catch {}
+                try { v.setAttribute("muted", "true"); } catch {}
+                try { v.muted = true; } catch {}
+                const waitForCanPlay = () => new Promise((resolve) => {
+                    const done = () => {
+                        setIsVideoReady(true);
+                        resolve();
+                    };
+                    if (v.readyState >= 2 && v.videoWidth > 0) return done();
+                    const onCanPlay = () => { v.removeEventListener("canplay", onCanPlay); done(); };
+                    v.addEventListener("canplay", onCanPlay, { once: true });
+                });
+                const ensurePlay = async () => {
+                    try { await v.play(); } catch {}
+                    if (v.readyState >= 2 && v.videoWidth > 0) {
+                        setIsVideoReady(true);
+                        return;
+                    }
+                    await waitForCanPlay();
+                };
+                await ensurePlay();
+                setTimeout(() => {
+                    if (!isVideoReady && v.videoWidth > 0) setIsVideoReady(true);
+                }, 1500);
+            }
+        } catch (e) {
+            setCameraError(e?.message || "Camera access denied or not available");
+        }
+    };
+
+    const stopCamera = () => {
+        try {
+            const s = streamRef.current;
+            if (s) {
+                s.getTracks().forEach(t => t.stop());
+            }
+            if (videoRef.current) {
+                videoRef.current.srcObject = null;
+                videoRef.current.onloadedmetadata = null;
+            }
+        } catch {}
+        streamRef.current = null;
+        setIsVideoReady(false);
+        setIsCameraOpen(false);
+    };
+
+    const capturePhoto = () => {
+        try {
+            const video = videoRef.current;
+            const canvas = canvasRef.current;
+            if (!video || !canvas) return;
+            const vw = video.videoWidth || 0;
+            const vh = video.videoHeight || 0;
+            if (!isVideoReady || vw === 0 || vh === 0) {
+                setCameraError("Camera not ready. Please wait a moment and try again.");
+                return;
+            }
+            canvas.width = vw;
+            canvas.height = vh;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const data = canvas.toDataURL("image/png");
+            setFormData(prev => ({ ...prev, profilePhoto: data }));
+            stopCamera();
+        } catch {
+            setCameraError("Failed to capture photo");
+        }
+    };
+
+    const handleCertsChange = (files) => {
+        if (!files || files.length === 0) return;
+        const arr = Array.from(files);
+        const readers = arr.map(
+            (file) =>
+                new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve({ name: file.name, type: file.type, data: reader.result });
+                    reader.readAsDataURL(file);
+                })
+        );
+        Promise.all(readers).then((items) => {
+            setFormData((prev) => ({
+                ...prev,
+                certifications: [...prev.certifications, ...items],
+            }));
+        });
     };
 
     const nextStep = () => {
@@ -184,7 +310,7 @@ export default function ProviderRegisterPage() {
                                     />
                                     <div
                                         className="relative group cursor-pointer"
-                                        onClick={() => profileInputRef.current.click()}
+                                        onClick={startCamera}
                                     >
                                         <div className="w-32 h-32 rounded-3xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-violet-600 group-active:scale-95">
                                             {formData.profilePhoto ? (
@@ -196,11 +322,30 @@ export default function ProviderRegisterPage() {
                                                 </>
                                             )}
                                         </div>
-                                        <div className="absolute -bottom-2 -right-2 bg-purple-600 text-white p-2 rounded-xl shadow-lg">
+                                        <div className="absolute -bottom-2 -right-2 bg-purple-600 text-white p-2 rounded-xl shadow-lg" onClick={(e) => { e.stopPropagation(); profileInputRef.current?.click(); }}>
                                             <Plus className="h-4 w-4" />
                                         </div>
                                     </div>
                                     <p className="text-[10px] font-bold text-gray-400 mt-4 uppercase tracking-widest leading-none">Live Camera Only</p>
+
+                                    {/* Camera Modal */}
+                                    {isCameraOpen && (
+                                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                                            <div className="absolute inset-0 bg-black/70" onClick={stopCamera} />
+                                            <div className="relative bg-white rounded-2xl p-4 w-full max-w-sm z-10">
+                                                <div className="rounded-xl overflow-hidden bg-black">
+                                                    <video ref={videoRef} className="w-full h-80 object-cover" autoPlay muted playsInline />
+                                                    <canvas ref={canvasRef} className="hidden" />
+                                                </div>
+                                                {!isVideoReady && !cameraError && <p className="text-sm text-gray-500 mt-2">Starting camera...</p>}
+                                                {cameraError && <p className="text-sm text-red-600 mt-2">{cameraError}</p>}
+                                                <div className="flex gap-3 mt-4">
+                                                    <Button type="button" className="flex-1 h-12 rounded-xl font-bold" disabled={!isVideoReady} onClick={capturePhoto}>Capture</Button>
+                                                    <Button type="button" variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={stopCamera}>Cancel</Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid gap-6 sm:grid-cols-2">
@@ -222,6 +367,53 @@ export default function ProviderRegisterPage() {
                                             value={formData.name}
                                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                         />
+                                    </div>
+                                    <div className="space-y-2 sm:col-span-2">
+                                        <Label className="text-xs font-black uppercase text-gray-400">Address</Label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                            <Input
+                                                placeholder="Flat/Building/Landmark"
+                                                className="h-12 rounded-xl bg-gray-50 border-gray-100 font-bold focus:ring-violet-600"
+                                                value={formData.addressLine1}
+                                                onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
+                                            />
+                                            <Input
+                                                placeholder="Area/Colony"
+                                                className="h-12 rounded-xl bg-gray-50 border-gray-100 font-bold focus:ring-violet-600"
+                                                value={formData.area}
+                                                onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+                                            />
+                                            <Input
+                                                placeholder="City"
+                                                className="h-12 rounded-xl bg-gray-50 border-gray-100 font-bold focus:ring-violet-600"
+                                                value={formData.city}
+                                                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                            />
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="h-12 mt-2 whitespace-nowrap"
+                                            onClick={() => {
+                                                if (!navigator.geolocation) return alert("Geolocation not supported");
+                                                navigator.geolocation.getCurrentPosition(
+                                                    async (pos) => {
+                                                        try {
+                                                            await import("@/modules/user/lib/api").then(({ api }) =>
+                                                                api.provider.updateLocation(pos.coords.latitude, pos.coords.longitude)
+                                                            );
+                                                            alert("Location updated");
+                                                        } catch (e) {
+                                                            alert(e?.message || "Failed to update location");
+                                                        }
+                                                    },
+                                                    () => alert("Permission denied or location unavailable"),
+                                                    { enableHighAccuracy: true, timeout: 8000 }
+                                                );
+                                            }}
+                                        >
+                                            Use Current Location
+                                        </Button>
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="text-xs font-black uppercase text-gray-400">Email Address</Label>
@@ -364,9 +556,33 @@ export default function ProviderRegisterPage() {
                                 <div className="space-y-4">
                                     <Label className="text-xs font-black uppercase text-gray-400">Upload Certifications</Label>
                                     <div className="grid grid-cols-3 gap-3">
-                                        <div className="aspect-square rounded-2xl bg-gray-50 border-2 border-dashed flex items-center justify-center text-gray-300 hover:border-purple-600 transition-colors">
+                                        {formData.certifications.map((c, idx) => (
+                                            <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border bg-white">
+                                                {c.type?.includes("image") ? (
+                                                    <img src={c.data} alt={c.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 text-xs">
+                                                        <FileText className="h-8 w-8 mb-1" />
+                                                        <span className="px-2 truncate">{c.name}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <input
+                                            type="file"
+                                            ref={certsInputRef}
+                                            className="hidden"
+                                            accept="image/*,.pdf"
+                                            multiple
+                                            onChange={(e) => handleCertsChange(e.target.files)}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => certsInputRef.current?.click()}
+                                            className="aspect-square rounded-2xl bg-gray-50 border-2 border-dashed flex items-center justify-center text-gray-300 hover:border-purple-600 transition-colors"
+                                        >
                                             <Plus className="h-6 w-6" />
-                                        </div>
+                                        </button>
                                     </div>
                                 </div>
                             </div>

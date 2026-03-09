@@ -1,8 +1,15 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
+
+import { api } from "@/modules/user/lib/api";
+
+import { motion, AnimatePresence } from "framer-motion";
+
+
+
 import { ArrowLeft, ChevronRight, Wallet, MapPin, Gift, Ticket, HelpCircle, LogOut, User, Calendar, Edit2, ShieldCheck, Zap, Sparkles } from "lucide-react";
 
 /**
@@ -12,6 +19,29 @@ import { ArrowLeft, ChevronRight, Wallet, MapPin, Gift, Ticket, HelpCircle, LogO
 const ProfilePage = () => {
   const navigate = useNavigate();
   const { gender, setGender } = useGenderTheme();
+  const { user, logout, isLoggedIn, loading } = useAuth();
+  const [walletBalance, setWalletBalance] = useState(null);
+
+  useEffect(() => {
+    if (!loading && !isLoggedIn) {
+      navigate("/register", { replace: true });
+    }
+  }, [loading, isLoggedIn, navigate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!loading && isLoggedIn) {
+          const { wallet } = await api.wallet();
+          if (!cancelled) setWalletBalance(wallet?.balance ?? 0);
+        }
+      } catch {
+        if (!cancelled) setWalletBalance(0);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loading, isLoggedIn]);
   const { user, logout } = useAuth();
   const [showPopup, setShowPopup] = useState(false);
 
@@ -28,13 +58,14 @@ const ProfilePage = () => {
   };
 
   const handleLogout = () => {
+    console.log("[User] logout clicked");
     logout();
     navigate("/home");
   };
 
   const menuItems = [
     { icon: Calendar, label: "My Bookings", desc: "View past & upcoming bookings", path: "/bookings" },
-    { icon: Wallet, label: "Wallet", desc: "₹651 balance", path: "/wallet" },
+    { icon: Wallet, label: "Wallet", desc: walletBalance !== null ? `₹${walletBalance} balance` : "Loading balance...", path: "/wallet" },
     { icon: MapPin, label: "Addresses", desc: "Manage saved addresses", path: "/addresses" },
     { icon: Gift, label: "Referral", desc: "Invite friends & earn", path: "/referral" },
     { icon: Ticket, label: "Coupons", desc: "Available offers", path: "/coupons" },
@@ -70,7 +101,7 @@ const ProfilePage = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-bold text-lg text-foreground">{user?.name || "Muskan"}</h2>
+                <h2 className="font-bold text-lg text-foreground">{user?.name || "User"}</h2>
                 {user?.isVerified && (
                   <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-sm shadow-emerald-500/5">
                     <ShieldCheck className="w-3.5 h-3.5" />
@@ -78,7 +109,7 @@ const ProfilePage = () => {
                   </div>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground">{user?.phone || "+91 98765 43210"}</p>
+              <p className="text-sm text-muted-foreground">{user?.phone || ""}</p>
             </div>
           </div>
           <button

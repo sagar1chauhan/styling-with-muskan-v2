@@ -10,11 +10,17 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } 
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
 
 export default function VenderSOSMonitor() {
-    const { getSOSAlerts, resolveSOSAlert } = useVenderAuth();
+    const { getSOSAlerts, resolveSOSAlert, hydrated, isLoggedIn } = useVenderAuth();
     const [alerts, setAlerts] = useState([]);
 
-    const load = () => setAlerts(getSOSAlerts());
-    useEffect(() => { load(); }, []);
+    const load = async () => {
+        try {
+            if (!hydrated || !isLoggedIn) return;
+            const items = await getSOSAlerts();
+            setAlerts(Array.isArray(items) ? items : []);
+        } catch {}
+    };
+    useEffect(() => { load(); }, [hydrated, isLoggedIn]);
 
     const activeAlerts = alerts.filter(a => a.status !== "resolved");
     const resolvedAlerts = alerts.filter(a => a.status === "resolved");

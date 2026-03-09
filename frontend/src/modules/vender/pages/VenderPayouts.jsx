@@ -6,14 +6,43 @@ import { Button } from "@/modules/user/components/ui/button";
 import { Badge } from "@/modules/user/components/ui/badge";
 import { Input } from "@/modules/user/components/ui/input";
 import { useVenderAuth } from "@/modules/vender/contexts/VenderAuthContext";
+import { toast } from "sonner";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } };
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
 
 export default function VenderPayouts() {
-    const { getServiceProviders, getAllBookings, updatePayoutStatus } = useVenderAuth();
+    const { getServiceProviders, getAllBookings, hydrated, isLoggedIn,updatePayoutStatus } = useVenderAuth();
     const [search, setSearch] = useState("");
+    const [providers, setProviders] = useState([]);
+    const [bookings, setBookings] = useState([]);
+    
+  
     const [bookingsState, setBookingsState] = useState([]);
+    const load = async () => {
+        try {
+            if (!hydrated || !isLoggedIn) return;
+            const [sps, bks] = await Promise.all([getServiceProviders(), getAllBookings()]);
+            setProviders((Array.isArray(sps) ? sps : []).filter(sp => sp.approvalStatus === "approved"));
+            setBookings(Array.isArray(bks) ? bks : []);
+        } catch {}
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                if (!hydrated || !isLoggedIn) return;
+                const [sps, bks] = await Promise.all([getServiceProviders(), getAllBookings()]);
+                if (cancelled) return;
+                setProviders((Array.isArray(sps) ? sps : []).filter(sp => sp.approvalStatus === "approved"));
+                setBookings(Array.isArray(bks) ? bks : []);
+            } catch {}
+        })();
+        return () => { cancelled = true; };
+    }, [hydrated, isLoggedIn]);
+    const completedBookings = bookings.filter(b => b.status === "completed");
+
 
     useEffect(() => {
         setBookingsState(getAllBookings());
@@ -25,6 +54,21 @@ export default function VenderPayouts() {
     const commissionRate = 0.15;
     const totalCommission = Math.round(totalRevenue * commissionRate);
 
+    // Derive payout history from bookings
+    const providerName = (id) => {
+        const p = providers.find(p => (p._id || p.id) === id);
+        return p?.name || "Unknown";
+    };
+    const payouts = bookings.map(b => {
+        const status = b.status === "completed" ? "completed" : b.status === "pending" ? "pending" : "on_hold";
+        return {
+            id: (b._id || "").toString().slice(-6).toUpperCase(),
+            spName: providerName(b.assignedProvider),
+            amount: b.totalAmount || 0,
+            status,
+            date: (b.createdAt || "").slice(0, 10),
+        };
+    });
     // Dynamic payout history from completed bookings
     const payouts = completedBookings.map(b => {
         const provider = providers.find(p => p.id === b.assignedProvider || p.phone === b.assignedProvider);
@@ -123,6 +167,7 @@ export default function VenderPayouts() {
                                             <Badge variant="outline" className={`text-[8px] font-black ${sc.color} border gap-1`}>
                                                 <SIcon className="h-2.5 w-2.5" /> {sc.label}
                                             </Badge>
+                                            {/* Actions could call an admin payout API in future */}
                                             {payout.status === "pending" && (
                                                 <div className="flex gap-1">
                                                     <Button size="sm" onClick={() => handleStatusUpdate(payout.id, "completed")} className="h-7 text-[10px] font-bold bg-green-600 hover:bg-green-700 rounded-lg px-2">Release</Button>
@@ -145,6 +190,11 @@ export default function VenderPayouts() {
                     </CardContent>
                 </Card>
             </motion.div>
+            <div className="flex justify-end">
+                <Button variant="outline" className="gap-2 rounded-xl font-bold" onClick={() => { load(); toast.success("Refreshed payouts"); }}>
+                    <ArrowDownCircle className="h-4 w-4" /> Refresh
+                </Button>
+            </div>
         </div>
     );
 }

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { api } from "@/modules/user/lib/api";
 
 const BookingContext = createContext(undefined);
 
@@ -46,22 +47,18 @@ const findBestProvider = (booking, providers) => {
 };
 
 export const BookingProvider = ({ children }) => {
-    const [bookings, setBookings] = useState(() => {
-        const saved = localStorage.getItem("muskan-bookings");
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [bookings, setBookings] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
+    const loadBookings = async () => {
+        setLoading(true);
         try {
-            localStorage.setItem("muskan-bookings", JSON.stringify(bookings));
-        } catch (e) {
-            console.error("Storage limit exceeded!", e);
-            if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-                if (bookings.length > 2) {
-                    const reducedBookings = bookings.slice(0, -2);
-                    setBookings(reducedBookings);
-                }
-            }
+            const { bookings } = await api.bookings.list(1, 50);
+            setBookings(bookings || []);
+        } catch {
+            setBookings([]);
+        } finally {
+            setLoading(false);
         }
     }, [bookings]);
 
@@ -129,13 +126,12 @@ export const BookingProvider = ({ children }) => {
         });
     };
 
-    const cancelBooking = (id) => {
-        setBookings(prev => prev.filter(b => b.id !== id));
-    };
+    useEffect(() => {
+        loadBookings();
+    }, []);
 
-    const updateBooking = (id, updates) => {
-        setBookings(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
-    };
+    const cancelBooking = (id) => { setBookings(prev => prev.filter(b => (b._id || b.id) !== id)); };
+    const updateBooking = (id, updates) => { setBookings(prev => prev.map(b => ((b._id || b.id) === id ? { ...b, ...updates } : b))); };
 
     // Step 4: User accepts the admin-approved quote
     // This changes status to user_accepted so vendor can now assign team
@@ -198,6 +194,7 @@ export const BookingProvider = ({ children }) => {
     };
 
     return (
+        <BookingContext.Provider value={{ bookings, loading, loadBookings, cancelBooking, updateBooking }}>
         <BookingContext.Provider value={{ bookings, addBooking, cancelBooking, updateBooking, acceptCustomizedBooking, confirmCustomizedBooking, rejectCustomizedBooking }}>
             {children}
         </BookingContext.Provider>

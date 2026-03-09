@@ -35,7 +35,8 @@ const statusColors = {
 };
 
 export default function VenderBookings() {
-    const { getAllBookings, getServiceProviders, assignSPToBooking, assignTeamToBooking } = useVenderAuth();
+    const { getAllBookings, getServiceProviders, assignSPToBooking, hydrated, isLoggedIn,assignTeamToBooking } = useVenderAuth();
+  
     const [bookings, setBookings] = useState([]);
     const [providers, setProviders] = useState([]);
     const [search, setSearch] = useState("");
@@ -51,11 +52,16 @@ export default function VenderBookings() {
     const [teamSelectedMembers, setTeamSelectedMembers] = useState([]);
     const [teamLeadMember, setTeamLeadMember] = useState("");
 
-    const load = () => {
-        setBookings(getAllBookings());
-        setProviders(getServiceProviders().filter(sp => sp.approvalStatus === "approved"));
+    const load = async () => {
+        try {
+            if (!hydrated || !isLoggedIn) return;
+            const [bks, sps] = await Promise.all([getAllBookings(), getServiceProviders()]);
+            setBookings(Array.isArray(bks) ? bks : []);
+            const sArr = Array.isArray(sps) ? sps : [];
+            setProviders(sArr.filter(sp => sp.approvalStatus === "approved"));
+        } catch {}
     };
-    useEffect(() => { load(); }, []);
+    useEffect(() => { load(); }, [hydrated, isLoggedIn]);
 
     const filtered = bookings.filter(b => {
         const matchSearch = b.customerName?.toLowerCase().includes(search.toLowerCase()) || b.id?.includes(search) || b.serviceType?.toLowerCase().includes(search.toLowerCase());
@@ -76,6 +82,12 @@ export default function VenderBookings() {
         return matchSearch && tabMatch && typeMatch;
     });
 
+    const handleAssign = async () => {
+        if (assignModal && selectedProvider) {
+            await assignSPToBooking(assignModal.id, selectedProvider);
+            await load();
+            setAssignModal(null);
+            setSelectedProvider("");
     // Step 1: Vendor sets price & discount price (NO team assignment yet)
     const handleSetPrice = () => {
         if (!assignModal) return;

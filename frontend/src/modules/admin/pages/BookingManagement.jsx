@@ -48,6 +48,18 @@ export default function BookingManagement() {
     // Admin team review modal for final approval (Step 6)
     const [adminTeamReviewModal, setAdminTeamReviewModal] = useState(null);
 
+    const load = async () => {
+        try {
+            const bks = await getAllBookings();
+            setBookings(Array.isArray(bks) ? bks : []);
+            const spRaw = await getAllServiceProviders();
+            const spFromDb = Array.isArray(spRaw) ? spRaw.filter(sp => sp.approvalStatus === "approved") : [];
+            const allSPs = spFromDb.length > 0 ? spFromDb : (moduleProviders || []);
+            setProviders(allSPs);
+        } catch {
+            setBookings([]);
+            setProviders(moduleProviders || []);
+        }
     const load = () => {
         setBookings(getAllBookings());
         const spFromDb = getAllServiceProviders().filter(sp => sp.approvalStatus === "approved");

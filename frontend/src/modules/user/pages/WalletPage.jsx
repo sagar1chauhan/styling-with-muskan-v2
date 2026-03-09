@@ -1,18 +1,36 @@
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { ArrowLeft, Wallet, Plus, History, ChevronRight, TrendingUp } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
+import { api } from "@/modules/user/lib/api";
 
-const transactions = [
-    { id: 1, title: "Cashback Received", date: "24 Feb, 2026", amount: 150, type: "credit" },
-    { id: 2, title: "Service Payment - Gold Facial", date: "20 Feb, 2026", amount: -1499, type: "debit" },
-    { id: 3, title: "Added to Wallet", date: "15 Feb, 2026", amount: 2000, type: "credit" },
-];
+const formatDate = (d) => {
+    try { return new Date(d).toLocaleDateString(); } catch { return d; }
+};
 
 const WalletPage = () => {
     const navigate = useNavigate();
     const { gender } = useGenderTheme();
+    const [balance, setBalance] = useState(0);
+    const [transactions, setTransactions] = useState([]);
+
+    useEffect(() => {
+        let cancelled = false;
+        api.wallet().then(({ wallet }) => {
+            if (cancelled) return;
+            setBalance(wallet?.balance || 0);
+            setTransactions((wallet?.transactions || []).map((t, i) => ({
+                id: i + 1,
+                title: t.title || (t.type === "credit" ? "Credit" : "Debit"),
+                date: formatDate(t.at || t.date),
+                amount: t.amount,
+                type: t.type
+            })));
+        }).catch(() => {});
+        return () => { cancelled = true; };
+    }, []);
 
     return (
         <div className="min-h-screen bg-background pb-8">
@@ -34,7 +52,7 @@ const WalletPage = () => {
                 >
                     <div className="relative z-10">
                         <p className="text-white/70 text-sm font-medium uppercase tracking-wider">Available Balance</p>
-                        <h2 className="text-5xl font-black mt-2">₹651</h2>
+                        <h2 className="text-5xl font-black mt-2">₹{balance}</h2>
 
                         <div className="flex gap-3 mt-8">
                             <Button className="bg-white text-primary hover:bg-white/90 rounded-2xl px-6 h-12 font-bold gap-2">
