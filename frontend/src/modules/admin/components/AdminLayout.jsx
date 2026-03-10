@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     LayoutDashboard, Users, Store, CalendarRange, Wallet, ShieldAlert,
@@ -19,6 +19,10 @@ const AdminLayout = () => {
         document.documentElement.classList.add("theme-admin");
         return () => document.documentElement.classList.remove("theme-admin");
     }, []);
+    useEffect(() => {
+        if (!admin) navigate("/admin/login");
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [admin]);
 
     const navGroups = [
         {
@@ -34,6 +38,7 @@ const AdminLayout = () => {
                 { name: "Service Providers", path: "/admin/service-providers", icon: Users },
                 { name: "Customers", path: "/admin/customers", icon: User },
                 { name: "Bookings", path: "/admin/bookings", icon: CalendarRange },
+                { name: "Custom Enquiries", path: "/admin/custom-enquiries", icon: LayoutGrid },
                 { name: "Training", path: "/admin/training", icon: LayoutGrid },
                 { name: "Feedback", path: "/admin/feedback", icon: MessageSquare },
                 { name: "App Data", path: "/admin/user-data", icon: Layers },
@@ -63,6 +68,10 @@ const AdminLayout = () => {
 
     const isActive = (path) => location.pathname === path;
     const handleLogout = () => { logout(); navigate("/admin/login"); };
+
+    if (!admin) {
+        return <Navigate to="/admin/login" replace />;
+    }
 
     return (
         <div className="flex min-h-screen w-full bg-background">

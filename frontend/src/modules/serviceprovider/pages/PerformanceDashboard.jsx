@@ -19,6 +19,7 @@ import {
 import { Link } from "react-router-dom";
 import { useProviderAuth } from "../contexts/ProviderAuthContext";
 import { api } from "@/modules/user/lib/api";
+import { motion } from "framer-motion";
 
 export default function PerformanceDashboard() {
     const { provider } = useProviderAuth();

@@ -12,17 +12,18 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } 
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
 
 export default function VendorManagement() {
-    const { getAllVendors, updateVendorStatus } = useAdminAuth();
+    const { isLoggedIn, getAllVendors, updateVendorStatus } = useAdminAuth();
     const [vendors, setVendors] = useState([]);
     const [search, setSearch] = useState("");
 
     const load = async () => {
+        if (!isLoggedIn) return;
         try {
             const items = await getAllVendors();
             setVendors(Array.isArray(items) ? items : []);
         } catch {}
     };
-    useEffect(() => { load(); }, []);
+    useEffect(() => { load(); }, [isLoggedIn]);
 
     const filtered = vendors.filter(v => v.name?.toLowerCase().includes(search.toLowerCase()) || v.city?.toLowerCase().includes(search.toLowerCase()));
 

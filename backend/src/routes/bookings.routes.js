@@ -40,4 +40,29 @@ router.get(
   BookingsController.getById
 );
 
+// Custom Enquiry (User)
+router.post(
+  "/custom-enquiry",
+  requireAuth,
+  body("name").isString(),
+  body("phone").isString(),
+  body("eventType").isString(),
+  body("noOfPeople").isString(),
+  body("date").isString(),
+  body("timeSlot").isString(),
+  body("selectedServices").isArray({ min: 1 }),
+  body("notes").optional().isString(),
+  BookingsController.createCustomEnquiry
+);
+router.get(
+  "/custom-enquiry",
+  requireAuth,
+  BookingsController.listCustomEnquiries
+);
+router.patch(
+  "/custom-enquiry/:id/user-accept",
+  requireAuth,
+  BookingsController.userAcceptCustomEnquiry
+);
+
 export default router;

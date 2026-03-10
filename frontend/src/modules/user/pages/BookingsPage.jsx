@@ -486,37 +486,10 @@ const BookingsPage = () => {
                                         </div>
                                     )}
 
-                                    {/* Step 4: Quote Ready - User Accept/Reject */}
-                                    {enq.isQuote ? (
-                                        <div className="mt-5 flex gap-3">
-                                            <button
-                                                onClick={() => rejectCustomizedBooking(enq)}
-                                                className="flex-1 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm hover:bg-red-100 active:scale-95 transition-all"
-                                            >
-                                                Reject Quote
-                                            </button>
-                                            <button
-                                                onClick={() => acceptCustomizedBooking(enq)}
-                                                className="flex-[2] py-3 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
-                                            >
-                                                Accept Quote
-                                            </button>
-                                        </div>
-                                    ) : enq.isReady ? (
-                                        /* Step 7: Final approved - User confirms to start normal booking flow */
-                                        <div className="mt-5 flex gap-3">
-                                            <button
-                                                onClick={() => rejectCustomizedBooking(enq)}
-                                                className="flex-1 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm hover:bg-red-100 active:scale-95 transition-all"
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                onClick={() => confirmCustomizedBooking(enq)}
-                                                className="flex-[2] py-3 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-200 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
-                                            >
-                                                <CheckCircle2 className="w-4 h-4" /> Confirm & Start
-                                            </button>
+                                    {/* Step actions hidden on user panel */}
+                                    {enq.isQuote || enq.isReady ? (
+                                        <div className="mt-5 p-3 bg-accent/40 rounded-2xl border border-border/50 text-[11px] font-bold text-muted-foreground">
+                                            Status updated by our team. We will contact you for next steps.
                                         </div>
                                     ) : (
                                         <div className="mt-5 pt-4 border-t border-border/30 flex items-center justify-between text-[10px] font-bold text-muted-foreground">

@@ -110,6 +110,22 @@ export default function AvailabilityCalendar() {
     const handleLeaveSubmit = async () => {
         if (!leaveStart) return;
         try {
+            const start = new Date(leaveStart);
+            const now = new Date();
+            const diffHours = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
+            if (isNaN(start.getTime())) {
+                toast.error("Please select a valid start date & time");
+                return;
+            }
+            if (diffHours < 4) {
+                toast.error("Leave must be at least 4 hours in advance");
+                return;
+            }
+        } catch {
+            toast.error("Please select a valid start date & time");
+            return;
+        }
+        try {
             await api.provider.leaves.create({
                 type: leaveType,
                 startAt: leaveStart,

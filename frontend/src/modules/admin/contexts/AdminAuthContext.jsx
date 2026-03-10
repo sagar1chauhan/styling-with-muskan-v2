@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { api } from "@/modules/user/lib/api";
 
 const AdminAuthContext = createContext(undefined);
@@ -9,17 +9,28 @@ export const useAdminAuth = () => {
     return context;
 };
 
-const ADMIN_KEY = null;
+const ADMIN_KEY = "swm_admin";
 
 export const AdminAuthProvider = ({ children }) => {
     const [admin, setAdmin] = useState(null);
 
     const isLoggedIn = !!admin;
 
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(ADMIN_KEY);
+            if (raw) {
+                const saved = JSON.parse(raw);
+                if (saved && typeof saved === "object") setAdmin(saved);
+            }
+        } catch {}
+    }, []);
+
     const login = async (email, password) => {
         try {
             const { admin } = await api.admin.login(email, password);
             setAdmin(admin);
+            try { localStorage.setItem(ADMIN_KEY, JSON.stringify(admin)); } catch {}
             return { success: true };
         } catch (e) {
             const msg = e?.message || "Login failed";
@@ -27,7 +38,11 @@ export const AdminAuthProvider = ({ children }) => {
         }
     };
 
-    const logout = () => { setAdmin(null); api.admin.logout(); };
+    const logout = () => {
+        setAdmin(null);
+        try { localStorage.removeItem(ADMIN_KEY); } catch {}
+        api.admin.logout();
+    };
 
     // ───── VENDORS ─────
     const getAllVendors = async () => (await api.admin.vendors()).vendors;
@@ -37,13 +52,10 @@ export const AdminAuthProvider = ({ children }) => {
     const getAllServiceProviders = async () => (await api.admin.providers()).providers;
     const updateSPStatus = async (id, status) => { await api.admin.updateProviderStatus(id, status); };
 
-    // ───── ENQUIRIES ─────
-    const getEnquiries = () => JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
-    const updateEnquiry = (enqId, data) => {
-        const enqs = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
-        const updated = enqs.map(e => e.id === enqId ? { ...e, ...data } : e);
-        localStorage.setItem("muskan-enquiries", JSON.stringify(updated));
-    };
+    // ───── ENQUIRIES (server) ─────
+    const getEnquiries = async () => (await api.admin.customEnquiries()).enquiries;
+    const priceQuoteEnquiry = async (id, payload) => { await api.admin.customEnquiryPriceQuote(id, payload); };
+    const finalApproveEnquiry = async (id) => { await api.admin.customEnquiryFinalApprove(id); };
 
     // ───── BOOKINGS ─────
     const getAllBookings = async () => (await api.admin.bookings()).bookings;
@@ -154,7 +166,7 @@ export const AdminAuthProvider = ({ children }) => {
             admin, isLoggedIn, login, logout,
             getAllVendors, updateVendorStatus,
             getAllServiceProviders, updateSPStatus,
-            getEnquiries, updateEnquiry,
+            getEnquiries, priceQuoteEnquiry, finalApproveEnquiry,
             getAllBookings, getUserBookings, assignSPToBooking, assignTeamToBooking,
             getCoupons, addCoupon, deleteCoupon,
             getBanners, addBanner, deleteBanner,

@@ -26,13 +26,14 @@ const defaultBookingTrend = [
 ];
 
 export default function AdminDashboard() {
-    const { getAllVendors, getAllServiceProviders, getAllBookings, getUserBookings, getSOSAlerts, getRevenueByMonth, getBookingTrend } = useAdminAuth();
+    const { isLoggedIn, getAllVendors, getAllServiceProviders, getAllBookings, getUserBookings, getSOSAlerts, getRevenueByMonth, getBookingTrend } = useAdminAuth();
     const [stats, setStats] = useState({});
     const [revenueSeries, setRevenueSeries] = useState(defaultRevenueData);
     const [bookingSeries, setBookingSeries] = useState(defaultBookingTrend);
     const [allBookings, setAllBookings] = useState([]);
 
     useEffect(() => {
+        if (!isLoggedIn) return;
         let cancelled = false;
         (async () => {
             try {
@@ -73,9 +74,10 @@ export default function AdminDashboard() {
             }
         })();
         return () => { cancelled = true; };
-    }, []);
+    }, [isLoggedIn]);
 
     useEffect(() => {
+        if (!isLoggedIn) return;
         let cancelled = false;
         (async () => {
             try {
@@ -111,7 +113,7 @@ export default function AdminDashboard() {
             }
         })();
         return () => { cancelled = true; };
-    }, [allBookings]);
+    }, [allBookings, isLoggedIn]);
     const getZones = (bookings) => {
         const zonesMap = {};
         if (Array.isArray(bookings)) {

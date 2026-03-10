@@ -295,21 +295,20 @@ const ProviderBookingDetailPage = () => {
                         <div className="bg-white border border-gray-100 rounded-[20px] p-5 shadow-sm shadow-purple-50">
                             <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-4 flex items-center gap-2"><Shield className="w-3.5 h-3.5 text-amber-500" /> Provider Verification</h3>
                             <div className="grid grid-cols-2 gap-3">
-                                {[
-                                    { key: "product", label: "Product", icon: Package, data: booking.productImages || [], addFn: addProductImages, show: true },
-                                    { key: "provider", label: "Provider Live", icon: UserCircle, data: booking.providerImages || [], addFn: addProviderImages, show: booking.status !== "in_progress" }
-                                ].filter(p => p.show).map(phase => (
+                                        {[
+                                            { key: "before", label: "Before Service", icon: Camera, data: booking.beforeImages || [], addFn: addBeforeImages, show: true },
+                                            { key: "after", label: "After Service", icon: Camera, data: booking.afterImages || [], addFn: addAfterImages, show: booking.status !== "in_progress" },
+                                            { key: "product", label: "Product", icon: Package, data: booking.productImages || [], addFn: addProductImages, show: true },
+                                            { key: "provider", label: "Provider Live", icon: UserCircle, data: booking.providerImages || [], addFn: addProviderImages, show: booking.status !== "in_progress" }
+                                        ].filter(p => p.show).map(phase => (
                                     <div key={phase.key} className="space-y-3">
                                         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">{phase.label} Photo</p>
                                         {booking.status !== "completed" && (
                                             <label className="block bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 p-5 text-center cursor-pointer hover:border-purple-300 hover:bg-purple-50 transition-all">
-                                                <input type="file" accept="image/*" capture="environment" className="hidden"
+                                                        <input multiple type="file" accept="image/*" capture="environment" className="hidden"
                                                     onChange={e => {
-                                                        const file = e.target.files[0];
-                                                        if (file) {
-                                                            const url = URL.createObjectURL(file);
-                                                            phase.addFn(id, [url]);
-                                                        }
+                                                            const files = Array.from(e.target.files || []);
+                                                            if (files.length) phase.addFn(booking._id || id, files);
                                                     }} />
                                                 <phase.icon className="w-5 h-5 mx-auto text-gray-400 mb-1 group-hover:text-purple-600" />
                                                 <span className="text-[9px] font-black text-gray-400 tracking-widest uppercase">Snap {phase.label}</span>

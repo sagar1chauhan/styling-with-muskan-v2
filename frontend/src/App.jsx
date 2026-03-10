@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/modules/user/components/ui/sonner";
 import { TooltipProvider } from "@/modules/user/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import ErrorBoundary from "./ErrorBoundary.jsx";
 import { GenderThemeProvider } from "@/modules/user/contexts/GenderThemeContext";
 import { CartProvider } from "@/modules/user/contexts/CartContext";
 import { AuthProvider } from "@/modules/user/contexts/AuthContext";
@@ -92,6 +93,7 @@ import ReferralSystem from "@/modules/admin/pages/ReferralSystem";
 import SOSMonitor from "@/modules/admin/pages/SOSMonitor";
 import UserModuleManagement from "@/modules/admin/pages/UserModuleManagement";
 import FeedbackManagement from "@/modules/admin/pages/FeedbackManagement";
+import CustomEnquiries from "@/modules/admin/pages/CustomEnquiries";
 import TrainingManagement from "@/modules/admin/pages/TrainingManagement";
 
 const queryClient = new QueryClient();
@@ -111,9 +113,10 @@ const App = () => {
                         <ProviderBookingProvider>
                           <VenderAuthProvider>
                             <AdminAuthProvider>
-                              <Toaster />
-                              <Sonner />
-                              <Routes>
+                              <ErrorBoundary>
+                                <Toaster />
+                                <Sonner />
+                                <Routes>
                                 {/* User Routes */}
                                 <Route path="/" element={<SplashScreen />} />
                                 <Route path="/select-gender" element={<GenderSelect />} />
@@ -192,6 +195,7 @@ const App = () => {
                                   <Route path="user-data" element={<UserModuleManagement />} />
                                   <Route path="training" element={<TrainingManagement />} />
                                   <Route path="feedback" element={<FeedbackManagement />} />
+                                  <Route path="custom-enquiries" element={<CustomEnquiries />} />
                                 </Route>
 
                                 {/* Common Typos / Legacy Redirects */}
@@ -200,11 +204,12 @@ const App = () => {
 
                                 {/* Fallback */}
                                 <Route path="*" element={<NotFound />} />
-                              </Routes>
-                              <LoginModal />
-                              <FloatingCart />
-                              <ExpressCheckout />
-                              <BottomNav />
+                                </Routes>
+                                <LoginModal />
+                                <FloatingCart />
+                                <ExpressCheckout />
+                                <BottomNav />
+                              </ErrorBoundary>
                             </AdminAuthProvider>
                           </VenderAuthProvider>
                         </ProviderBookingProvider>

@@ -4,6 +4,7 @@ import Coupon from "../../../models/Coupon.js";
 import { OfficeSettings, Category } from "../../../models/Content.js";
 import ProviderAccount from "../../../models/ProviderAccount.js";
 import BookingLog from "../../../models/BookingLog.js";
+import CustomEnquiry from "../../../models/CustomEnquiry.js";
 import Razorpay from "razorpay";
 import { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } from "../../../config.js";
 
@@ -27,7 +28,25 @@ function computeTotals(items = [], coupon) {
   const total = items.reduce((sum, it) => sum + (Number(it.price) * (Number(it.quantity) || 1)), 0);
   let discount = 0;
   if (coupon) {
-    discount = coupon.type === "FIXED" ? Number(coupon.value) : Math.round(total * (Number(coupon.value) / 100));
+    if (coupon.type) {
+      if (String(coupon.type).toUpperCase() === "FIXED") {
+        discount = Number(coupon.value);
+      } else {
+        discount = Math.round(total * (Number(coupon.value) / 100));
+      }
+    } else if (coupon.discountType) {
+      if (coupon.discountType === "flat") {
+        discount = Number(coupon.discountValue);
+      } else {
+        discount = Math.round(total * (Number(coupon.discountValue) / 100));
+      }
+    }
+    if (coupon.maxDiscount && coupon.maxDiscount > 0) {
+      discount = Math.min(discount, coupon.maxDiscount);
+    }
+    if (coupon.minOrder && total < coupon.minOrder) {
+      discount = 0;
+    }
   }
   return { total, discount, finalTotal: Math.max(total - discount, 0) };
 }
@@ -183,4 +202,92 @@ export async function getById(req, res) {
   const booking = await Booking.findOne({ _id: id, customerId: req.user._id.toString() }).lean();
   if (!booking) return res.status(404).json({ error: "Not found" });
   res.json({ booking });
+}
+
+export async function createCustomEnquiry(req, res) {
+  const { name, phone, eventType, noOfPeople, date, timeSlot, selectedServices, notes, address } = req.body;
+  const items = (selectedServices || []).map((s) => ({
+    id: s.id, name: s.name, category: s.category, serviceType: s.serviceType, quantity: s.quantity || 1, price: Number(s.price) || 0,
+  }));
+  const doc = await CustomEnquiry.create({
+    userId: req.user._id.toString(),
+    name, phone, eventType, noOfPeople,
+    scheduledAt: { date, timeSlot },
+    items,
+    notes: notes || "",
+    address: {
+      houseNo: address?.houseNo || "",
+      area: address?.area || "",
+      landmark: address?.landmark || "",
+      lat: address?.lat ?? null,
+      lng: address?.lng ?? null,
+      city: address?.city || "",
+    },
+    status: "pending",
+    timeline: [{ action: "created" }],
+  });
+  res.status(201).json({ enquiry: doc });
+}
+
+export async function listCustomEnquiries(req, res) {
+  const items = await CustomEnquiry.find({ userId: req.user._id.toString() }).sort({ createdAt: -1 }).lean();
+  res.json({ enquiries: items });
+}
+
+export async function userAcceptCustomEnquiry(req, res) {
+  const { id } = req.params;
+  const enq = await CustomEnquiry.findOne({ _id: id, userId: req.user._id.toString() });
+  if (!enq) return res.status(404).json({ error: "Not found" });
+  enq.status = "user_accepted";
+  enq.timeline.push({ action: "user_accepted" });
+  await enq.save();
+  res.json({ enquiry: enq });
+}
+
+// Admin helpers
+export async function adminListCustomEnquiries(_req, res) {
+  const items = await CustomEnquiry.find().sort({ createdAt: -1 }).lean();
+  res.json({ enquiries: items });
+}
+
+export async function adminPriceQuote(req, res) {
+  const { id } = req.params;
+  const { items, totalAmount, discountPrice, notes } = req.body;
+  const enq = await CustomEnquiry.findById(id);
+  if (!enq) return res.status(404).json({ error: "Not found" });
+  enq.quote = {
+    items: (items || []).map((s) => ({ id: s.id, name: s.name, category: s.category, serviceType: s.serviceType, quantity: s.quantity || 1, price: Number(s.price) || 0 })),
+    totalAmount: Number(totalAmount) || 0,
+    discountPrice: Number(discountPrice) || 0,
+    notes: notes || "",
+  };
+  enq.status = "admin_approved";
+  enq.timeline.push({ action: "admin_approved", meta: { totalAmount: enq.quote.totalAmount, discountPrice: enq.quote.discountPrice } });
+  await enq.save();
+  res.json({ enquiry: enq });
+}
+
+export async function adminFinalApprove(req, res) {
+  const { id } = req.params;
+  const enq = await CustomEnquiry.findById(id);
+  if (!enq) return res.status(404).json({ error: "Not found" });
+  // Convert to a normal booking with quoted items
+  const items = (enq.quote?.items || enq.items || []);
+  const total = (enq.quote?.totalAmount ?? items.reduce((s, it) => s + (Number(it.price) * (it.quantity || 1)), 0));
+  const b = await Booking.create({
+    customerId: enq.userId,
+    customerName: enq.name || "",
+    services: items.map(it => ({ name: it.name, price: it.price, duration: "", category: it.category, serviceType: it.serviceType })),
+    totalAmount: total,
+    prepaidAmount: 0,
+    balanceAmount: total,
+    address: { houseNo: enq.address?.houseNo || "", area: enq.address?.area || "", landmark: enq.address?.landmark || "" },
+    slot: { date: enq.scheduledAt?.date || new Date().toISOString().slice(0, 10), time: enq.scheduledAt?.timeSlot || "10:00" },
+    bookingType: "customized",
+    status: "final_approved",
+  });
+  enq.status = "final_approved";
+  enq.timeline.push({ action: "final_approved", meta: { bookingId: b._id.toString() } });
+  await enq.save();
+  res.json({ enquiry: enq, booking: b });
 }

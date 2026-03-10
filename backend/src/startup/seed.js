@@ -250,6 +250,55 @@ export async function seedDemoDataIfNeeded() {
   } catch (e) {
     console.log("Demo vendor seeding failed", e?.message || e);
   }
+
+  // Seed two nearby users and two nearby providers (within ~5km) for nearest-provider tests
+  try {
+    const UserModel = (await import("../models/User.js")).default;
+    const ProvModel = (await import("../models/ProviderAccount.js")).default;
+    // Coordinates near Connaught Place, New Delhi
+    const baseLat = 28.6315, baseLng = 77.2167;
+    const users = [
+      { phone: "9000000001", name: "Test User A", addresses: [{ houseNo: "A-101", area: "Connaught Place", landmark: "Block A", type: "home", lat: baseLat, lng: baseLng, city: "Delhi" }] },
+      { phone: "9000000002", name: "Test User B", addresses: [{ houseNo: "B-202", area: "Barakhamba", landmark: "Metro", type: "home", lat: baseLat + 0.02, lng: baseLng + 0.02, city: "Delhi" }] },
+    ];
+    for (const u of users) {
+      const exists = await UserModel.findOne({ phone: u.phone });
+      if (!exists) {
+        await UserModel.create({ phone: u.phone, name: u.name, isVerified: true, addresses: u.addresses });
+        console.log("Seeded test user", u.phone);
+      }
+    }
+    const providers = [
+      { phone: "9000001001", name: "Nearby Pro 1", approvalStatus: "approved", registrationComplete: true, isOnline: true, currentLocation: { lat: baseLat + 0.01, lng: baseLng + 0.01 }, documents: { specializations: ["hair", "skin"] } },
+      { phone: "9000001002", name: "Nearby Pro 2", approvalStatus: "approved", registrationComplete: true, isOnline: true, currentLocation: { lat: baseLat - 0.01, lng: baseLng - 0.01 }, documents: { specializations: ["makeup", "skin"] } },
+    ];
+    for (const p of providers) {
+      const exists = await ProvModel.findOne({ phone: p.phone });
+      if (!exists) {
+        await ProvModel.create(p);
+        console.log("Seeded nearby provider", p.phone);
+      }
+    }
+  } catch (e) {
+    console.log("Nearby seed failed", e?.message || e);
+  }
+
+  // Seed sample coupons if none exist
+  try {
+    const Coupon = (await import("../models/Coupon.js")).default;
+    const countCoupons = await Coupon.countDocuments();
+    if (countCoupons === 0) {
+      const docs = [
+        { code: "WELCOME50", discountType: "percentage", discountValue: 50, type: "PERCENT", value: 50, minOrder: 499, maxDiscount: 300, perUserLimit: 1, totalLimit: 1000, firstTimeOnly: true, isActive: true, category: "All" },
+        { code: "FLAT100", discountType: "flat", discountValue: 100, type: "FIXED", value: 100, minOrder: 499, maxDiscount: 100, perUserLimit: 2, totalLimit: 1000, isActive: true, category: "All" },
+        { code: "GLOW10", discountType: "percentage", discountValue: 10, type: "PERCENT", value: 10, minOrder: 799, maxDiscount: 200, perUserLimit: 3, totalLimit: 500, isActive: true, category: "Skin Care" },
+      ];
+      await Coupon.insertMany(docs);
+      console.log("Seeded sample coupons");
+    }
+  } catch (e) {
+    console.log("Coupon seed failed", e?.message || e);
+  }
 }
 
 export async function ensureCategoriesAndServices() {

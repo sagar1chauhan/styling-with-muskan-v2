@@ -38,23 +38,39 @@ export const ProviderBookingProvider = ({ children }) => {
     const cancelledBookings = myBookings.filter(b => ["cancelled", "rejected"].includes(b.status));
 
     const acceptBooking = useCallback(async (id) => {
-        const { booking } = await api.provider.updateBookingStatus(id, "accepted");
-        setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+        try {
+            const { booking } = await api.provider.updateBookingStatus(id, "accepted");
+            setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+        } catch (e) {
+            alert(e?.message || "Failed to accept");
+        }
     }, []);
 
     const rejectBooking = useCallback(async (id) => {
-        const { booking } = await api.provider.updateBookingStatus(id, "rejected");
-        setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+        try {
+            const { booking } = await api.provider.updateBookingStatus(id, "rejected");
+            setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+        } catch (e) {
+            alert(e?.message || "Failed to reject");
+        }
     }, []);
 
     const updateBookingStatus = useCallback(async (id, status) => {
-        const { booking } = await api.provider.updateBookingStatus(id, status);
-        setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+        try {
+            const { booking } = await api.provider.updateBookingStatus(id, status);
+            setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+        } catch (e) {
+            alert(e?.message || "Failed to update");
+        }
     }, []);
 
     const cancelBooking = useCallback(async (id) => {
-        const { booking } = await api.provider.updateBookingStatus(id, "cancelled");
-        setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+        try {
+            const { booking } = await api.provider.updateBookingStatus(id, "cancelled");
+            setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+        } catch (e) {
+            alert(e?.message || "Failed to cancel");
+        }
     }, []);
 
     const verifyOTP = useCallback(async (id, enteredOtp) => {
@@ -63,29 +79,15 @@ export const ProviderBookingProvider = ({ children }) => {
         return true;
     }, []);
 
-    const addBeforeImages = useCallback((id, images) => {
-        setBookings(prev => prev.map(b =>
-            b.id === id ? { ...b, beforeImages: [...(b.beforeImages || []), ...images] } : b
-        ));
+    const uploadImages = useCallback(async (id, type, files) => {
+        const { booking } = await api.provider.uploadBookingImages(id, type, files);
+        setBookings(prev => prev.map(b => (b._id === booking._id ? booking : b)));
     }, []);
 
-    const addAfterImages = useCallback((id, images) => {
-        setBookings(prev => prev.map(b =>
-            b.id === id ? { ...b, afterImages: [...(b.afterImages || []), ...images] } : b
-        ));
-    }, []);
-
-    const addProductImages = useCallback((id, images) => {
-        setBookings(prev => prev.map(b =>
-            b.id === id ? { ...b, productImages: [...(b.productImages || []), ...images] } : b
-        ));
-    }, []);
-
-    const addProviderImages = useCallback((id, images) => {
-        setBookings(prev => prev.map(b =>
-            b.id === id ? { ...b, providerImages: [...(b.providerImages || []), ...images] } : b
-        ));
-    }, []);
+    const addBeforeImages = useCallback((id, files) => uploadImages(id, "before-images", files), [uploadImages]);
+    const addAfterImages = useCallback((id, files) => uploadImages(id, "after-images", files), [uploadImages]);
+    const addProductImages = useCallback((id, files) => uploadImages(id, "product-images", files), [uploadImages]);
+    const addProviderImages = useCallback((id, files) => uploadImages(id, "provider-images", files), [uploadImages]);
 
     return (
         <ProviderBookingContext.Provider value={{

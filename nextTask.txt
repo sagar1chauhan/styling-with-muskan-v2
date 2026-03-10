@@ -1,0 +1,32 @@
+Next Recommendations
+====================
+
+1) Admin Custom Enquiries – Full UI
+- Add itemized quote builder (services, qty, per‑item price) instead of just totals.
+- Show timeline and team assignment controls before final approve.
+- Wire notifications to users/vendors when quote/final approval happens.
+
+2) Coupons
+- Add edit/update coupon in Admin UI.
+- Add coupon validation at bookings.quote for perUserLimit/totalLimit and expiryDate.
+- Track coupon usage per user and decrement limits on verify/payment confirmation.
+
+3) Payments
+- Add a UI for partial vs full payment selection on PaymentPage.
+- Add payment logs in backend with webhook fallback to reconcile.
+
+4) Providers
+- Add periodic location updates and distance recalculation during travelling.
+- Build a small map preview component (lazy‑loaded) on user track/ETA card.
+
+5) Observability
+- Add basic server logs and a /healthz check already exists; integrate a dashboard for ops.
+
+6) Security
+- Add admin password rotation and stronger role policy enforcement tests.
+
+7) Performance
+- Split vendor/admin bundles via dynamic import to shrink initial JS.
+
+8) Tests
+- Add API tests for new custom enquiry endpoints and coupon constraints.

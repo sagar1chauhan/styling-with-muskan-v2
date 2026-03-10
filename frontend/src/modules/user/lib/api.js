@@ -191,9 +191,81 @@ export const api = {
     list: (page = 1, limit = 20) => request(`/bookings?page=${page}&limit=${limit}`),
     quote: (payload) => request("/bookings/quote", { method: "POST", body: payload }),
     create: (payload) => request("/bookings", { method: "POST", body: payload }),
+    custom: {
+      create: (payload) => request("/bookings/custom-enquiry", { method: "POST", body: payload }),
+      list: () => request("/bookings/custom-enquiry"),
+      userAccept: (id) => request(`/bookings/custom-enquiry/${id}/user-accept`, { method: "PATCH" }),
+    },
   },
   payments: {
     createOrder: (payload) => request("/payments/razorpay/order", { method: "POST", body: payload }),
     verify: (payload) => request("/payments/razorpay/verify", { method: "POST", body: payload }),
   },
+  admin: {
+    login: (email, password) => request("/admin/login", { method: "POST", body: { email, password } }),
+    logout: () => request("/admin/logout", { method: "POST" }),
+    vendors: () => request("/admin/vendors"),
+    updateVendorStatus: (id, status) => request(`/admin/vendors/${id}/status`, { method: "PATCH", body: { status } }),
+    providers: () => request("/admin/providers"),
+    updateProviderStatus: (id, status) => request(`/admin/providers/${id}/status`, { method: "PATCH", body: { status } }),
+    bookings: () => request("/admin/bookings"),
+    assignBooking: (id, providerId) => request(`/admin/bookings/${id}/assign`, { method: "PATCH", body: { providerId } }),
+    coupons: () => request("/admin/coupons"),
+    addCoupon: (payload) => request("/admin/coupons", { method: "POST", body: payload }),
+    deleteCoupon: (id) => request(`/admin/coupons/${id}`, { method: "DELETE" }),
+    addBanner: (payload) => request("/admin/banners", { method: "POST", body: payload }),
+    deleteBanner: (id, gender) => request(`/admin/banners/${id}/${gender}`, { method: "DELETE" }),
+    getReferral: () => request("/admin/referral"),
+    updateReferral: (payload) => request("/admin/referral", { method: "PUT", body: payload }),
+    getCommission: () => request("/admin/commission"),
+    updateCommission: (payload) => request("/admin/commission", { method: "PUT", body: payload }),
+    sos: () => request("/admin/sos"),
+    resolveSos: (id) => request(`/admin/sos/${id}/resolve`, { method: "PATCH" }),
+    leaves: () => request("/admin/leaves"),
+    approveLeave: (id) => request(`/admin/leaves/${id}/approve`, { method: "PATCH" }),
+    rejectLeave: (id) => request(`/admin/leaves/${id}/reject`, { method: "PATCH" }),
+    // Content CRUD (Admin)
+    getParents: () => request("/admin/parents"),
+    addParent: (body) => request("/admin/parents", { method: "POST", body }),
+    updateParent: (id, body) => request(`/admin/parents/${id}`, { method: "PUT", body }),
+    deleteParent: (id) => request(`/admin/parents/${id}`, { method: "DELETE" }),
+    getCategories: (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      return request(`/admin/categories${query ? `?${query}` : ""}`);
+    },
+    addCategory: (body) => request("/admin/categories", { method: "POST", body }),
+    updateCategory: (id, body) => request(`/admin/categories/${id}`, { method: "PUT", body }),
+    deleteCategory: (id) => request(`/admin/categories/${id}`, { method: "DELETE" }),
+    getServices: (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      return request(`/admin/services${query ? `?${query}` : ""}`);
+    },
+    addService: (body) => request("/admin/services", { method: "POST", body }),
+    updateService: (id, body) => request(`/admin/services/${id}`, { method: "PUT", body }),
+    deleteService: (id) => request(`/admin/services/${id}`, { method: "DELETE" }),
+    // Custom enquiries (admin)
+    customEnquiries: () => request("/admin/custom-enquiries"),
+    customEnquiryPriceQuote: (id, body) => request(`/admin/custom-enquiries/${id}/price-quote`, { method: "PATCH", body }),
+    customEnquiryFinalApprove: (id) => request(`/admin/custom-enquiries/${id}/final-approve`, { method: "PATCH" }),
+  },
+};
+
+// Provider booking images upload
+api.provider.uploadBookingImages = async (bookingId, type, files) => {
+  const token = getToken();
+  const form = new FormData();
+  for (const f of files) form.append("images", f);
+  const res = await fetch(`${API_BASE_URL}/provider/bookings/${bookingId}/${type}`, {
+    method: "POST",
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    credentials: "include",
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data?.error || "Request failed";
+    if (res.status === 401) setToken("");
+    throw new Error(err);
+  }
+  return data;
 };

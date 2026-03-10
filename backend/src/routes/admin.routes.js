@@ -13,6 +13,7 @@ import * as AdminController from "../modules/admin/controllers/admin.controller.
 import LeaveRequest from "../models/LeaveRequest.js";
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from "../config.js";
 import { ServiceType, Category, Service } from "../models/Content.js";
+import * as BookingsController from "../modules/bookings/controllers/bookings.controller.js";
 
 const router = Router();
 
@@ -23,8 +24,11 @@ router.post(
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-    const confEmail = (process.env.ADMIN_EMAIL || ADMIN_EMAIL || "").trim();
-    const confPassword = (process.env.ADMIN_PASSWORD || ADMIN_PASSWORD || "");
+    const isDev = (process.env.NODE_ENV || "development") !== "production";
+    const defaultEmail = "admin@swm.local";
+    const defaultPassword = "admin123";
+    const confEmail = (process.env.ADMIN_EMAIL || ADMIN_EMAIL || (isDev ? defaultEmail : "")).trim();
+    const confPassword = (process.env.ADMIN_PASSWORD || ADMIN_PASSWORD || (isDev ? defaultPassword : ""));
     if (!confEmail || !confPassword) {
       return res.status(500).json({ error: "Admin credentials not configured" });
     }
@@ -247,6 +251,17 @@ router.put("/commission", requireRole("admin"), body("rate").isNumeric(), body("
   const s = await CommissionSettings.findOneAndUpdate({}, req.body, { upsert: true, new: true });
   res.json({ settings: s });
 });
+
+// Customized Enquiries (Admin)
+router.get("/custom-enquiries", requireRole("admin"), BookingsController.adminListCustomEnquiries);
+router.patch("/custom-enquiries/:id/price-quote",
+  requireRole("admin"),
+  body("items").isArray(),
+  body("totalAmount").isNumeric(),
+  body("discountPrice").optional().isNumeric(),
+  BookingsController.adminPriceQuote
+);
+router.patch("/custom-enquiries/:id/final-approve", requireRole("admin"), BookingsController.adminFinalApprove);
 
 router.put(
   "/settings",

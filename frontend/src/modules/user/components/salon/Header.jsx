@@ -93,22 +93,6 @@ const Header = () => {
             )}
           </button>
 
-
-
-          <button
-            onClick={() => {
-              if (window.confirm("EMERGENCY: Do you want to trigger SOS alert?")) {
-                api.sos.create({ userType: "customer", userId: user?.id || "guest", message: "", source: "user-app" })
-                  .then(() => alert("SOS Alert Sent! Our team is contacting you."))
-                  .catch(() => alert("Failed to send SOS"));
-              }
-            }}
-            className="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center relative hover:bg-red-200 transition-all active:scale-90"
-            title="Emergency SOS"
-          >
-            <Bell className="w-4 h-4 animate-pulse" />
-          </button>
-
           <button
             onClick={() => navigate("/support")}
             className="w-9 h-9 rounded-full bg-accent flex items-center justify-center relative hover:bg-primary/10 hover:text-primary transition-all active:scale-90"

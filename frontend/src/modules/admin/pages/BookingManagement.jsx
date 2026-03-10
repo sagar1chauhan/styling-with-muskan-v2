@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/modules/user/components/ui/tabs";
 import { useAdminAuth } from "@/modules/admin/contexts/AdminAuthContext";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
+import { Navigate } from "react-router-dom";
 
 const statusColors = {
     incoming: "bg-blue-500/15 text-blue-600", pending: "bg-amber-500/15 text-amber-600", "Pending": "bg-amber-500/15 text-amber-600",
@@ -31,7 +32,7 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } 
 const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
 
 export default function BookingManagement() {
-    const { getAllBookings, getAllServiceProviders, assignSPToBooking, assignTeamToBooking } = useAdminAuth();
+    const { isLoggedIn, getAllBookings, getAllServiceProviders, assignSPToBooking, assignTeamToBooking } = useAdminAuth();
     const { officeSettings, setOfficeSettings, providers: moduleProviders } = useUserModuleData();
     const [bookings, setBookings] = useState([]);
     const [providers, setProviders] = useState([]);
@@ -48,7 +49,18 @@ export default function BookingManagement() {
     // Admin team review modal for final approval (Step 6)
     const [adminTeamReviewModal, setAdminTeamReviewModal] = useState(null);
 
+    useEffect(() => {
+        if (!isLoggedIn) return;
+        load();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isLoggedIn]);
+
+    if (!isLoggedIn) {
+        return <Navigate to="/admin/login" replace />;
+    }
+
     const load = async () => {
+        if (!isLoggedIn) return;
         try {
             const bks = await getAllBookings();
             setBookings(Array.isArray(bks) ? bks : []);
@@ -60,99 +72,89 @@ export default function BookingManagement() {
             setBookings([]);
             setProviders(moduleProviders || []);
         }
-        const load = () => {
-            setBookings(getAllBookings());
-            const spFromDb = getAllServiceProviders().filter(sp => sp.approvalStatus === "approved");
-            // Combine module providers with SP database providers, avoid duplicates
-            const dbIds = new Set(spFromDb.map(sp => sp.id || sp.phone));
-            const extraProviders = (moduleProviders || []).filter(p => !dbIds.has(p.id || p.phone));
-            setProviders([...spFromDb, ...extraProviders]);
-        };
-        useEffect(() => { load(); }, []);
+    };
 
-        const filtered = bookings.filter(b => {
-            const ms = b.customerName?.toLowerCase().includes(search.toLowerCase()) || b.id?.includes(search) || b.serviceType?.toLowerCase().includes(search.toLowerCase());
-            const status = (b.status || "").toLowerCase();
+    const filtered = bookings.filter(b => {
+        const ms = b.customerName?.toLowerCase().includes(search.toLowerCase()) || b.id?.includes(search) || b.serviceType?.toLowerCase().includes(search.toLowerCase());
+        const status = (b.status || "").toLowerCase();
 
-            let tabMatch = true;
-            if (tab === "active") tabMatch = ["accepted", "travelling", "arrived", "in_progress"].includes(status);
-            else if (tab === "pending") tabMatch = ["incoming", "pending", "unassigned", "vendor_assigned", "admin_approved", "user_accepted", "team_assigned", "final_approved"].includes(status);
-            else if (tab === "completed") tabMatch = status === "completed";
-            else if (tab === "missed") tabMatch = ["cancelled", "missed", "rejected"].includes(status);
+        let tabMatch = true;
+        if (tab === "active") tabMatch = ["accepted", "travelling", "arrived", "in_progress"].includes(status);
+        else if (tab === "pending") tabMatch = ["incoming", "pending", "unassigned", "vendor_assigned", "admin_approved", "user_accepted", "team_assigned", "final_approved"].includes(status);
+        else if (tab === "completed") tabMatch = status === "completed";
+        else if (tab === "missed") tabMatch = ["cancelled", "missed", "rejected"].includes(status);
 
-            let typeMatch = true;
-            if (typeFilter !== "all") {
-                const bType = (b.bookingType || "instant").toLowerCase();
-                typeMatch = bType.includes(typeFilter.toLowerCase());
-            }
+        let typeMatch = true;
+        if (typeFilter !== "all") {
+            const bType = (b.bookingType || "instant").toLowerCase();
+            typeMatch = bType.includes(typeFilter.toLowerCase());
+        }
 
-            return ms && tabMatch && typeMatch;
-        });
+        return ms && tabMatch && typeMatch;
+    });
 
-        const handleAssign = () => {
-            if (assignModal && selectedSP) {
-                assignSPToBooking(assignModal.id, selectedSP);
-                load();
-                setAssignModal(null);
-                setSelectedSP("");
-            }
-        };
-
-        // Step 3: Admin reviews/modifies price & discount, then approves → status becomes admin_approved
-        const handleAdminPriceApprove = () => {
-            if (!adminReviewModal) return;
-
-            const payload = {
-                maintainerProvider: "",
-                teamMembers: [],
-                price: parseFloat(reviewData.price),
-                discountPrice: parseFloat(reviewData.discountPrice) || 0,
-                status: "admin_approved"
-            };
-
-            assignTeamToBooking(adminReviewModal.id, payload);
+    const handleAssign = () => {
+        if (assignModal && selectedSP) {
+            assignSPToBooking(assignModal.id, selectedSP);
             load();
-            setAdminReviewModal(null);
+            setAssignModal(null);
+            setSelectedSP("");
+        }
+    };
+
+    const handleAdminPriceApprove = () => {
+        if (!adminReviewModal) return;
+
+        const payload = {
+            maintainerProvider: "",
+            teamMembers: [],
+            price: parseFloat(reviewData.price),
+            discountPrice: parseFloat(reviewData.discountPrice) || 0,
+            status: "admin_approved"
         };
 
-        // Step 6: Admin reviews team assignment and gives final approval
-        const handleAdminFinalApprove = () => {
-            if (!adminTeamReviewModal) return;
+        assignTeamToBooking(adminReviewModal.id, payload);
+        load();
+        setAdminReviewModal(null);
+    };
 
-            const payload = {
-                maintainerProvider: adminTeamReviewModal.maintainProvider,
-                teamMembers: adminTeamReviewModal.teamMembers || [],
-                price: adminTeamReviewModal.totalAmount,
-                discountPrice: adminTeamReviewModal.discountPrice || 0,
-                status: "final_approved"
-            };
+    const handleAdminFinalApprove = () => {
+        if (!adminTeamReviewModal) return;
 
-            assignTeamToBooking(adminTeamReviewModal.id, payload);
-            load();
-            setAdminTeamReviewModal(null);
+        const payload = {
+            maintainerProvider: adminTeamReviewModal.maintainProvider,
+            teamMembers: adminTeamReviewModal.teamMembers || [],
+            price: adminTeamReviewModal.totalAmount,
+            discountPrice: adminTeamReviewModal.discountPrice || 0,
+            status: "final_approved"
         };
 
-        const handleSaveSettings = () => {
-            setOfficeSettings(tempSettings);
-            setShowSettings(false);
+        assignTeamToBooking(adminTeamReviewModal.id, payload);
+        load();
+        setAdminTeamReviewModal(null);
+    };
+
+    const handleSaveSettings = () => {
+        setOfficeSettings(tempSettings);
+        setShowSettings(false);
+    };
+
+    const unassignedCount = bookings.filter(b => (b.status || "").toLowerCase() === "unassigned").length;
+    const queuedCount = bookings.filter(b => b.notificationStatus === "queued").length;
+
+    const getStatusLabel = (status) => {
+        const labels = {
+            vendor_assigned: "Price Set by Vendor",
+            admin_approved: "Price Approved",
+            user_accepted: "User Accepted",
+            team_assigned: "Team Assigned",
+            final_approved: "Ready for Service"
         };
+        return labels[status] || (status || "").replace(/_/g, " ");
+    };
 
-        const unassignedCount = bookings.filter(b => (b.status || "").toLowerCase() === "unassigned").length;
-        const queuedCount = bookings.filter(b => b.notificationStatus === "queued").length;
-
-        const getStatusLabel = (status) => {
-            const labels = {
-                vendor_assigned: "Price Set by Vendor",
-                admin_approved: "Price Approved",
-                user_accepted: "User Accepted",
-                team_assigned: "Team Assigned",
-                final_approved: "Ready for Service"
-            };
-            return labels[status] || (status || "").replace(/_/g, " ");
-        };
-
-        return (
-            <div className="space-y-6">
+    return (
+        <div className="space-y-6">
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
                         <h1 className="text-2xl md:text-3xl font-black tracking-tight flex items-center gap-2">
@@ -232,8 +234,8 @@ export default function BookingManagement() {
                             </CardContent></Card>
                         ) : (
                             <motion.div variants={container} initial="hidden" animate="show" className="space-y-2">
-                                {filtered.map(b => (
-                                    <motion.div key={b.id} variants={item}>
+                                {filtered.map((b, idx) => (
+                                    <motion.div key={b._id || b.id || `${b.customerName || "booking"}-${idx}`} variants={item}>
                                         <Card className="border-border/50 shadow-none hover:border-primary/30 transition-all">
                                             <CardContent className="p-4 flex flex-col md:flex-row md:items-center gap-3">
                                                 <div className="flex-1 min-w-0">
@@ -309,7 +311,7 @@ export default function BookingManagement() {
                                                             </p>
                                                             <div className="flex flex-wrap gap-1">
                                                                 {b.teamMembers.map((m, i) => (
-                                                                    <span key={i} className="text-[8px] font-bold px-1.5 py-0.5 bg-muted rounded border border-border">
+                                                                    <span key={`${m.id || m.name || "member"}-${i}`} className="text-[8px] font-bold px-1.5 py-0.5 bg-muted rounded border border-border">
                                                                         {m.name} ({m.serviceType})
                                                                     </span>
                                                                 ))}
@@ -689,4 +691,3 @@ export default function BookingManagement() {
             </div>
         );
     }
-}

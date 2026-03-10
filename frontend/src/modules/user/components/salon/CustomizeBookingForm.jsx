@@ -106,21 +106,29 @@ const CustomizeBookingForm = ({ isOpen, onClose }) => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!validate()) {
             setView("form");
             return;
         }
-
-        const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
-        enquiries.push({
-            ...formData,
-            id: `ENQ${Date.now()}`,
-            status: "pending",
-            createdAt: new Date().toISOString()
-        });
-        localStorage.setItem("muskan-enquiries", JSON.stringify(enquiries));
-        setSubmitted(true);
+        try {
+            const payload = {
+                name: formData.name,
+                phone: formData.phone,
+                eventType: formData.eventType,
+                noOfPeople: formData.noOfPeople,
+                date: formData.date,
+                timeSlot: formData.timeSlot,
+                selectedServices: formData.selectedServices,
+                notes: formData.notes,
+                address: undefined
+            };
+            const { enquiry } = await (await import("@/modules/user/lib/api")).api.bookings.custom.create(payload);
+            setLastEnquiry(enquiry);
+            setSubmitted(true);
+        } catch (e) {
+            alert(e?.message || "Failed to submit enquiry");
+        }
     };
 
     const handleClose = () => {

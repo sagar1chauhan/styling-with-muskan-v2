@@ -19,12 +19,12 @@ export default function CustomerOversight() {
 
     const [feedback, setFeedback] = useState([]);
     // Mocking customer data based on bookings since we don't have a dedicated getCustomers API
-    const load = () => {
-        const bookings = getUserBookings() || [];
+    const load = async () => {
+        const bookings = await getUserBookings()?.catch(() => []) || [];
         setFeedback(JSON.parse(localStorage.getItem('muskan-feedback') || '[]'));
         // Extract unique customers from bookings
         const customerMap = new Map();
-        bookings.forEach(b => {
+        (Array.isArray(bookings) ? bookings : []).forEach(b => {
             const phone = b.customerPhone || b.id; // Usually we'd have a customerId/phone
             if (!customerMap.has(phone)) {
                 customerMap.set(phone, {

@@ -62,6 +62,18 @@ const ProviderDashboard = () => {
     const activeJobsCount = activeBookings.length;
     const providerGrade = realRating >= 4.5 ? "Elite Pro" : (realRating >= 4.0 ? "Pro" : "New");
 
+    const nextDates = React.useMemo(() => {
+        const fmt = (date) =>
+            date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        const d1 = new Date();
+        d1.setDate(d1.getDate() + 1);
+        const d2 = new Date();
+        d2.setDate(d2.getDate() + 2);
+        return [fmt(d1), fmt(d2)];
+    }, []);
+
+    const availableHours = summary?.calendar?.availableHoursToday ?? null;
+
     return (
         <div className="flex flex-1 w-full flex-col gap-4 md:gap-8 pt-4 md:pt-0">
             {/* Calendar Bar */}

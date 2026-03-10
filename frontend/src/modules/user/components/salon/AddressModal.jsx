@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, MapPin, Navigation, Home, Briefcase, Plus } from "lucide-react";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
@@ -6,6 +6,7 @@ import { Button } from "@/modules/user/components/ui/button";
 
 const AddressModal = ({ isOpen, onClose, onSave, initialAddress }) => {
     const { updateAddress, updateExistingAddress } = useAuth();
+    const areaInputRef = useRef(null);
     const [address, setAddress] = useState({
         houseNo: "",
         landmark: "",
@@ -14,6 +15,8 @@ const AddressModal = ({ isOpen, onClose, onSave, initialAddress }) => {
         _id: undefined
     });
     const [isLocating, setIsLocating] = useState(false);
+    const [mapsReady, setMapsReady] = useState(false);
+    const googleKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
     React.useEffect(() => {
         if (initialAddress) {
@@ -29,6 +32,50 @@ const AddressModal = ({ isOpen, onClose, onSave, initialAddress }) => {
         }
     }, [initialAddress, isOpen]);
 
+    useEffect(() => {
+        if (!isOpen) return;
+        if (!googleKey) return;
+        if (window.google?.maps?.places) {
+            setMapsReady(true);
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${googleKey}&libraries=places`;
+        script.async = true;
+        script.onload = () => setMapsReady(true);
+        script.onerror = () => setMapsReady(false);
+        document.body.appendChild(script);
+        // no cleanup to keep one-time load
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, googleKey]);
+
+    useEffect(() => {
+        if (!isOpen || !mapsReady || !areaInputRef.current || !window.google?.maps?.places) return;
+        try {
+            const autocomplete = new window.google.maps.places.Autocomplete(areaInputRef.current, {
+                types: ["geocode"],
+                componentRestrictions: {}
+            });
+            autocomplete.addListener("place_changed", () => {
+                const place = autocomplete.getPlace();
+                if (!place || !place.geometry) return;
+                const lat = place.geometry.location.lat();
+                const lng = place.geometry.location.lng();
+                const formatted = place.formatted_address || place.name || address.area;
+                let city = address.city || "";
+                if (Array.isArray(place.address_components)) {
+                    const cityComp = place.address_components.find(c => c.types.includes("locality")) ||
+                        place.address_components.find(c => c.types.includes("administrative_area_level_2"));
+                    if (cityComp) city = cityComp.long_name;
+                }
+                setAddress(prev => ({ ...prev, area: formatted, city, lat, lng }));
+            });
+        } catch {
+            // silent fallback
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, mapsReady]);
+
     const handleGetCurrentLocation = () => {
         if (!navigator.geolocation) {
             alert("Geolocation is not supported by your browser");
@@ -39,11 +86,32 @@ const AddressModal = ({ isOpen, onClose, onSave, initialAddress }) => {
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { latitude, longitude } = position.coords;
-                // Mocking reverse geocoding with a random valid-looking area
-                setTimeout(() => {
-                    setAddress(prev => ({ ...prev, area: "Sector 15, Noida", lat: latitude, lng: longitude }));
+                const apply = (areaStr, cityStr) => {
+                    setAddress(prev => ({ ...prev, area: areaStr, city: cityStr || prev.city, lat: latitude, lng: longitude }));
                     setIsLocating(false);
-                }, 1500);
+                };
+                if (window.google?.maps && googleKey) {
+                    try {
+                        const geocoder = new window.google.maps.Geocoder();
+                        geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+                            if (status === "OK" && results && results[0]) {
+                                const formatted = results[0].formatted_address;
+                                let city = "";
+                                const comp = results[0].address_components || [];
+                                const cityComp = comp.find(c => c.types.includes("locality")) ||
+                                    comp.find(c => c.types.includes("administrative_area_level_2"));
+                                if (cityComp) city = cityComp.long_name;
+                                apply(formatted, city);
+                            } else {
+                                apply("Current Location", "");
+                            }
+                        });
+                    } catch {
+                        apply("Current Location", "");
+                    }
+                } else {
+                    apply("Current Location", "");
+                }
             },
             (error) => {
                 setIsLocating(false);
@@ -140,7 +208,8 @@ const AddressModal = ({ isOpen, onClose, onSave, initialAddress }) => {
                                     <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Area / Locality*</label>
                                     <div className="relative group">
                                         <Navigation className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${isLocating ? 'text-primary animate-pulse' : 'text-primary'}`} />
-                                        <input
+                                    <input
+                                        ref={areaInputRef}
                                             type="text"
                                             required
                                             value={address.area}

@@ -12,6 +12,7 @@ import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
 import { Button } from "@/modules/user/components/ui/button";
+import { api } from "@/modules/user/lib/api";
 
 const PaymentPage = () => {
     const navigate = useNavigate();
@@ -26,6 +27,7 @@ const PaymentPage = () => {
     const [selectedMethod, setSelectedMethod] = useState("upi");
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [error, setError] = useState("");
 
     // Calculate final total (including state from summary)
     const finalTotal = passedState?.finalTotal || totalPrice;
@@ -43,29 +45,112 @@ const PaymentPage = () => {
     ];
 
 
-    const handlePayment = () => {
+    const loadRazorpay = () =>
+        new Promise((resolve, reject) => {
+            if (window.Razorpay) return resolve(true);
+            const script = document.createElement("script");
+            script.src = "https://checkout.razorpay.com/v1/checkout.js";
+            script.onload = () => resolve(true);
+            script.onerror = () => reject(new Error("Razorpay SDK failed to load"));
+            document.body.appendChild(script);
+        });
+
+    const handlePayment = async () => {
+        setError("");
         setIsProcessing(true);
+        try {
+            const key = import.meta.env.VITE_RAZORPAY_KEY_ID || "";
+            const amountPaise = Math.round(
+                (passedState?.advanceAmount && selectedMethod !== "cod" ? passedState.advanceAmount : finalTotal) * 100
+            );
 
-        const advanceAmount = passedState?.advanceAmount || 0;
-        const remainingAmount = passedState?.remainingAmount || finalTotal;
-        const isPartiallyPaid = passedState?.isPartiallyPaid || false;
-
-        // Simulate payment process
-        setTimeout(() => {
-            loadBookings();
-            setIsProcessing(false);
-            setIsSuccess(true);
-
-            // Navigate to bookings after success animation
-            setTimeout(() => {
-                if (checkoutType) {
-                    clearGroup(checkoutType);
-                } else {
-                    clearCart();
+            if (!key) {
+                const res = await api.payments.createOrder({ amount: amountPaise, currency: "INR" });
+                if (!res?.order) {
+                    await new Promise(r => setTimeout(r, 1200));
+                    loadBookings();
+                    setIsProcessing(false);
+                    setIsSuccess(true);
+                    setTimeout(() => {
+                        if (checkoutType) clearGroup(checkoutType);
+                        else clearCart();
+                        navigate("/bookings");
+                    }, 1500);
+                    return;
                 }
-                navigate("/bookings");
-            }, 3000);
-        }, 2000);
+            }
+
+            await loadRazorpay();
+            const { order, warning } = await api.payments.createOrder({
+                amount: amountPaise,
+                currency: "INR",
+                notes: { purpose: "booking" }
+            });
+
+            if (!order || warning === "PAYMENT_DISABLED") {
+                await new Promise(r => setTimeout(r, 1200));
+                loadBookings();
+                setIsProcessing(false);
+                setIsSuccess(true);
+                setTimeout(() => {
+                    if (checkoutType) clearGroup(checkoutType);
+                    else clearCart();
+                    navigate("/bookings");
+                }, 1500);
+                return;
+            }
+
+            const rzp = new window.Razorpay({
+                key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+                amount: order.amount,
+                currency: order.currency,
+                name: "stylingwithmuskan",
+                description: "Booking Payment",
+                order_id: order.id,
+                prefill: {
+                    name: user?.name || "",
+                    email: user?.email || "test@example.com",
+                    contact: user?.phone || ""
+                },
+                theme: { color: "#7c3aed" },
+                handler: async (response) => {
+                    try {
+                        // Try to infer bookingId
+                        let bookingId = passedState?.order?.notes?.bookingId;
+                        if (!bookingId && passedState?.order?.receipt && passedState.order.receipt.startsWith("swm_")) {
+                            bookingId = passedState.order.receipt.slice(4);
+                        }
+                        await api.payments.verify({
+                            order_id: response.razorpay_order_id,
+                            payment_id: response.razorpay_payment_id,
+                            signature: response.razorpay_signature,
+                            amount: order.amount,
+                            ...(bookingId ? { bookingId } : {})
+                        });
+                        loadBookings();
+                        setIsProcessing(false);
+                        setIsSuccess(true);
+                        setTimeout(() => {
+                            if (checkoutType) clearGroup(checkoutType);
+                            else clearCart();
+                            navigate("/bookings");
+                        }, 1000);
+                    } catch (e) {
+                        setError(e?.message || "Payment verification failed");
+                        setIsProcessing(false);
+                    }
+                },
+                modal: {
+                    ondismiss: () => {
+                        setIsProcessing(false);
+                    }
+                }
+            });
+            rzp.open();
+        } catch (e) {
+            setError(e?.message || "Payment failed to initialize");
+            setIsProcessing(false);
+        }
     };
 
     if (isSuccess) {
@@ -144,6 +229,12 @@ const PaymentPage = () => {
                 <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-accent/30 py-2 rounded-xl">
                     <Lock className="w-3 h-3" /> SSL Secure & Encrypted Payment
                 </div>
+
+                {error && (
+                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 text-xs font-bold">
+                        {error}
+                    </div>
+                )}
 
                 {/* Methods List */}
                 <div className="space-y-3">

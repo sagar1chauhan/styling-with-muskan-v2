@@ -10,11 +10,19 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } 
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
 
 export default function SOSMonitor() {
-    const { getSOSAlerts, resolveSOSAlert } = useAdminAuth();
+    const { isLoggedIn, getSOSAlerts, resolveSOSAlert } = useAdminAuth();
     const [alerts, setAlerts] = useState([]);
 
-    const load = () => setAlerts(getSOSAlerts());
-    useEffect(() => { load(); }, []);
+    const load = async () => {
+        if (!isLoggedIn) return;
+        try {
+            const items = await getSOSAlerts();
+            setAlerts(Array.isArray(items) ? items : []);
+        } catch {
+            setAlerts([]);
+        }
+    };
+    useEffect(() => { load(); }, [isLoggedIn]);
 
     const active = alerts.filter(a => a.status !== "resolved");
     const resolved = alerts.filter(a => a.status === "resolved");

@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 if (!process.env.REDIS_URL) process.env.REDIS_URL = "memory";
+if (!process.env.MONGO_URI) process.env.MONGO_URI = "memory";
 // leave MONGO_URI as provided by .env; if set to 'memory', we degrade gracefully
 import { createServer } from "http";
 import app from "./app.js";

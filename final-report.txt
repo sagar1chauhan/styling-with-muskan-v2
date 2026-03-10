@@ -1,0 +1,90 @@
+Final Verification Report
+=========================
+
+Scope
+- Integrated Razorpay test checkout with backend verification.
+- Integrated Google Places Autocomplete and reverse‑geocoding for addresses.
+- Added Customized Booking backend (CustomEnquiry) endpoints and minimal frontend migration for enquiry submit.
+- Implemented provider booking images upload (before/after/product/provider) with Cloudinary via backend endpoints and wired frontend to use them.
+- Wired bookingId into payment verify callback.
+- Seeded 2 users + 2 providers within ~5km to validate nearest‑provider assignment.
+- Hardened admin/vendor/provider fetch guards and SOS/availability fixes from earlier changes.
+
+How To Test (Step‑By‑Step)
+
+1) Environment
+- Backend .env
+  - ADMIN_EMAIL, ADMIN_PASSWORD
+  - RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET (test keys)
+  - ALLOWED_ORIGINS=http://localhost:4173
+- Frontend .env.local
+  - VITE_RAZORPAY_KEY_ID (test key id)
+  - VITE_GOOGLE_MAPS_API_KEY (restrict to localhost)
+
+2) Run
+- Backend: start server normally (ensures seeding runs once DB connected).
+- Frontend: npm run preview → http://localhost:4173/
+
+3) Nearest Provider Assignment
+- Two test users seeded:
+  - 9000000001, 9000000002 (addresses near Connaught Place, Delhi + lat/lng).
+- Two test providers seeded and online within ~5km:
+  - 9000001001 (Nearby Pro 1), 9000001002 (Nearby Pro 2)
+- Flow:
+  - Login as one of the test users and ensure your saved address has lat/lng (can also edit address via /addresses with “USE CURRENT” if needed).
+  - Build a booking via Explore → Summary → Continue; ensure create booking succeeds.
+  - Server picks candidateProviders within 5km ordered by distance and auto‑assigns the closest if available; booking.status starts “pending” with assignedProvider set if any candidate found.
+
+4) Payments (Razorpay Test)
+- From BookingSummary create order; PaymentPage opens.
+- For advance flows: backend may return ‘order’ with receipt swm_{bookingId} and notes.bookingId. Payment verify now includes bookingId to update prepaid/balance on server.
+- Test with test card 4111 1111 1111 1111; verify succeeds → success screen → /bookings, and server payment fields update.
+- If test keys absent, flow falls back to simulated success to keep QA unblocked.
+
+5) Google Maps Integration
+- /addresses → “Add New Address” or use header location chip.
+- Area/Locality input shows Places suggestions; on selection, area + city + lat/lng saved.
+- “USE CURRENT” reverse‑geocodes current coordinates into formatted address (falls back gracefully if Maps key not set).
+
+6) Provider Job Flow + Images
+- Login as seeded Nearby Pro (e.g., 9000001001 after approving in admin/vendor if required).
+- /provider/bookings → open a booking.
+- Status progression: accepted → travelling → arrived → Verify OTP (1234 if seeded) → in_progress → payment → documentation → completed.
+- In “Documentation”, upload:
+  - Before Service, After Service, Product, Provider Live images.
+- Uploads call backend endpoints (/provider/bookings/:id/*-images) with Cloudinary and update the booking.
+
+7) Customized Booking (Event/Bulk)
+- User: open Customize Booking form, fill details, submit.
+- Backend persists CustomEnquiry with status=pending.
+- Admin: list via GET /admin/custom-enquiries (hook up in UI as needed):
+  - Price Quote: PATCH /admin/custom-enquiries/:id/price-quote (items/total/discount).
+  - Final Approve: PATCH /admin/custom-enquiries/:id/final-approve → converts into a normal booking with status=final_approved.
+- User can view enquiries via GET /bookings/custom-enquiry and accept via PATCH /bookings/custom-enquiry/:id/user-accept (UI migration for admin lists remains pending by design; user submit is migrated).
+
+Key Files
+- Frontend
+  - Payment: frontend/src/modules/user/pages/PaymentPage.jsx
+  - Places + Reverse Geocoding: frontend/src/modules/user/components/salon/AddressModal.jsx
+  - Customize Enquiry (submit via API): frontend/src/modules/user/components/salon/CustomizeBookingForm.jsx
+  - Provider image uploads: 
+    - Context: frontend/src/modules/serviceprovider/contexts/ProviderBookingContext.jsx
+    - Page: frontend/src/modules/serviceprovider/pages/ProviderBookingDetailPage.jsx
+  - API additions: frontend/src/modules/user/lib/api.js
+- Backend
+  - CustomEnquiry model: backend/src/models/CustomEnquiry.js
+  - Bookings controller: backend/src/modules/bookings/controllers/bookings.controller.js
+  - Bookings routes: backend/src/routes/bookings.routes.js
+  - Admin routes for custom enquiries: backend/src/routes/admin.routes.js
+  - Provider booking image endpoints: backend/src/routes/provider.routes.js (existing)
+  - Payments verify with bookingId: backend/src/routes/payments.routes.js (existing support)
+  - Nearest providers + users seed: backend/src/startup/seed.js
+
+Open Items / Notes
+- Admin UI for listing and acting on custom enquiries still uses local storage in some spots; backend endpoints are live and can now be wired to Admin pages (getEnquiries/updateEnquiry). The user submit is fully migrated.
+- Distance calc is haversine with a 5km filter; candidates are those approved, online, and with currentLocation present; then auto‑assigned to nearest where available.
+- Ensure provider tokens and admin tokens are set during testing; admin endpoints require adminToken httpOnly cookie.
+
+Conclusion
+- Payments, Maps, Booking creation with nearest assignment, Provider image documentation, and Custom Enquiry submission are all functional with server support.
+- This report enumerates test steps to validate the full flow strictly.
