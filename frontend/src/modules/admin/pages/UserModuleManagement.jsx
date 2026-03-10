@@ -468,21 +468,19 @@ const UserModuleManagement = () => {
             toast.error(e?.message || "Server action failed");
         } finally {
             setIsAddModalOpen(false);
-        if (!payload.id) {
-            payload.id = Date.now().toString();
-            if (activeTab === "parent_categories") addServiceType(payload);
-            else if (activeTab === "categories") addCategory(payload);
-            else if (activeTab === "services") addService(payload);
-            else if (activeTab === "spotlights") addSpotlight(payload);
-            else if (activeTab === "gallery") addGallery(payload);
-            else if (activeTab === "testimonials") addTestimonial(payload);
-        } else {
-            if (activeTab === "parent_categories") updateServiceType(payload.id, payload);
-            else if (activeTab === "categories") updateCategory(payload.id, payload);
-            else if (activeTab === "services") updateService(payload.id, payload);
-            else if (activeTab === "spotlights") updateSpotlight(payload.id, payload);
-            else if (activeTab === "gallery") updateGallery(payload.id, payload);
-            else if (activeTab === "testimonials") updateTestimonial(payload.id, payload);
+        }
+
+        // Handle local context updates for tabs that don't have API calls yet
+        if (["spotlights", "gallery", "testimonials"].includes(activeTab)) {
+            if (isCreate) {
+                if (activeTab === "spotlights") addSpotlight(payload);
+                else if (activeTab === "gallery") addGallery(payload);
+                else if (activeTab === "testimonials") addTestimonial(payload);
+            } else {
+                if (activeTab === "spotlights") updateSpotlight(payload.id, payload);
+                else if (activeTab === "gallery") updateGallery(payload.id, payload);
+                else if (activeTab === "testimonials") updateTestimonial(payload.id, payload);
+            }
         }
     };
 
@@ -964,6 +962,6 @@ const UserModuleManagement = () => {
             )}
         </div>
     );
-}
-}
+};
+
 export default UserModuleManagement;
