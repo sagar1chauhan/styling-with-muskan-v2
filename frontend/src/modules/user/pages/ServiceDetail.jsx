@@ -193,6 +193,16 @@ const ServiceDetail = () => {
 
           <p className="mt-4 text-sm text-muted-foreground leading-relaxed">{service.description}</p>
 
+          <div className="mt-4 flex justify-end">
+            <Button
+              onClick={handleBookingAction}
+              className="h-10 px-5 rounded-xl bg-primary text-primary-foreground font-bold"
+            >
+              <ShoppingCart className="w-4 h-4 mr-2" />
+              Add
+            </Button>
+          </div>
+
           {/* What's Included */}
           <div className="mt-5">
             <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
