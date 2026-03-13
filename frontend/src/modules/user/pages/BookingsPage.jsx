@@ -19,7 +19,7 @@ import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext
 const BookingsPage = () => {
     const navigate = useNavigate();
     const { gender } = useGenderTheme();
-    const { bookings, acceptCustomizedBooking, confirmCustomizedBooking, rejectCustomizedBooking } = useBookings();
+    const { bookings, enquiries, acceptCustomEnquiry, loadingEnquiries } = useBookings();
     useEffect(() => {
         try {
             bookings.forEach(b => {
@@ -40,39 +40,19 @@ const BookingsPage = () => {
     const [providerModalData, setProviderModalData] = useState(null);
     const { providers } = useUserModuleData();
 
-    // Get raw enquiries
-    const rawEnquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
-    // Get global bookings to find status updates
-    const globalBookings = JSON.parse(localStorage.getItem("muskan-bookings") || "[]");
-
-    // Merge: overlay booking data from global bookings onto enquiries
-    const combinedEnquiries = rawEnquiries.map(enq => {
-        const booking = globalBookings.find(b => b.id === enq.id);
-        if (booking) {
-            const status = booking.status;
-            if (status === "admin_approved") {
-                // Step 4: Admin approved pricing, show quote to user
-                return { ...enq, ...booking, status: "Quote Ready", isQuote: true, displayPhase: "pricing" };
-            } else if (status === "user_accepted") {
-                // Step 5: User accepted, waiting for vendor team assignment
-                return { ...enq, ...booking, status: "Awaiting Team", displayPhase: "team_pending" };
-            } else if (status === "team_assigned") {
-                // Step 6: Vendor assigned team, waiting for admin final approval
-                return { ...enq, ...booking, status: "Team Under Review", displayPhase: "team_review" };
-            } else if (status === "final_approved") {
-                // Step 7: Admin final approved! Show to user for final confirmation
-                return { ...enq, ...booking, status: "Ready to Start", isReady: true, displayPhase: "final" };
-            } else if (status === "vendor_assigned") {
-                // Step 2: Vendor set price, waiting for admin
-                return { ...enq, ...booking, status: "Under Review", displayPhase: "vendor_pricing" };
-            } else if (status === "accepted") {
-                // Already a normal booking, remove from enquiries view
-                return null;
-            }
-            return { ...enq, ...booking };
-        }
-        return enq;
-    }).filter(Boolean).reverse();
+    const combinedEnquiries = (Array.isArray(enquiries) ? enquiries : [])
+        .slice()
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+        .map((enq) => {
+            const status = (enq.status || "").toLowerCase();
+            if (status === "admin_approved") return { ...enq, statusLabel: "Quote Ready", displayPhase: "pricing" };
+            if (status === "user_accepted") return { ...enq, statusLabel: "Awaiting Team", displayPhase: "team_pending" };
+            if (status === "team_assigned") return { ...enq, statusLabel: "Team Under Review", displayPhase: "team_review" };
+            if (status === "final_approved") return { ...enq, statusLabel: "Booking Created", displayPhase: "final" };
+            if (status === "vendor_assigned") return { ...enq, statusLabel: "Under Review", displayPhase: "vendor_pricing" };
+            if (status === "rejected") return { ...enq, statusLabel: "Rejected", displayPhase: "rejected" };
+            return { ...enq, statusLabel: "Under Review", displayPhase: "pending" };
+        });
 
     useEffect(() => {
         const checkAutoFeedback = () => {
@@ -80,7 +60,7 @@ const BookingsPage = () => {
             // Find completed bookings that haven't been reviewed by customer
             const unreviewed = bookings.find(b =>
                 b.status?.toLowerCase() === 'completed' &&
-                !feedback.some(f => f.bookingId === b.id && f.type === 'customer_to_provider')
+                !feedback.some(f => f.bookingId === (b.id || b._id) && f.type === 'customer_to_provider')
             );
 
             if (unreviewed && !feedbackBooking) {
@@ -137,7 +117,7 @@ const BookingsPage = () => {
             case "pricing": return "Pricing has been approved. Review and accept the quote.";
             case "team_pending": return "Your acceptance is confirmed. Vendor is now assigning the team.";
             case "team_review": return "Team has been assigned. Admin is reviewing the assignment.";
-            case "final": return "Everything is set! Accept to start the service like a normal booking.";
+            case "final": return "Booking has been created. You will see it in Normal Bookings.";
             case "vendor_pricing": return "Vendor is setting the pricing. You'll be notified once admin approves.";
             default: return "Your enquiry is being processed.";
         }
@@ -220,9 +200,9 @@ const BookingsPage = () => {
                                     >
                                         <div className="p-4">
                                             <div className="flex gap-4">
-                                                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-accent">
+                                                        <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-accent">
                                                     <img
-                                                        src={booking.items?.[0]?.image || "https://placehold.co/100x100"}
+                                                        src={booking.items?.[0]?.image || booking.services?.[0]?.image || "https://placehold.co/100x100"}
                                                         className="w-full h-full object-cover"
                                                         alt="Service"
                                                     />
@@ -232,8 +212,8 @@ const BookingsPage = () => {
                                                     <div className="flex justify-between items-start mb-1">
                                                         <div>
                                                             <h3 className="font-bold text-sm truncate">
-                                                                {booking.items?.[0]?.name || booking.categoryName || booking.serviceType || "Customized Service"}
-                                                                {(booking.items?.length > 1 || booking.selectedServices?.length > 1) && ` + ${Math.max(0, (booking.items?.length || booking.selectedServices?.length) - 1)} more`}
+                                                                {(booking.items?.[0]?.name || booking.services?.[0]?.name || booking.categoryName || booking.serviceType || "Customized Service")}
+                                                                {(((booking.items?.length || booking.services?.length || booking.selectedServices?.length || 0) > 1)) && ` + ${Math.max(0, (booking.items?.length || booking.services?.length || booking.selectedServices?.length || 0) - 1)} more`}
                                                             </h3>
                                                             <div className="flex items-center gap-2 mt-0.5">
                                                                 <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded flex items-center gap-1 ${(booking.bookingType || "").toLowerCase() === 'instant' ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600"
@@ -361,28 +341,32 @@ const BookingsPage = () => {
                     </>
                 ) : (
                     <div className="space-y-4">
-                        {combinedEnquiries.length > 0 ? (
+                        {loadingEnquiries ? (
+                            <div className="py-16 text-center text-sm text-muted-foreground font-medium">
+                                Loading custom enquiries...
+                            </div>
+                        ) : combinedEnquiries.length > 0 ? (
                             combinedEnquiries.map((enq, i) => (
                                 <motion.div
-                                    key={enq.id}
+                                    key={enq._id || enq.id}
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: i * 0.1 }}
-                                    className={`glass-strong rounded-3xl p-5 border shadow-sm relative overflow-hidden ${enq.isQuote ? "border-primary/30 ring-1 ring-primary/10" : enq.isReady ? "border-emerald-300 ring-1 ring-emerald-100" : "border-primary/10"}`}
+                                    className={`glass-strong rounded-3xl p-5 border shadow-sm relative overflow-hidden ${enq.displayPhase === "pricing" ? "border-primary/30 ring-1 ring-primary/10" : enq.displayPhase === "final" ? "border-emerald-300 ring-1 ring-emerald-100" : "border-primary/10"}`}
                                 >
                                     <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-12 -mt-12" />
 
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
                                             <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded ${getPhaseColor(enq.displayPhase)}`}>
-                                                {enq.status || "Enquiry Details"}
+                                                {enq.statusLabel || enq.status || "Enquiry Details"}
                                             </span>
                                             <h3 className="text-lg font-black mt-2 font-display">{enq.eventType}</h3>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[10px] font-bold text-muted-foreground uppercase">{enq.id}</p>
-                                            <span className={`inline-block mt-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter shadow-sm ${enq.isReady ? "bg-emerald-600 text-white" : enq.isQuote ? "bg-green-600 text-white" : "bg-amber-100 text-amber-600"}`}>
-                                                {enq.status || 'Pending Review'}
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase">{String(enq._id || enq.id || "").slice(-8)}</p>
+                                            <span className={`inline-block mt-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter shadow-sm ${enq.displayPhase === "final" ? "bg-emerald-600 text-white" : enq.displayPhase === "pricing" ? "bg-green-600 text-white" : enq.displayPhase === "rejected" ? "bg-red-600 text-white" : "bg-amber-100 text-amber-600"}`}>
+                                                {enq.statusLabel || enq.status || 'Pending Review'}
                                             </span>
                                         </div>
                                     </div>
@@ -462,8 +446,8 @@ const BookingsPage = () => {
                                         </div>
                                     )}
 
-                                    {/* Team display - show when team is assigned (after final approval) */}
-                                    {(enq.isReady || enq.displayPhase === "team_review") && enq.teamMembers && enq.teamMembers.length > 0 && (
+                                    {/* Team display (optional, if backend provides teamMembers later) */}
+                                    {(enq.displayPhase === "final" || enq.displayPhase === "team_review") && enq.teamMembers && enq.teamMembers.length > 0 && (
                                         <div className="mb-4 p-3 bg-primary/5 rounded-2xl border border-primary/10">
                                             <p className="text-[10px] font-black uppercase text-primary mb-2">Assigned Experts Team</p>
                                             <div className="flex flex-wrap gap-2">
@@ -486,14 +470,26 @@ const BookingsPage = () => {
                                         </div>
                                     )}
 
-                                    {/* Step actions hidden on user panel */}
-                                    {enq.isQuote || enq.isReady ? (
-                                        <div className="mt-5 p-3 bg-accent/40 rounded-2xl border border-border/50 text-[11px] font-bold text-muted-foreground">
-                                            Status updated by our team. We will contact you for next steps.
+                                    {/* Actions */}
+                                    {enq.displayPhase === "pricing" ? (
+                                        <div className="mt-5 pt-4 border-t border-border/30 flex items-center justify-between gap-3">
+                                            <span className="text-[10px] font-bold text-muted-foreground">
+                                                Quote ready. Accept to proceed.
+                                            </span>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await acceptCustomEnquiry(enq._id || enq.id);
+                                                    } catch (e) {}
+                                                }}
+                                                className="px-4 py-2 rounded-xl bg-green-600 text-white text-[10px] font-black uppercase tracking-widest"
+                                            >
+                                                Accept Quote
+                                            </button>
                                         </div>
                                     ) : (
                                         <div className="mt-5 pt-4 border-t border-border/30 flex items-center justify-between text-[10px] font-bold text-muted-foreground">
-                                            <span>Sent on {new Date(enq.createdAt).toLocaleDateString()}</span>
+                                            <span>Sent on {new Date(enq.createdAt || Date.now()).toLocaleDateString()}</span>
                                             <span className="text-primary hover:underline cursor-pointer">Support Help</span>
                                         </div>
                                     )}

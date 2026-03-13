@@ -4,11 +4,22 @@ import { motion } from "framer-motion";
 import { ArrowLeft, MapPin, Calendar, Clock, Tag, ChevronRight, CheckCircle2, ShoppingBag, Zap } from "lucide-react";
 import { Button } from "@/modules/user/components/ui/button";
 import { Input } from "@/modules/user/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/modules/user/components/ui/alert-dialog";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useAuth } from "@/modules/user/contexts/AuthContext";
 import { useBookings } from "@/modules/user/contexts/BookingContext";
 import { api } from "@/modules/user/lib/api";
+import { toast } from "sonner";
 
 const BookingSummary = () => {
   const navigate = useNavigate();
@@ -17,7 +28,7 @@ const BookingSummary = () => {
   const checkoutType = searchParams.get('type');
 
   const { gender } = useGenderTheme();
-  const { cartItems, updateQuantity, clearCart, totalPrice, totalSavings, isCartOpen, setIsCartOpen, selectedSlot, getGroupedItems } = useCart();
+  const { cartItems, updateQuantity, clearCart, totalPrice, totalSavings, isCartOpen, setIsCartOpen, selectedSlot, getGroupedItems, bookingType } = useCart();
   const { user, setIsAddressModalOpen } = useAuth();
   const { addBooking } = useBookings();
 
@@ -38,6 +49,7 @@ const BookingSummary = () => {
   const [couponError, setCouponError] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [autoAssignPrompt, setAutoAssignPrompt] = useState({ open: false, message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -106,9 +118,42 @@ const BookingSummary = () => {
   
   const remainingAfterAdvance = finalTotal - advanceAmount;
 
+  const goToPayment = ({ totals, serverAdvance, order }) => {
+    if (serverAdvance > 0 && order) {
+      navigate("/payment", {
+        state: {
+          discount: totals.total - totals.finalTotal,
+          finalTotal: totals.finalTotal,
+          totalSavings: displayTotalSavings,
+          checkoutType,
+          advanceAmount: serverAdvance,
+          remainingAmount: totals.finalTotal - serverAdvance,
+          isPartiallyPaid: true,
+          order
+        }
+      });
+      return;
+    }
+    navigate("/payment", {
+      state: {
+        discount: totals.total - totals.finalTotal,
+        finalTotal: totals.finalTotal,
+        totalSavings: displayTotalSavings,
+        checkoutType,
+        advanceAmount: 0,
+        remainingAmount: totals.finalTotal,
+        isPartiallyPaid: false
+      }
+    });
+  };
+
   const handlePay = async () => {
     if (!user?.addresses || user.addresses.length === 0) {
       setIsAddressModalOpen(true);
+      return;
+    }
+    if (!selectedSlot?.date || !selectedSlot?.time) {
+      toast.error("Please select a booking slot (date & time)");
       return;
     }
     try {
@@ -120,40 +165,34 @@ const BookingSummary = () => {
         lat: user.addresses[0].lat ?? null,
         lng: user.addresses[0].lng ?? null
       };
-      const { booking, totals, advanceAmount: serverAdvance, order } = await api.bookings.create({
+      const payload = {
         items,
-        slot: selectedSlot || { date: "Today", time: "09:00" },
+        slot: selectedSlot,
         address,
-        bookingType: checkoutType || "instant",
+        bookingType: bookingType || "instant",
         couponCode: couponApplied?.code || undefined,
-      });
-      if (serverAdvance > 0 && order) {
-        navigate("/payment", {
-          state: {
-            discount: totals.total - totals.finalTotal,
-            finalTotal: totals.finalTotal,
-            totalSavings: displayTotalSavings,
-            checkoutType,
-            advanceAmount: serverAdvance,
-            remainingAmount: totals.finalTotal - serverAdvance,
-            isPartiallyPaid: true,
-            order
-          }
-        });
-      } else {
-        navigate("/payment", {
-          state: {
-            discount: totals.total - totals.finalTotal,
-            finalTotal: totals.finalTotal,
-            totalSavings: displayTotalSavings,
-            checkoutType,
-            advanceAmount: 0,
-            remainingAmount: totals.finalTotal,
-            isPartiallyPaid: false
-          }
-        });
-      }
+        preferredProviderId: selectedSlot?.provider?.id || selectedSlot?.provider?._id || undefined,
+      };
+      const { booking, totals, advanceAmount: serverAdvance, order } = await api.bookings.create(payload);
+      goToPayment({ totals, serverAdvance, order });
     } catch (e) {
+      if (e?.status === 409 && e?.data?.code === "PREFERRED_UNAVAILABLE" && e?.data?.canAutoAssign && autoAssignPrompt?.open !== true) {
+        setAutoAssignPrompt({ open: true, message: e?.data?.error || e.message, payload: {
+          items: displayItems.map(it => ({ name: it.name, price: it.price, quantity: it.quantity || 1, duration: it.duration, category: it.category, serviceType: it.serviceType })),
+          slot: selectedSlot,
+          address: {
+            houseNo: user.addresses[0].houseNo,
+            area: user.addresses[0].area,
+            landmark: user.addresses[0].landmark || "",
+            lat: user.addresses[0].lat ?? null,
+            lng: user.addresses[0].lng ?? null
+          },
+          bookingType: bookingType || "instant",
+          couponCode: couponApplied?.code || undefined,
+          preferredProviderId: selectedSlot?.provider?.id || selectedSlot?.provider?._id || undefined,
+        }});
+        return;
+      }
       alert(e.message || "Payment initiation failed");
     }
   };
@@ -207,13 +246,54 @@ const BookingSummary = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background pb-28">
-      {/* Header */}
-      <div className="sticky top-0 z-30 glass-strong border-b border-border px-4 py-3 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full bg-accent flex items-center justify-center">
-          <ArrowLeft className="w-4 h-4" />
-        </button>
+	  return (
+	    <div className="min-h-screen bg-background pb-28">
+	      <AlertDialog
+	        open={autoAssignPrompt.open}
+	        onOpenChange={(open) => setAutoAssignPrompt((p) => ({ ...p, open }))}
+	      >
+	        <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
+	          <AlertDialogHeader>
+	            <AlertDialogTitle className="text-xl font-black">Auto Assign?</AlertDialogTitle>
+	            <AlertDialogDescription className="text-slate-500 font-medium">
+	              {autoAssignPrompt.message || "This provider is unavailable for the selected slot. Do you want to auto assign another available provider?"}
+	            </AlertDialogDescription>
+	          </AlertDialogHeader>
+	          <AlertDialogFooter className="gap-2">
+	            <AlertDialogCancel
+	              className="rounded-xl font-bold border-slate-100"
+	              onClick={() => setAutoAssignPrompt({ open: false, message: "", payload: null })}
+	            >
+	              No
+	            </AlertDialogCancel>
+	            <AlertDialogAction
+	              className="rounded-xl font-bold bg-slate-900"
+	              onClick={async () => {
+	                const p = autoAssignPrompt.payload;
+	                if (!p) {
+	                  setAutoAssignPrompt({ open: false, message: "", payload: null });
+	                  return;
+	                }
+	                try {
+	                  const { totals, advanceAmount: serverAdvance, order } = await api.bookings.create({ ...p, autoAssign: true });
+	                  setAutoAssignPrompt({ open: false, message: "", payload: null });
+	                  goToPayment({ totals, serverAdvance, order });
+	                } catch (e) {
+	                  setAutoAssignPrompt({ open: false, message: "", payload: null });
+	                  alert(e.message || "Failed to auto assign");
+	                }
+	              }}
+	            >
+	              Yes, Auto Assign
+	            </AlertDialogAction>
+	          </AlertDialogFooter>
+	        </AlertDialogContent>
+	      </AlertDialog>
+	      {/* Header */}
+	      <div className="sticky top-0 z-30 glass-strong border-b border-border px-4 py-3 flex items-center gap-3">
+	        <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full bg-accent flex items-center justify-center">
+	          <ArrowLeft className="w-4 h-4" />
+	        </button>
         <h1 className={`text-lg font-semibold ${gender === "women" ? "font-display" : "font-heading-men"}`}>Booking Summary</h1>
       </div>
 

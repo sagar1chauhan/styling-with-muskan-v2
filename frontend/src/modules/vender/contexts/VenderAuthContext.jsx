@@ -66,52 +66,27 @@ export const VenderAuthProvider = ({ children }) => {
     // Assign SP to a booking
     const assignSPToBooking = async (bookingId, spId) => { await api.vendor.assignBooking(bookingId, spId); };
 
-    const assignTeamToBooking = (bookingId, payload) => {
-        const bookings = JSON.parse(localStorage.getItem(SP_BOOKINGS_KEY) || "[]");
-        const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
+    const getCustomEnquiries = async () => (await api.vendor.customEnquiries()).enquiries || [];
 
-        // Find existing or create from enquiry
-        let target = bookings.find(b => b.id === bookingId);
-        if (!target) {
-            const enq = enquiries.find(e => e.id === bookingId);
-            if (enq) {
-                target = {
-                    ...enq,
-                    customerName: enq.name,
-                    bookingType: "customized",
-                    serviceType: enq.eventType,
-                    slot: { date: enq.date, time: enq.timeSlot },
-                    items: [{ name: `${enq.eventType}` }],
-                    address: { area: enq.address?.area || "Enquiry Area" }
-                };
-            }
+    // For customized enquiries: vendor sets quote then assigns team.
+    const assignTeamToBooking = async (bookingId, payload) => {
+        const st = String(payload?.status || "").toLowerCase();
+        if (st === "vendor_assigned") {
+            await api.vendor.customEnquiryPriceQuote(bookingId, {
+                totalAmount: Number(payload.price) || 0,
+                discountPrice: Number(payload.discountPrice) || 0,
+                notes: "",
+            });
+            return;
         }
-
-        if (target) {
-            const updatedBooking = {
-                ...target,
-                totalAmount: payload.price,
-                discountPrice: payload.discountPrice || 0,
-                status: payload.status // vendor_assigned, team_assigned, etc.
-            };
-
-            // Only set team fields if provided (Step 5: team assignment)
-            if (payload.maintainerProvider) {
-                updatedBooking.assignedProvider = payload.maintainerProvider;
-                updatedBooking.maintainProvider = payload.maintainerProvider;
-            }
-            if (payload.teamMembers && payload.teamMembers.length > 0) {
-                updatedBooking.teamMembers = payload.teamMembers;
-            }
-
-            const existingIndex = bookings.findIndex(b => b.id === bookingId);
-            if (existingIndex > -1) {
-                bookings[existingIndex] = updatedBooking;
-            } else {
-                bookings.push(updatedBooking);
-            }
-            localStorage.setItem(SP_BOOKINGS_KEY, JSON.stringify(bookings));
+        if (st === "team_assigned") {
+            await api.vendor.customEnquiryAssignTeam(bookingId, {
+                maintainerProvider: payload.maintainerProvider,
+                teamMembers: payload.teamMembers || [],
+            });
+            return;
         }
+        throw new Error("Unsupported action");
     };
 
     // Get SOS alerts
@@ -121,10 +96,8 @@ export const VenderAuthProvider = ({ children }) => {
     const resolveSOSAlert = async (alertId) => { await api.vendor.resolveSos(alertId); };
 
     // Update Payout Status for a Booking (SP payout)
-    const updatePayoutStatus = (bookingId, status) => {
-        const bookings = JSON.parse(localStorage.getItem(SP_BOOKINGS_KEY) || "[]");
-        const updated = bookings.map(b => b.id === bookingId ? { ...b, payoutStatus: status } : b);
-        localStorage.setItem(SP_BOOKINGS_KEY, JSON.stringify(updated));
+    const updatePayoutStatus = async (bookingId, status) => {
+        await api.vendor.updatePayoutStatus(bookingId, status);
     };
 
     return (
@@ -143,6 +116,7 @@ export const VenderAuthProvider = ({ children }) => {
             getAllBookings,
             assignSPToBooking,
             assignTeamToBooking,
+            getCustomEnquiries,
             getSOSAlerts,
             resolveSOSAlert,
             updatePayoutStatus,

@@ -31,13 +31,9 @@ router.post(
   body("address.area").isString(),
   body("bookingType").isString(),
   body("couponCode").optional().isString(),
+  body("preferredProviderId").optional().isString(),
+  body("autoAssign").optional().isBoolean(),
   BookingsController.create
-);
-
-router.get(
-  "/:id",
-  requireAuth,
-  BookingsController.getById
 );
 
 // Custom Enquiry (User)
@@ -63,6 +59,12 @@ router.patch(
   "/custom-enquiry/:id/user-accept",
   requireAuth,
   BookingsController.userAcceptCustomEnquiry
+);
+
+router.get(
+  "/:id",
+  requireAuth,
+  BookingsController.getById
 );
 
 export default router;

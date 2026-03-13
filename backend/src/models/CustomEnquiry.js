@@ -31,7 +31,13 @@ const CustomEnquirySchema = new mongoose.Schema(
       notes: String,
     },
     maintainerProvider: String,
-    teamMembers: [String],
+    teamMembers: [
+      {
+        id: String,
+        name: String,
+        serviceType: String,
+      },
+    ],
     timeline: [
       {
         at: { type: Date, default: Date.now },

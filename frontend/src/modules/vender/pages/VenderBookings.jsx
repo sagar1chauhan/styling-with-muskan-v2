@@ -35,7 +35,7 @@ const statusColors = {
 };
 
 export default function VenderBookings() {
-    const { getAllBookings, getServiceProviders, assignSPToBooking, hydrated, isLoggedIn,assignTeamToBooking } = useVenderAuth();
+    const { getAllBookings, getServiceProviders, getCustomEnquiries, assignSPToBooking, hydrated, isLoggedIn, assignTeamToBooking } = useVenderAuth();
   
     const [bookings, setBookings] = useState([]);
     const [providers, setProviders] = useState([]);
@@ -55,10 +55,29 @@ export default function VenderBookings() {
     const load = async () => {
         try {
             if (!hydrated || !isLoggedIn) return;
-            const [bks, sps] = await Promise.all([getAllBookings(), getServiceProviders()]);
-            setBookings(Array.isArray(bks) ? bks : []);
+            const [bks, sps, enqs] = await Promise.all([getAllBookings(), getServiceProviders(), getCustomEnquiries()]);
+            const normal = (Array.isArray(bks) ? bks : []).map((b) => ({ ...b, id: b._id || b.id }));
+            const custom = (Array.isArray(enqs) ? enqs : []).map((e) => ({
+                id: e._id || e.id,
+                bookingType: "customized",
+                status: e.status,
+                customerName: e.name,
+                phone: e.phone,
+                eventType: e.eventType,
+                noOfPeople: e.noOfPeople,
+                slot: { date: e.scheduledAt?.date || e.date, time: e.scheduledAt?.timeSlot || e.timeSlot },
+                address: e.address || {},
+                items: e.items || [],
+                notes: e.notes,
+                totalAmount: e.quote?.totalAmount || 0,
+                discountPrice: e.quote?.discountPrice || 0,
+                teamMembers: e.teamMembers || [],
+                maintainProvider: e.maintainerProvider || "",
+                enquiry: e,
+            }));
+            setBookings([...normal, ...custom]);
             const sArr = Array.isArray(sps) ? sps : [];
-            setProviders(sArr.filter(sp => sp.approvalStatus === "approved"));
+            setProviders(sArr.filter(sp => sp.approvalStatus === "approved").map((sp) => ({ ...sp, id: sp._id || sp.id || sp.phone })));
         } catch {}
     };
     useEffect(() => { load(); }, [hydrated, isLoggedIn]);

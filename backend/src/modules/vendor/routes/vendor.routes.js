@@ -28,6 +28,33 @@ router.patch(
   body("providerId").isString(),
   VendorController.assignBooking
 );
+router.patch(
+  "/bookings/:id/payout",
+  requireRole("vendor"),
+  param("id").isString(),
+  body("status").isString().notEmpty(),
+  VendorController.updateBookingPayoutStatus
+);
+
+// Custom enquiries (vendor)
+router.get("/custom-enquiries", requireRole("vendor"), VendorController.listCustomEnquiries);
+router.patch(
+  "/custom-enquiries/:id/price-quote",
+  requireRole("vendor"),
+  param("id").isString(),
+  body("totalAmount").isNumeric(),
+  body("discountPrice").optional().isNumeric(),
+  body("notes").optional().isString(),
+  VendorController.priceQuoteCustomEnquiry
+);
+router.patch(
+  "/custom-enquiries/:id/team-assign",
+  requireRole("vendor"),
+  param("id").isString(),
+  body("maintainerProvider").isString().notEmpty(),
+  body("teamMembers").isArray({ min: 1 }),
+  VendorController.assignTeamCustomEnquiry
+);
 
 router.get("/sos", requireRole("vendor"), VendorController.listSOS);
 router.patch("/sos/:id/resolve", requireRole("vendor"), param("id").isString(), VendorController.resolveSOS);

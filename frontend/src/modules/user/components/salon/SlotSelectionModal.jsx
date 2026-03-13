@@ -1,34 +1,97 @@
-import React, { useState, useEffect, useMemo } from "react";
+﻿import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Calendar, Clock, Check, ChevronRight, Star, MapPin, UserCheck, ShieldCheck } from "lucide-react";
 import { useCart } from "@/modules/user/contexts/CartContext";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { Button } from "@/modules/user/components/ui/button";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
+import { api } from "@/modules/user/lib/api";
 
 const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
     const { selectedSlot, setSelectedSlot, cartItems } = useCart();
     const { gender } = useGenderTheme();
-    const { providers: mockProviders, bookingTypeConfig, categories } = useUserModuleData();
+    const { bookingTypeConfig, categories } = useUserModuleData();
 
     const [tempDate, setTempDate] = useState(selectedSlot?.date || null);
     const [tempSlot, setTempSlot] = useState(selectedSlot?.time || null);
     const [selectedProvider, setSelectedProvider] = useState(null);
 
-    // Filter providers based on the items in cart (specialties)
-    const availableProviders = useMemo(() => {
-        const cartTypes = [...new Set(cartItems.map(item => item.serviceType))];
-        return mockProviders.filter(p => cartTypes.some(type => p.specialties?.includes(type)));
+    const [providersLoading, setProvidersLoading] = useState(false);
+    const [recentProviders, setRecentProviders] = useState([]);
+    const [recommendedProviders, setRecommendedProviders] = useState([]);
+    const [isFirstBooking, setIsFirstBooking] = useState(false);
+    const [slotsLoading, setSlotsLoading] = useState(false);
+    const [availableSlots, setAvailableSlots] = useState([]);
+
+    const serviceTypes = useMemo(() => {
+        return [...new Set((cartItems || []).map(item => item.serviceType).filter(Boolean))];
     }, [cartItems]);
 
+    const providerList = useMemo(() => {
+        if (recentProviders.length > 0) return recentProviders;
+        return recommendedProviders;
+    }, [recentProviders, recommendedProviders]);
+
     useEffect(() => {
+        let cancelled = false;
         if (isOpen) {
-            setTempDate(selectedSlot?.date || null);
+            const todayKey = new Date().toISOString().split("T")[0];
+            setTempDate(selectedSlot?.date || todayKey);
             setTempSlot(selectedSlot?.time || null);
-            // Default to the "Best Rated" provider (p1)
-            setSelectedProvider(availableProviders[0] || mockProviders[0]);
+            setAvailableSlots([]);
+
+            setProvidersLoading(true);
+            api.users.providerSuggestions({
+                serviceTypes: serviceTypes.join(","),
+                limit: "10",
+            }).then((res) => {
+                if (cancelled) return;
+                const recent = Array.isArray(res?.recentProviders) ? res.recentProviders : [];
+                const rec = Array.isArray(res?.recommendedProviders) ? res.recommendedProviders : [];
+                setRecentProviders(recent);
+                setRecommendedProviders(rec);
+                setIsFirstBooking(!!res?.isFirstBooking);
+                const next = selectedSlot?.provider?.id
+                    ? (recent.concat(rec).find(p => p.id === selectedSlot.provider.id) || null)
+                    : (recent[0] || rec[0] || null);
+                setSelectedProvider(next);
+            }).catch(() => {
+                if (cancelled) return;
+                setRecentProviders([]);
+                setRecommendedProviders([]);
+                setSelectedProvider(null);
+            }).finally(() => {
+                if (!cancelled) setProvidersLoading(false);
+            });
         }
-    }, [isOpen, availableProviders]);
+        return () => { cancelled = true; };
+    }, [isOpen, selectedSlot?.date, selectedSlot?.time, selectedSlot?.provider?.id, serviceTypes]);
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!isOpen) return;
+        if (!selectedProvider?.id || !tempDate) {
+            setAvailableSlots([]);
+            return;
+        }
+        setSlotsLoading(true);
+        api.providers.availableSlots(selectedProvider.id, {
+            date: tempDate,
+            serviceTypes: serviceTypes.join(","),
+        }).then((res) => {
+            if (cancelled) return;
+            const slots = Array.isArray(res?.slots) ? res.slots : [];
+            setAvailableSlots(slots);
+            if (tempSlot && !slots.includes(tempSlot)) setTempSlot(null);
+        }).catch(() => {
+            if (cancelled) return;
+            setAvailableSlots([]);
+            setTempSlot(null);
+        }).finally(() => {
+            if (!cancelled) setSlotsLoading(false);
+        });
+        return () => { cancelled = true; };
+    }, [isOpen, selectedProvider?.id, tempDate, serviceTypes, tempSlot]);
 
     const dates = useMemo(() => {
         let maxDays = 7; // Default
@@ -64,7 +127,7 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
         });
     }, [cartItems, categories, bookingTypeConfig]);
 
-    const slots = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"];
+    const slots = availableSlots;
 
     const handleSave = () => {
         if (tempDate && tempSlot) {
@@ -113,13 +176,23 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
                     {/* Scrollable Content */}
                     <div className="overflow-y-auto hide-scrollbar p-6 space-y-6">
 
-                        {/* Provider Selection */}
+                                                {/* Provider Selection */}
                         <div>
                             <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
                                 <UserCheck className="w-4 h-4 text-primary" /> Service Professional
                             </h3>
                             <div className="space-y-3">
-                                {availableProviders.map((provider) => (
+                                {providersLoading && (
+                                    <div className="text-[10px] text-muted-foreground font-bold px-4 py-3 rounded-xl border border-border/40 glass">
+                                        Loading professionals...
+                                    </div>
+                                )}
+                                {!providersLoading && providerList.length === 0 && (
+                                    <div className="text-[10px] text-muted-foreground font-bold px-4 py-3 rounded-xl border border-border/40 glass">
+                                        No professionals available right now.
+                                    </div>
+                                )}
+                                {!providersLoading && providerList.map((provider) => (
                                     <button
                                         key={provider.id}
                                         onClick={() => setSelectedProvider(provider)}
@@ -129,7 +202,7 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
                                             }`}
                                     >
                                         <div className="relative">
-                                            <img src={provider.image} className="w-14 h-14 rounded-xl object-cover" alt={provider.name} />
+                                            <img src={provider.profilePhoto || provider.image} className="w-14 h-14 rounded-xl object-cover" alt={provider.name} />
                                             {selectedProvider?.id === provider.id && (
                                                 <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center border-2 border-background">
                                                     <Check className="w-3 h-3 text-white" />
@@ -139,9 +212,16 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
                                         <div className="flex-1 text-left min-w-0">
                                             <div className="flex items-center gap-2 mb-0.5">
                                                 <h4 className="font-bold text-sm truncate">{provider.name}</h4>
-                                                <span className="text-[8px] font-black uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20">
-                                                    {provider.tag}
-                                                </span>
+                                                {recentProviders.length > 0 && (
+                                                    <span className="text-[8px] font-black uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20">
+                                                        Previously booked
+                                                    </span>
+                                                )}
+                                                {isFirstBooking && (
+                                                    <span className="text-[8px] font-black uppercase bg-emerald-500/10 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                                        Recommended
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
@@ -191,8 +271,18 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
                             <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
                                 <Clock className="w-3.5 h-3.5 text-primary" /> Select Time Slot
                             </h3>
-                            <div className="grid grid-cols-4 gap-2">
-                                {slots.map((slot) => (
+                                                        <div className="grid grid-cols-4 gap-2">
+                                {slotsLoading && (
+                                    <div className="col-span-4 text-[10px] text-muted-foreground font-bold px-4 py-3 rounded-xl border border-border/40 glass">
+                                        Loading available slots...
+                                    </div>
+                                )}
+                                {!slotsLoading && slots.length === 0 && (
+                                    <div className="col-span-4 text-[10px] text-muted-foreground font-bold px-4 py-3 rounded-xl border border-border/40 glass">
+                                        No slots available for this date. Try another date or professional.
+                                    </div>
+                                )}
+                                {!slotsLoading && slots.map((slot) => (
                                     <button
                                         key={slot}
                                         onClick={() => setTempSlot(slot)}
@@ -229,3 +319,5 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
 };
 
 export default SlotSelectionModal;
+
+

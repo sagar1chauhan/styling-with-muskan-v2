@@ -3,6 +3,7 @@ import Vendor from "../../../models/Vendor.js";
 import ProviderAccount from "../../../models/ProviderAccount.js";
 import Booking from "../../../models/Booking.js";
 import SOSAlert from "../../../models/SOSAlert.js";
+import CustomEnquiry from "../../../models/CustomEnquiry.js";
 import { issueRoleToken } from "../../../middleware/roles.js";
 import { redis } from "../../../startup/redis.js";
 
@@ -183,6 +184,65 @@ export async function assignBooking(req, res) {
     { new: true }
   );
   res.json({ booking: b });
+}
+
+export async function updateBookingPayoutStatus(req, res) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ error: "Invalid input", details: errors.array() });
+
+  const b = await Booking.findById(req.params.id);
+  if (!b) return res.status(404).json({ error: "Not found" });
+  b.payoutStatus = String(req.body.status || "").trim();
+  await b.save();
+  res.json({ booking: b });
+}
+
+export async function listCustomEnquiries(_req, res) {
+  const items = await CustomEnquiry.find().sort({ createdAt: -1 }).lean();
+  res.json({ enquiries: items });
+}
+
+export async function priceQuoteCustomEnquiry(req, res) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ error: "Invalid input", details: errors.array() });
+
+  const enq = await CustomEnquiry.findById(req.params.id);
+  if (!enq) return res.status(404).json({ error: "Not found" });
+
+  enq.quote = {
+    ...(enq.quote || {}),
+    totalAmount: Number(req.body.totalAmount) || 0,
+    discountPrice: Number(req.body.discountPrice) || 0,
+    notes: req.body.notes || enq.quote?.notes || "",
+    items: enq.quote?.items?.length ? enq.quote.items : enq.items,
+  };
+  enq.status = "vendor_assigned";
+  enq.timeline = Array.isArray(enq.timeline) ? enq.timeline : [];
+  enq.timeline.push({ action: "vendor_assigned", meta: { totalAmount: enq.quote.totalAmount, discountPrice: enq.quote.discountPrice } });
+  await enq.save();
+  res.json({ enquiry: enq });
+}
+
+export async function assignTeamCustomEnquiry(req, res) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ error: "Invalid input", details: errors.array() });
+
+  const enq = await CustomEnquiry.findById(req.params.id);
+  if (!enq) return res.status(404).json({ error: "Not found" });
+
+  const teamMembers = Array.isArray(req.body.teamMembers) ? req.body.teamMembers : [];
+  const cleaned = teamMembers
+    .map((m) => (m && typeof m === "object" ? { id: String(m.id || ""), name: String(m.name || ""), serviceType: String(m.serviceType || "") } : null))
+    .filter((m) => m && m.id && m.name);
+  if (cleaned.length === 0) return res.status(400).json({ error: "Invalid teamMembers" });
+
+  enq.maintainerProvider = String(req.body.maintainerProvider || "").trim();
+  enq.teamMembers = cleaned;
+  enq.status = "team_assigned";
+  enq.timeline = Array.isArray(enq.timeline) ? enq.timeline : [];
+  enq.timeline.push({ action: "team_assigned", meta: { maintainerProvider: enq.maintainerProvider, teamCount: cleaned.length } });
+  await enq.save();
+  res.json({ enquiry: enq });
 }
 
 export async function listSOS(req, res) {

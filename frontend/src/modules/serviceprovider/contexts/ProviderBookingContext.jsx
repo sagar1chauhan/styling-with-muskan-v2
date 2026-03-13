@@ -17,16 +17,27 @@ export const ProviderBookingProvider = ({ children }) => {
 
     const { provider } = useProviderAuth();
 
-    const providerId = provider?._id || provider?.id || provider?.phone;
+    const providerId = provider?._id || provider?.id;
 
     useEffect(() => {
         let cancelled = false;
-        if (!providerId) return;
-        api.provider.bookings(providerId).then(({ bookings }) => {
-            if (!cancelled) setBookings(bookings || []);
-        }).catch(() => {});
+        (async () => {
+            try {
+                let pid = providerId;
+                if (!pid && provider?.phone) {
+                    const { provider: fresh } = await api.provider.me(provider.phone);
+                    pid = fresh?._id || fresh?.id || "";
+                }
+                if (!pid) return;
+                const { bookings } = await api.provider.bookings(pid);
+                const normalized = (bookings || []).map((b) => ({ ...b, id: b.id || b._id }));
+                if (!cancelled) setBookings(normalized);
+            } catch {
+                if (!cancelled) setBookings([]);
+            }
+        })();
         return () => { cancelled = true; };
-    }, [providerId]);
+    }, [providerId, provider?.phone]);
 
     // Only show bookings explicitly assigned to this provider
     const myBookings = bookings.filter(b => b.assignedProvider === providerId);

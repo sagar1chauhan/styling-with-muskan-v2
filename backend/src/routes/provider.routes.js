@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { body, validationResult, param } from "express-validator";
+import jwt from "jsonwebtoken";
 import ProviderAccount from "../models/ProviderAccount.js";
 import Booking from "../models/Booking.js";
 import { redis } from "../startup/redis.js";
@@ -9,6 +10,10 @@ import { issueRoleToken, requireRole } from "../middleware/roles.js";
 import BookingLog from "../models/BookingLog.js";
 import { getIO } from "../startup/socket.js";
 import LeaveRequest from "../models/LeaveRequest.js";
+import ProviderDayAvailability from "../models/ProviderDayAvailability.js";
+import { DEFAULT_TIME_SLOTS, defaultSlotsMap, isIsoDate, normalizeSlotsPayload, slotLabelToLocalDateTime, slotsMapToAvailableSlots } from "../lib/slots.js";
+import { daysBetweenInclusive, isoDateRangeIncludesWeekend, isoDateToLocalEnd, isoDateToLocalStart, toIsoDateFromAny } from "../lib/isoDateTime.js";
+import { computeExpiresAt, getAcceptWindowMs, pickNextProviderForBooking } from "../lib/assignment.js";
 
 const router = Router();
 
@@ -52,10 +57,134 @@ router.post("/verify-otp", body("phone").matches(/^\d{10}$/), body("otp").isLeng
   if (!valid) return res.status(400).json({ error: "Invalid OTP" });
   const acc = await ProviderAccount.findOne({ phone });
   if (!acc) return res.status(404).json({ error: "user with this mobile number not found" });
+  // Mark provider online on successful login (required for assignment pool).
+  try {
+    acc.isOnline = true;
+    await acc.save();
+  } catch {}
   const token = issueRoleToken("provider", acc._id.toString());
   res.cookie("providerToken", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 30 * 24 * 3600 * 1000 });
   res.json({ provider: acc });
 });
+
+router.get("/availability/:date", requireRole("provider"), param("date").isString(), async (req, res) => {
+  const date = String(req.params.date || "").trim();
+  if (!isIsoDate(date)) return res.status(400).json({ error: "Invalid date" });
+
+  const providerId = req.auth.sub;
+  const dateStart = isoDateToLocalStart(date);
+  const dateEnd = isoDateToLocalEnd(date);
+  if (!dateStart || !dateEnd) return res.status(400).json({ error: "Invalid date" });
+
+  const leave = await LeaveRequest.findOne({
+    providerId,
+    status: "approved",
+    $or: [
+      { endAt: { $ne: null, $gte: dateStart }, startAt: { $lte: dateEnd } },
+      { endAt: null, startAt: { $gte: dateStart, $lte: dateEnd } },
+    ],
+  }).lean();
+  if (leave) {
+    const slots = {};
+    DEFAULT_TIME_SLOTS.forEach((s) => { slots[s] = false; });
+    return res.json({ date, slots, onLeave: true, leave });
+  }
+
+  const doc = await ProviderDayAvailability.findOne({ providerId, date }).lean();
+  const base = defaultSlotsMap();
+  if (doc?.availableSlots?.length) {
+    // All slots default false, then enable the selected ones
+    const m = {};
+    DEFAULT_TIME_SLOTS.forEach((s) => { m[s] = false; });
+    for (const s of doc.availableSlots) {
+      if (DEFAULT_TIME_SLOTS.includes(s)) m[s] = true;
+    }
+    return res.json({ date, slots: m });
+  }
+  return res.json({ date, slots: base });
+});
+
+router.put(
+  "/availability/:date",
+  requireRole("provider"),
+  param("date").isString(),
+  body("slots").custom((v) => typeof v === "object" && v !== null),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ error: "Invalid input", details: errors.array() });
+    const date = String(req.params.date || "").trim();
+    if (!isIsoDate(date)) return res.status(400).json({ error: "Invalid date" });
+
+    const normalized = normalizeSlotsPayload(req.body.slots);
+    if (!normalized.ok) return res.status(400).json({ error: normalized.error });
+
+    const providerId = req.auth.sub;
+    const dateStart = isoDateToLocalStart(date);
+    const dateEnd = isoDateToLocalEnd(date);
+    if (!dateStart || !dateEnd) return res.status(400).json({ error: "Invalid date" });
+
+    // Past days cannot be edited.
+    const todayIso = toIsoDateFromAny(new Date());
+    const todayStart = isoDateToLocalStart(todayIso);
+    if (todayStart && dateStart.getTime() < todayStart.getTime()) {
+      return res.status(400).json({ error: "Cannot edit past dates" });
+    }
+
+    // If provider is on approved leave for this date, availability doesn't apply.
+    const approvedLeave = await LeaveRequest.findOne({
+      providerId,
+      status: "approved",
+      $or: [
+        { endAt: { $ne: null, $gte: dateStart }, startAt: { $lte: dateEnd } },
+        { endAt: null, startAt: { $gte: dateStart, $lte: dateEnd } },
+      ],
+    }).lean();
+    if (approvedLeave) {
+      return res.status(400).json({ error: "Cannot edit availability while on approved leave for this date" });
+    }
+
+    // Slots can be modified until 2 hours before the service time (local server time).
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const existingDoc = await ProviderDayAvailability.findOne({ providerId, date }).lean();
+    const currentMap = existingDoc?.availableSlots?.length
+      ? (() => {
+        const m = {};
+        DEFAULT_TIME_SLOTS.forEach((s) => { m[s] = false; });
+        for (const s of existingDoc.availableSlots) if (DEFAULT_TIME_SLOTS.includes(s)) m[s] = true;
+        return m;
+      })()
+      : defaultSlotsMap();
+    const nextEffective = { ...defaultSlotsMap(), ...normalized.slots };
+
+    if (date === todayIso) {
+      const locked = [];
+      for (const s of DEFAULT_TIME_SLOTS) {
+        const startDt = slotLabelToLocalDateTime(date, s);
+        if (!startDt) continue;
+        if (startDt.getTime() < cutoff.getTime()) {
+          if ((nextEffective[s] ?? false) !== (currentMap[s] ?? false)) locked.push(s);
+        }
+      }
+      if (locked.length > 0) {
+        return res.status(400).json({ error: "Some slots are locked (within 2 hours)", lockedSlots: locked });
+      }
+    }
+
+    const availableSlots = slotsMapToAvailableSlots({ ...defaultSlotsMap(), ...normalized.slots });
+
+    const doc = await ProviderDayAvailability.findOneAndUpdate(
+      { providerId, date },
+      { providerId, date, availableSlots },
+      { upsert: true, new: true }
+    ).lean();
+
+    const slots = {};
+    DEFAULT_TIME_SLOTS.forEach((s) => { slots[s] = false; });
+    for (const s of doc.availableSlots || []) slots[s] = true;
+    res.json({ date, slots });
+  }
+);
 
 router.get("/leaves", requireRole("provider"), async (req, res) => {
   const pId = req.auth.sub;
@@ -73,20 +202,45 @@ router.post(
   ensureFourHourLeadTime,
   async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    if (!errors.isEmpty()) return res.status(400).json({ error: "Invalid input", details: errors.array() });
     const pId = req.auth.sub;
     const prov = await ProviderAccount.findById(pId).lean();
     if (!prov) return res.status(404).json({ error: "Not found" });
+
+    const startAt = new Date(req.body.startAt);
+    if (Number.isNaN(startAt.getTime())) return res.status(400).json({ error: "Invalid startAt" });
+
+    const startIso = toIsoDateFromAny(startAt);
+    if (!startIso) return res.status(400).json({ error: "Invalid start date" });
+
+    const wantsEnd = (req.body.type || "Full Day") === "Full Day" && !!req.body.endDate;
+    const endIsoRaw = wantsEnd ? toIsoDateFromAny(req.body.endDate) : "";
+    const endIso = endIsoRaw || startIso;
+    if (!endIso) return res.status(400).json({ error: "Invalid end date" });
+
+    const dayCount = daysBetweenInclusive(startIso, endIso);
+    if (!dayCount) return res.status(400).json({ error: "Invalid date range" });
+
+    const includesWeekend = isoDateRangeIncludesWeekend(startIso, endIso);
+    if (includesWeekend === null) return res.status(400).json({ error: "Invalid date range" });
+
+    const requiresApproval = dayCount > 3 || includesWeekend === true;
+    const status = requiresApproval ? "pending" : "approved";
+
+    const endAt = isoDateToLocalEnd(endIso);
+    if (!endAt) return res.status(400).json({ error: "Invalid end date" });
+
     const item = await LeaveRequest.create({
       providerId: pId,
       phone: prov.phone,
       type: req.body.type || "Full Day",
-      startAt: new Date(req.body.startAt),
-      endDate: req.body.endDate || "",
+      startAt,
+      endAt,
+      endDate: (endIso !== startIso) ? endIso : "",
       reason: req.body.reason || "",
-      status: "pending",
+      status,
     });
-    res.status(201).json({ leave: item });
+    res.status(201).json({ leave: item, requiresApproval });
   }
 );
 
@@ -223,7 +377,16 @@ router.get("/summary/:phone", param("phone").matches(/^\d{10}$/), async (req, re
   }
 });
 
-router.post("/logout", (_req, res) => {
+router.post("/logout", async (_req, res) => {
+  try {
+    const tok = _req.cookies?.providerToken;
+    if (tok) {
+      const p = jwt.verify(tok, process.env.JWT_SECRET || "dev_secret_change_me");
+      if (p?.sub) {
+        await ProviderAccount.findByIdAndUpdate(p.sub, { isOnline: false });
+      }
+    }
+  } catch {}
   res.clearCookie("providerToken").json({ success: true });
 });
 
@@ -289,45 +452,13 @@ router.post(
 );
 
 router.get("/bookings/:providerId", requireRole("provider"), param("providerId").isString(), async (req, res) => {
+  if (req.params.providerId !== req.auth?.sub) return res.status(403).json({ error: "Forbidden" });
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.min(parseInt(req.query.limit) || 20, 100);
   const q = { assignedProvider: req.params.providerId };
   let total = await Booking.countDocuments(q);
-  if (total === 0) {
-    try {
-      const now = new Date();
-      const day = now.toISOString().slice(0, 10);
-      const services = [
-        { name: "Haircut", price: 299, duration: "30m", category: "hair", serviceType: "instant" },
-        { name: "Facial", price: 999, duration: "1h 30m", category: "facial", serviceType: "instant" },
-        { name: "Waxing", price: 799, duration: "1h", category: "waxing", serviceType: "instant" },
-      ];
-      const addr = { houseNo: "101", area: "Downtown", landmark: "Near Park" };
-      const mk = (status, time) => ({
-        customerId: "DEMO-" + Math.random().toString(36).slice(2, 7),
-        customerName: "Demo Customer",
-        services,
-        totalAmount: services.reduce((s, i) => s + i.price, 0),
-        prepaidAmount: 0,
-        balanceAmount: services.reduce((s, i) => s + i.price, 0),
-        address: addr,
-        slot: { date: day, time },
-        bookingType: "instant",
-        status,
-        otp: "1234",
-        assignedProvider: req.params.providerId,
-      });
-      await Booking.insertMany([
-        mk("incoming", "09:00"),
-        mk("pending", "11:00"),
-        mk("accepted", "13:00"),
-        mk("in_progress", "15:00"),
-        mk("completed", "17:00"),
-        mk("cancelled", "19:00"),
-      ]);
-    } catch {}
-  }
-  const bookings = await Booking.find(q).skip((page - 1) * limit).limit(limit).lean();
+  const items = await Booking.find(q).skip((page - 1) * limit).limit(limit).lean();
+  const bookings = (items || []).map((b) => ({ ...b, id: b._id?.toString?.() || b.id }));
   total = bookings.length;
   res.json({ bookings, page, limit, total });
 });
@@ -342,8 +473,61 @@ router.patch("/bookings/:id/status", requireRole("provider"), param("id").isStri
   }
   let b = await Booking.findById(req.params.id);
   if (!b) return res.status(404).json({ error: "Not found" });
-  b.status = req.body.status;
-  // Handle rejection: move to next candidate or escalate to admin
+  if ((b.assignedProvider || "") !== (pId || "")) return res.status(403).json({ error: "Forbidden" });
+
+  const now = new Date();
+
+  // Expired acceptance window: provider can't accept anymore.
+  // We auto-reassign immediately to keep UX responsive, and return 409 for the current provider.
+  const acceptMs = getAcceptWindowMs();
+  const expiredByExpiresAt = !!b.expiresAt && now.getTime() > new Date(b.expiresAt).getTime();
+  const expiredByLegacyLastAssignedAt =
+    !b.expiresAt &&
+    !!b.lastAssignedAt &&
+    (now.getTime() - new Date(b.lastAssignedAt).getTime()) > acceptMs;
+  if (next === "accepted" && (expiredByExpiresAt || expiredByLegacyLastAssignedAt)) {
+    const current = b.assignedProvider || "";
+    if (current) {
+      const set = new Set(b.rejectedProviders || []);
+      set.add(current);
+      b.rejectedProviders = Array.from(set);
+    }
+
+    const startIdx = Math.max(Number(b.assignmentIndex || 0), 0) + 1;
+    const picked = await pickNextProviderForBooking(b, startIdx);
+    if (picked?.providerId) {
+      b.assignedProvider = picked.providerId;
+      b.assignmentIndex = picked.index;
+      b.status = "pending";
+      b.lastAssignedAt = now;
+      b.expiresAt = computeExpiresAt(now);
+      b.adminEscalated = false;
+      try {
+        const io = getIO();
+        io?.of("/bookings").emit("assignment:changed", { id: b._id.toString(), fromProvider: current, toProvider: picked.providerId, reason: "accept_expired" });
+        io?.of("/bookings").emit("status:update", { id: b._id.toString(), status: "pending" });
+      } catch {}
+    } else {
+      b.assignedProvider = "";
+      b.adminEscalated = true;
+      b.status = "pending";
+      b.expiresAt = null;
+      try {
+        const io = getIO();
+        io?.of("/bookings").emit("status:update", { id: b._id.toString(), status: "pending" });
+      } catch {}
+    }
+
+    await b.save();
+    await BookingLog.create({ action: "booking:accept-expired", userId: pId, bookingId: req.params.id, meta: { attempted: "accepted" } });
+    return res.status(409).json({
+      error: "This booking request has expired for you and was reassigned to another provider.",
+      code: "ACCEPT_WINDOW_EXPIRED",
+      booking: b,
+    });
+  }
+
+  // Handle rejection: move to next eligible candidate or escalate to admin
   if (next === "rejected") {
     const current = b.assignedProvider || "";
     if (current) {
@@ -351,36 +535,42 @@ router.patch("/bookings/:id/status", requireRole("provider"), param("id").isStri
       set.add(current);
       b.rejectedProviders = Array.from(set);
     }
-    // Find next candidate within 5km not rejected
-    const candidates = Array.isArray(b.candidateProviders) ? b.candidateProviders : [];
-    let idx = Math.max(Number(b.assignmentIndex || 0), 0) + 1;
-    let assigned = "";
-    while (idx < candidates.length) {
-      const cand = candidates[idx];
-      if (!b.rejectedProviders.includes(cand)) { assigned = cand; break; }
-      idx++;
-    }
-    if (assigned) {
-      b.assignedProvider = assigned;
-      b.assignmentIndex = idx;
+
+    const startIdx = Math.max(Number(b.assignmentIndex || 0), 0) + 1;
+    const picked = await pickNextProviderForBooking(b, startIdx);
+    if (picked?.providerId) {
+      b.assignedProvider = picked.providerId;
+      b.assignmentIndex = picked.index;
       b.status = "pending";
-      b.lastAssignedAt = new Date();
+      b.lastAssignedAt = now;
+      b.expiresAt = computeExpiresAt(now);
       b.adminEscalated = false;
       try {
         const io = getIO();
-        io?.of("/bookings").emit("assignment:changed", { id: b._id.toString(), fromProvider: current, toProvider: assigned });
+        io?.of("/bookings").emit("assignment:changed", { id: b._id.toString(), fromProvider: current, toProvider: picked.providerId, reason: "rejected" });
       } catch {}
     } else {
       b.assignedProvider = "";
       b.adminEscalated = true;
       b.status = "pending";
+      b.expiresAt = null;
     }
+  } else if (next === "accepted") {
+    b.status = "accepted";
+    b.expiresAt = null;
+    b.adminEscalated = false;
+  } else {
+    // For other provider-driven statuses (travelling, arrived, in_progress, completed, cancelled, etc.)
+    // store normalized lower-case.
+    b.status = next;
+    if (next !== "pending") b.expiresAt = null;
   }
+
   await b.save();
-  await BookingLog.create({ action: "booking:status", userId: pId, bookingId: req.params.id, meta: { status: req.body.status } });
+  await BookingLog.create({ action: "booking:status", userId: pId, bookingId: req.params.id, meta: { status: next } });
   try {
     const io = getIO();
-    io?.of("/bookings").emit("status:update", { id: req.params.id, status: req.body.status });
+    io?.of("/bookings").emit("status:update", { id: req.params.id, status: next });
   } catch {}
   res.json({ booking: b });
 });
@@ -388,6 +578,7 @@ router.patch("/bookings/:id/status", requireRole("provider"), param("id").isStri
 router.post("/bookings/:id/verify-otp", requireRole("provider"), param("id").isString(), body("otp").isString(), async (req, res) => {
   const b = await Booking.findById(req.params.id);
   if (!b || b.otp !== req.body.otp) return res.status(403).json({ error: "Invalid OTP" });
+  if ((b.assignedProvider || "") !== (req.auth?.sub || "")) return res.status(403).json({ error: "Forbidden" });
   b.status = "in_progress";
   await b.save();
   await BookingLog.create({ action: "booking:verify-otp", userId: req.auth?.sub || "", bookingId: req.params.id, meta: {} });
@@ -406,6 +597,7 @@ router.post(
   async (req, res) => {
     const b = await Booking.findById(req.params.id);
     if (!b) return res.status(404).json({ error: "Not found" });
+    if ((b.assignedProvider || "") !== (req.auth?.sub || "")) return res.status(403).json({ error: "Forbidden" });
     const uploads = await Promise.all(
       (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${b._id}/before`))
     );
@@ -424,6 +616,7 @@ router.post(
   async (req, res) => {
     const b = await Booking.findById(req.params.id);
     if (!b) return res.status(404).json({ error: "Not found" });
+    if ((b.assignedProvider || "") !== (req.auth?.sub || "")) return res.status(403).json({ error: "Forbidden" });
     const uploads = await Promise.all(
       (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${b._id}/after`))
     );
@@ -442,6 +635,7 @@ router.post(
   async (req, res) => {
     const b = await Booking.findById(req.params.id);
     if (!b) return res.status(404).json({ error: "Not found" });
+    if ((b.assignedProvider || "") !== (req.auth?.sub || "")) return res.status(403).json({ error: "Forbidden" });
     const uploads = await Promise.all(
       (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${b._id}/products`))
     );
@@ -460,6 +654,7 @@ router.post(
   async (req, res) => {
     const b = await Booking.findById(req.params.id);
     if (!b) return res.status(404).json({ error: "Not found" });
+    if ((b.assignedProvider || "") !== (req.auth?.sub || "")) return res.status(403).json({ error: "Forbidden" });
     const uploads = await Promise.all(
       (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${b._id}/provider`))
     );

@@ -4,6 +4,7 @@ import { X, Send, User, Phone, PartyPopper, Users, Calendar, Clock, CheckCircle2
 import { Button } from "@/modules/user/components/ui/button";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
+import { api } from "@/modules/user/lib/api";
 
 const EVENT_TYPES = ["Bridal Event", "Birthday Party", "Kitty Party", "Corporate Event", "Festival Gathering", "Engagement", "Other"];
 
@@ -41,12 +42,22 @@ const CustomizeBookingForm = ({ isOpen, onClose }) => {
     }, [isOpen, filteredCategories, activeCategoryId]);
 
     useEffect(() => {
-        if (isOpen) {
-            const enquiries = JSON.parse(localStorage.getItem("muskan-enquiries") || "[]");
-            if (enquiries.length > 0) {
-                setLastEnquiry(enquiries[enquiries.length - 1]);
+        let cancelled = false;
+        if (!isOpen) return;
+        (async () => {
+            try {
+                const { enquiries } = await api.bookings.custom.list();
+                if (cancelled) return;
+                const list = Array.isArray(enquiries) ? enquiries : [];
+                const latest = list
+                    .slice()
+                    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+                setLastEnquiry(latest || null);
+            } catch {
+                if (!cancelled) setLastEnquiry(null);
             }
-        }
+        })();
+        return () => { cancelled = true; };
     }, [isOpen, submitted]);
 
     const handleChange = (field, value) => {
@@ -123,7 +134,7 @@ const CustomizeBookingForm = ({ isOpen, onClose }) => {
                 notes: formData.notes,
                 address: undefined
             };
-            const { enquiry } = await (await import("@/modules/user/lib/api")).api.bookings.custom.create(payload);
+            const { enquiry } = await api.bookings.custom.create(payload);
             setLastEnquiry(enquiry);
             setSubmitted(true);
         } catch (e) {

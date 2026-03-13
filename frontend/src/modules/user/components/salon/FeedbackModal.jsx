@@ -21,7 +21,7 @@ const FeedbackModal = ({ isOpen, onClose, booking, onSubmit }) => {
             bookingId: booking?.id,
             customerName: booking?.customerName || booking?.address?.name || "Customer",
             providerName: booking?.slot?.provider?.name || booking?.assignedProvider || "Provider",
-            serviceName: booking?.items?.[0]?.name || "Service",
+            serviceName: booking?.items?.[0]?.name || booking?.services?.[0]?.name || "Service",
             rating,
             comment,
             tags: selectedTags,
@@ -79,7 +79,7 @@ const FeedbackModal = ({ isOpen, onClose, booking, onSubmit }) => {
                                     <MessageSquare className="w-5 h-5" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold truncate">{booking?.items?.[0]?.name || "Service"}</p>
+                                    <p className="text-sm font-bold truncate">{booking?.items?.[0]?.name || booking?.services?.[0]?.name || "Service"}</p>
                                     <p className="text-[10px] text-muted-foreground font-medium">Booking #{booking?.id}</p>
                                 </div>
                             </div>

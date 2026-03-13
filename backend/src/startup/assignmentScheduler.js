@@ -1,47 +1,50 @@
 import Booking from "../models/Booking.js";
 import { getIO } from "./socket.js";
+import { computeExpiresAt, getAcceptWindowMs, pickNextProviderForBooking } from "../lib/assignment.js";
 
 export function startAssignmentScheduler() {
-  const TEN_MIN_MS = 10 * 60 * 1000;
+  const ACCEPT_MS = getAcceptWindowMs();
   async function runOnce() {
-    const threshold = new Date(Date.now() - TEN_MIN_MS);
+    const now = new Date();
+    const threshold = new Date(Date.now() - ACCEPT_MS);
     const q = {
       status: "pending",
       adminEscalated: false,
       assignedProvider: { $ne: "" },
-      lastAssignedAt: { $lte: threshold },
+      $or: [
+        { expiresAt: { $ne: null, $lte: now } },
+        { expiresAt: null, lastAssignedAt: { $ne: null, $lte: threshold } },
+      ],
     };
     try {
       const items = await Booking.find(q).limit(50);
       for (const b of items) {
-        const candidates = Array.isArray(b.candidateProviders) ? b.candidateProviders : [];
-        if (!candidates.length) {
-          b.assignedProvider = "";
-          b.adminEscalated = true;
-          await b.save();
-          continue;
-        }
-        let idx = Math.max(Number(b.assignmentIndex || 0), 0) + 1;
-        let assigned = "";
-        while (idx < candidates.length) {
-          const cand = candidates[idx];
-          if (!(b.rejectedProviders || []).includes(cand)) { assigned = cand; break; }
-          idx++;
-        }
         const fromProvider = b.assignedProvider || "";
-        if (assigned) {
-          b.assignedProvider = assigned;
-          b.assignmentIndex = idx;
-          b.lastAssignedAt = new Date();
+        if (fromProvider) {
+          const set = new Set(b.rejectedProviders || []);
+          set.add(fromProvider);
+          b.rejectedProviders = Array.from(set);
+        }
+
+        const startIdx = Math.max(Number(b.assignmentIndex || 0), 0) + 1;
+        // eslint-disable-next-line no-await-in-loop
+        const picked = await pickNextProviderForBooking(b, startIdx);
+        if (picked?.providerId) {
+          b.assignedProvider = picked.providerId;
+          b.assignmentIndex = picked.index;
+          b.lastAssignedAt = now;
+          b.expiresAt = computeExpiresAt(now);
+          b.adminEscalated = false;
           await b.save();
           try {
             const io = getIO();
-            io?.of("/bookings").emit("assignment:changed", { id: b._id.toString(), fromProvider, toProvider: assigned, reason: "timeout" });
+            io?.of("/bookings").emit("assignment:changed", { id: b._id.toString(), fromProvider, toProvider: picked.providerId, reason: "timeout" });
             io?.of("/bookings").emit("status:update", { id: b._id.toString(), status: "pending" });
           } catch {}
         } else {
           b.assignedProvider = "";
           b.adminEscalated = true;
+          b.expiresAt = null;
           await b.save();
           try {
             const io = getIO();

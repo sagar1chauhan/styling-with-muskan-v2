@@ -14,6 +14,7 @@ import LeaveRequest from "../models/LeaveRequest.js";
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from "../config.js";
 import { ServiceType, Category, Service } from "../models/Content.js";
 import * as BookingsController from "../modules/bookings/controllers/bookings.controller.js";
+import { computeExpiresAt } from "../lib/assignment.js";
 
 const router = Router();
 
@@ -202,7 +203,18 @@ router.patch("/providers/:id/status", requireRole("admin"), param("id").isString
 router.get("/bookings", requireRole("admin"), AdminController.listBookings);
 
 router.patch("/bookings/:id/assign", requireRole("admin"), param("id").isString(), body("providerId").isString().notEmpty(), async (req, res) => {
-  const b = await Booking.findByIdAndUpdate(req.params.id, { assignedProvider: req.body.providerId, status: "pending" }, { new: true });
+  const now = new Date();
+  const b = await Booking.findByIdAndUpdate(
+    req.params.id,
+    {
+      assignedProvider: req.body.providerId,
+      status: "pending",
+      adminEscalated: false,
+      lastAssignedAt: now,
+      expiresAt: computeExpiresAt(now),
+    },
+    { new: true }
+  );
   res.json({ booking: b });
 });
 

@@ -42,6 +42,8 @@ export default function AvailabilityCalendar() {
 
     // Day-based availability states
     const [dateSlots, setDateSlots] = useState({});
+    const [loadingSlots, setLoadingSlots] = useState(false);
+    const [savingSlots, setSavingSlots] = useState(false);
 
     // Leave states
     const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -60,6 +62,21 @@ export default function AvailabilityCalendar() {
         }).catch(() => {});
         return () => { cancelled = true; };
     }, [isLoggedIn]);
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!isLoggedIn || !selectedDate) return;
+        setLoadingSlots(true);
+        api.provider.availability.get(selectedDate).then(({ slots }) => {
+            if (cancelled) return;
+            setDateSlots(prev => ({ ...prev, [selectedDate]: slots || {} }));
+        }).catch(() => {
+            // If API fails, keep the default UI behavior.
+        }).finally(() => {
+            if (!cancelled) setLoadingSlots(false);
+        });
+        return () => { cancelled = true; };
+    }, [isLoggedIn, selectedDate]);
 
     const monthDays = useMemo(() => {
         const year = currentMonth.getFullYear();
@@ -86,25 +103,102 @@ export default function AvailabilityCalendar() {
         return acc;
     }, {});
 
-    const toggleSlot = (slot) => {
-        setDateSlots(prev => ({
-            ...prev,
-            [selectedDate]: {
-                ...currentDaySlots,
-                [slot]: !currentDaySlots[slot]
+    const parseSlotToDate = (dateKey, slotLabel) => {
+        try {
+            const m = String(slotLabel || "").trim().match(/^(\d{2}):(\d{2})\s*(AM|PM)$/i);
+            if (!m) return null;
+            let hh = parseInt(m[1], 10);
+            const mm = parseInt(m[2], 10);
+            const ap = m[3].toUpperCase();
+            if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
+            if (ap === "AM") {
+                if (hh === 12) hh = 0;
+            } else {
+                if (hh !== 12) hh += 12;
             }
-        }));
+            const dt = new Date(`${dateKey}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`);
+            return isNaN(dt.getTime()) ? null : dt;
+        } catch {
+            return null;
+        }
     };
 
-    const handleBulkToggle = (val) => {
-        setDateSlots(prev => ({
-            ...prev,
-            [selectedDate]: timeSlots.reduce((acc, slot) => {
-                acc[slot] = val;
-                return acc;
-            }, {})
-        }));
+    const todayKey = format(new Date(), "yyyy-MM-dd");
+    const isPastDay = selectedDate < todayKey;
+    const cutoff = addHours(new Date(), 2);
+    const isSlotLocked = (slotLabel) => {
+        if (selectedDate !== todayKey) return false;
+        const dt = parseSlotToDate(selectedDate, slotLabel);
+        if (!dt) return false;
+        return isBefore(dt, cutoff);
+    };
+
+    const activeApprovedLeave = useMemo(() => {
+        const sel = selectedDate;
+        for (const l of (leaves || [])) {
+            if (l?.status !== "approved") continue;
+            const startKey = format(new Date(l.startAt), "yyyy-MM-dd");
+            const endKey = (l.endDate && /^\d{4}-\d{2}-\d{2}$/.test(l.endDate)) ? l.endDate : startKey;
+            if (sel >= startKey && sel <= endKey) return l;
+        }
+        return null;
+    }, [leaves, selectedDate]);
+
+    const saveSlots = async (date, slots) => {
+        if (!isLoggedIn) return;
+        setSavingSlots(true);
+        try {
+            await api.provider.availability.set(date, slots);
+            toast.success("Availability saved");
+        } catch (e) {
+            toast.error(e?.message || "Failed to save availability");
+        } finally {
+            setSavingSlots(false);
+        }
+    };
+
+    const toggleSlot = async (slot) => {
+        if (isPastDay) {
+            toast.error("You cannot edit past dates");
+            return;
+        }
+        if (activeApprovedLeave) {
+            toast.error("You are on approved leave for this date");
+            return;
+        }
+        if (isSlotLocked(slot)) {
+            toast.error("This slot is locked (within 2 hours)");
+            return;
+        }
+        const next = {
+            ...currentDaySlots,
+            [slot]: !currentDaySlots[slot]
+        };
+        setDateSlots(prev => ({ ...prev, [selectedDate]: next }));
+        await saveSlots(selectedDate, next);
+    };
+
+    const handleBulkToggle = async (val) => {
+        if (isPastDay) {
+            toast.error("You cannot edit past dates");
+            return;
+        }
+        if (activeApprovedLeave) {
+            toast.error("You are on approved leave for this date");
+            return;
+        }
+        const locked = timeSlots.filter((s) => isSlotLocked(s));
+        if (locked.length > 0) {
+            toast.error("Some slots are locked (within 2 hours). Edit future slots only.");
+            return;
+        }
+        const next = timeSlots.reduce((acc, slot) => {
+            acc[slot] = val;
+            return acc;
+        }, {});
+        setDateSlots(prev => ({ ...prev, [selectedDate]: next }));
         toast.success(`Turned ${val ? 'ON' : 'OFF'} all slots for this day`);
+        await saveSlots(selectedDate, next);
     };
 
     const handleLeaveSubmit = async () => {
@@ -126,7 +220,7 @@ export default function AvailabilityCalendar() {
             return;
         }
         try {
-            await api.provider.leaves.create({
+            const res = await api.provider.leaves.create({
                 type: leaveType,
                 startAt: leaveStart,
                 endDate: leaveEnd,
@@ -136,7 +230,8 @@ export default function AvailabilityCalendar() {
             setLeaves(latest || []);
             setShowLeaveModal(false);
             setLeaveStart(""); setLeaveEnd(""); setLeaveReason("");
-            toast.success("Leave request submitted • Pending approval");
+            const status = res?.leave?.status || "pending";
+            toast.success(status === "approved" ? "Leave approved" : "Leave request submitted - Pending approval");
         } catch (e) {
             toast.error(e?.message || "Failed to submit leave");
         }
@@ -217,7 +312,10 @@ export default function AvailabilityCalendar() {
                                                     <Plane className="w-4 h-4 text-slate-400" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-bold text-slate-900">{format(new Date(l.startAt), "MMM dd, yyyy")} {l.endDate && l.endDate !== format(new Date(l.startAt), "MMM dd, yyyy") && `— ${l.endDate}`}</p>
+                                                    <p className="text-sm font-bold text-slate-900">
+                                                        {format(new Date(l.startAt), "MMM dd, yyyy")}
+                                                        {l.endDate && /^\d{4}-\d{2}-\d{2}$/.test(l.endDate) && l.endDate !== format(new Date(l.startAt), "yyyy-MM-dd") && ` - ${format(new Date(l.endDate), "MMM dd, yyyy")}`}
+                                                    </p>
                                                     <p className="text-[10px] text-slate-500 font-medium uppercase tracking-tight">{l.reason || "Professional Break"}</p>
                                                 </div>
                                             </div>
@@ -253,13 +351,28 @@ export default function AvailabilityCalendar() {
                                             <div className="h-1.5 w-1.5 bg-green-500 rounded-full" />
                                             <p className="text-[10px] text-slate-400 font-black uppercase tracking-tighter">{totalHours} Hours Live</p>
                                         </div>
+                                        {(loadingSlots || savingSlots) && (
+                                            <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                                {loadingSlots ? "Loading saved availability..." : "Saving changes..."}
+                                            </p>
+                                        )}
+                                        {isPastDay && (
+                                            <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                                Past dates cannot be edited
+                                            </p>
+                                        )}
+                                        {activeApprovedLeave && (
+                                            <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-amber-600">
+                                                On approved leave for this date
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="flex gap-1">
                                         {/* On All Confirmation */}
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
-                                                <button className="text-[9px] font-black uppercase px-2 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors">ON ALL</button>
+                                                <button disabled={loadingSlots || savingSlots || isPastDay || !!activeApprovedLeave} className="text-[9px] font-black uppercase px-2 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 disabled:pointer-events-none">ON ALL</button>
                                             </AlertDialogTrigger>
                                             <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
                                                 <AlertDialogHeader>
@@ -278,7 +391,7 @@ export default function AvailabilityCalendar() {
                                         {/* Off All Confirmation */}
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
-                                                <button className="text-[9px] font-black uppercase px-2 py-1.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors">OFF ALL</button>
+                                                <button disabled={loadingSlots || savingSlots || isPastDay || !!activeApprovedLeave} className="text-[9px] font-black uppercase px-2 py-1.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50 disabled:pointer-events-none">OFF ALL</button>
                                             </AlertDialogTrigger>
                                             <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
                                                 <AlertDialogHeader>
@@ -313,6 +426,7 @@ export default function AvailabilityCalendar() {
                                                     checked={isActive}
                                                     onCheckedChange={() => toggleSlot(slot)}
                                                     className="data-[state=checked]:bg-purple-600 scale-90"
+                                                    disabled={loadingSlots || savingSlots || isPastDay || !!activeApprovedLeave || isSlotLocked(slot)}
                                                 />
                                             </div>
                                         );
@@ -402,7 +516,7 @@ export default function AvailabilityCalendar() {
                             <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3">
                                     <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                                     <p className="text-[10px] text-amber-800 font-bold leading-tight uppercase tracking-tighter">
-                                    Leaves must be applied at least 4 hours prior. Pending admin approval.
+                                    Leaves must be applied at least 4 hours prior. Weekend or more than 3 days requires admin approval.
                                     </p>
                                 </div>
 

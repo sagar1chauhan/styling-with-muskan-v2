@@ -1,10 +1,16 @@
 import { validationResult } from "express-validator";
 import Booking from "../../../models/Booking.js";
+import mongoose from "mongoose";
 import Coupon from "../../../models/Coupon.js";
 import { OfficeSettings, Category } from "../../../models/Content.js";
 import ProviderAccount from "../../../models/ProviderAccount.js";
 import BookingLog from "../../../models/BookingLog.js";
 import CustomEnquiry from "../../../models/CustomEnquiry.js";
+import ProviderDayAvailability from "../../../models/ProviderDayAvailability.js";
+import { DEFAULT_TIME_SLOTS, defaultSlotsMap, slotsMapToAvailableSlots } from "../../../lib/slots.js";
+import LeaveRequest from "../../../models/LeaveRequest.js";
+import { isIsoDate, isoDateToLocalEnd, isoDateToLocalStart } from "../../../lib/isoDateTime.js";
+import { computeExpiresAt } from "../../../lib/assignment.js";
 import Razorpay from "razorpay";
 import { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } from "../../../config.js";
 
@@ -51,13 +57,71 @@ function computeTotals(items = [], coupon) {
   return { total, discount, finalTotal: Math.max(total - discount, 0) };
 }
 
+function bookingServicesToItems(services = []) {
+  if (!Array.isArray(services)) return [];
+  return services.map((s) => ({
+    name: s?.name || "",
+    price: Number(s?.price) || 0,
+    duration: s?.duration || "",
+    category: s?.category || "",
+    serviceType: s?.serviceType || "",
+    quantity: 1,
+  }));
+}
+
+async function attachProviderToBookings(bookings = []) {
+  const raw = Array.from(new Set(
+    (bookings || []).map((b) => String(b?.assignedProvider || "")).filter(Boolean)
+  ));
+  if (raw.length === 0) return bookings;
+
+  const idIds = raw.filter((v) => mongoose.isValidObjectId(v));
+  const phoneIds = raw.filter((v) => /^\d{10}$/.test(v));
+
+  const provsById = idIds.length
+    ? await ProviderAccount.find({ _id: { $in: idIds } }).select("name phone rating profilePhoto experience city").lean()
+    : [];
+  const provsByPhone = phoneIds.length
+    ? await ProviderAccount.find({ phone: { $in: phoneIds } }).select("name phone rating profilePhoto experience city").lean()
+    : [];
+
+  const byKey = new Map();
+  for (const p of [...(provsById || []), ...(provsByPhone || [])]) {
+    byKey.set(p._id.toString(), p);
+    if (p.phone) byKey.set(String(p.phone), p);
+  }
+  return (bookings || []).map((b) => {
+    const p = byKey.get(String(b.assignedProvider || ""));
+    if (!p) return b;
+    const slot = {
+      ...(b.slot || {}),
+      provider: {
+        id: p._id.toString(),
+        name: p.name || "",
+        rating: p.rating || 0,
+        profilePhoto: p.profilePhoto || "",
+        experience: p.experience || "",
+        city: p.city || "",
+      },
+    };
+    return { ...b, slot };
+  });
+}
+
 export async function list(req, res) {
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.min(parseInt(req.query.limit) || 20, 100);
   const q = { customerId: req.user._id.toString() };
   const total = await Booking.countDocuments(q);
   const items = await Booking.find(q).skip((page - 1) * limit).limit(limit).lean();
-  res.json({ bookings: items, page, limit, total });
+  let bookings = (items || []).map((b) => ({
+    ...b,
+    id: b._id?.toString?.() || b.id,
+    // Back-compat for UI: some components expect booking.items[] (older shape) instead of booking.services[].
+    items: Array.isArray(b.items) ? b.items : bookingServicesToItems(b.services),
+  }));
+  bookings = await attachProviderToBookings(bookings);
+  res.json({ bookings, page, limit, total });
 }
 
 export async function quote(req, res) {
@@ -76,6 +140,8 @@ export async function create(req, res) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   const { items, slot, address, bookingType, couponCode } = req.body;
+  const preferredProviderId = String(req.body.preferredProviderId || "").trim();
+  const autoAssign = req.body.autoAssign === true;
   let coupon = null;
   if (couponCode) coupon = await Coupon.findOne({ code: couponCode, isActive: true }).lean();
   const totals = computeTotals(items, coupon);
@@ -92,6 +158,20 @@ export async function create(req, res) {
   // Build candidate provider list within 5 km from user's address lat/lng if available
   const userLat = Number(req.user?.addresses?.[0]?.lat);
   const userLng = Number(req.user?.addresses?.[0]?.lng);
+  const requestedDate = String(slot?.date || "").trim();
+  const requestedTime = String(slot?.time || "").trim();
+  const defaultAvailableSet = new Set(slotsMapToAvailableSlots(defaultSlotsMap()));
+  const wantCats = new Set((items || []).map(it => String(it.category || "")).filter(Boolean));
+  const wantTypes = new Set((items || []).map(it => String(it.serviceType || "")).filter(Boolean));
+  const matchesSpecialty = (p) => {
+    const spec = p?.documents?.specializations || [];
+    if (!Array.isArray(spec) || spec.length === 0) return true;
+    return spec.some(s => wantCats.has(s) || wantTypes.has(s));
+  };
+  const wantsKnownDate = isIsoDate(requestedDate);
+  const wantsKnownSlot = DEFAULT_TIME_SLOTS.includes(requestedTime);
+  const dayStart = wantsKnownDate ? isoDateToLocalStart(requestedDate) : null;
+  const dayEnd = wantsKnownDate ? isoDateToLocalEnd(requestedDate) : null;
   let candidateProviders = [];
   if (!Number.isNaN(userLat) && !Number.isNaN(userLng)) {
     const providers = await ProviderAccount.find({
@@ -112,23 +192,154 @@ export async function create(req, res) {
       const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
       return R * c;
     };
-    const wantCats = new Set((items || []).map(it => String(it.category || "")).filter(Boolean));
-    const wantTypes = new Set((items || []).map(it => String(it.serviceType || "")).filter(Boolean));
-    const matchesSpecialty = (p) => {
-      const spec = p?.documents?.specializations || [];
-      if (!Array.isArray(spec) || spec.length === 0) return true;
-      return spec.some(s => wantCats.has(s) || wantTypes.has(s));
+    // Availability filter: if slot.time is a known label, ensure provider is available for that date/time.
+    // If no provider-specific availability exists, fallback to default schedule (9 AM - 5 PM).
+    let availByProviderId = new Map();
+    if (wantsKnownSlot && wantsKnownDate) {
+      const ids = providers.map((p) => p._id.toString());
+      const dayDocs = await ProviderDayAvailability.find({ providerId: { $in: ids }, date: requestedDate }).lean();
+      for (const d of dayDocs || []) {
+        availByProviderId.set(d.providerId, new Set(Array.isArray(d.availableSlots) ? d.availableSlots : []));
+      }
+    }
+    // Leave filter: if requestedDate is known, exclude providers on approved leave for that date.
+    let leaveBlocked = new Set();
+    if (wantsKnownDate) {
+      if (dayStart && dayEnd) {
+        const ids = providers.map((p) => p._id.toString());
+        const leaves = await LeaveRequest.find({
+          providerId: { $in: ids },
+          status: "approved",
+          $or: [
+            { endAt: { $ne: null, $gte: dayStart }, startAt: { $lte: dayEnd } },
+            { endAt: null, startAt: { $gte: dayStart, $lte: dayEnd } },
+          ],
+        }).lean();
+        leaveBlocked = new Set((leaves || []).map((l) => String(l.providerId)));
+      }
+    }
+    // Booking conflict filter: do not assign a provider already booked for the same date/time.
+    let bookedBlocked = new Set();
+    if (wantsKnownDate && wantsKnownSlot) {
+      const ids = providers.map((p) => p._id.toString());
+      const booked = await Booking.find({
+        assignedProvider: { $in: ids },
+        "slot.date": requestedDate,
+        "slot.time": requestedTime,
+        status: { $ne: "cancelled" },
+      }).distinct("assignedProvider");
+      bookedBlocked = new Set((booked || []).map((x) => String(x)));
+    }
+    const isAvailableAtSlot = (providerId) => {
+      if (!DEFAULT_TIME_SLOTS.includes(requestedTime)) return true; // if unknown, don't block assignment
+      const set = availByProviderId.get(providerId);
+      if (set) return set.has(requestedTime);
+      return defaultAvailableSet.has(requestedTime);
     };
+
     const sorted = providers
       .filter(p => matchesSpecialty(p))
+      .filter(p => !leaveBlocked.has(p._id.toString()))
+      .filter(p => !bookedBlocked.has(p._id.toString()))
+      .filter(p => isAvailableAtSlot(p._id.toString()))
       .map(p => ({ id: p._id.toString(), d: distKm({ lat: userLat, lng: userLng }, { lat: p.currentLocation.lat, lng: p.currentLocation.lng }) }))
       .filter(x => x.d <= 5)
       .sort((a, b) => a.d - b.d);
     candidateProviders = sorted.map(s => s.id);
   }
-  let assignedProvider = candidateProviders[0] || "";
+  // If no location-based candidates, compute a fallback list (rating-based) so auto-assign still works.
+  if (candidateProviders.length === 0) {
+    const providers = await ProviderAccount.find({
+      approvalStatus: "approved",
+      registrationComplete: true,
+      isOnline: true,
+    }).lean();
+
+    let availByProviderId = new Map();
+    if (wantsKnownSlot && wantsKnownDate) {
+      const ids = providers.map((p) => p._id.toString());
+      const dayDocs = await ProviderDayAvailability.find({ providerId: { $in: ids }, date: requestedDate }).lean();
+      for (const d of dayDocs || []) {
+        availByProviderId.set(d.providerId, new Set(Array.isArray(d.availableSlots) ? d.availableSlots : []));
+      }
+    }
+    let leaveBlocked = new Set();
+    if (wantsKnownDate && dayStart && dayEnd) {
+      const ids = providers.map((p) => p._id.toString());
+      const leaves = await LeaveRequest.find({
+        providerId: { $in: ids },
+        status: "approved",
+        $or: [
+          { endAt: { $ne: null, $gte: dayStart }, startAt: { $lte: dayEnd } },
+          { endAt: null, startAt: { $gte: dayStart, $lte: dayEnd } },
+        ],
+      }).lean();
+      leaveBlocked = new Set((leaves || []).map((l) => String(l.providerId)));
+    }
+    let bookedBlocked = new Set();
+    if (wantsKnownDate && wantsKnownSlot) {
+      const ids = providers.map((p) => p._id.toString());
+      const booked = await Booking.find({
+        assignedProvider: { $in: ids },
+        "slot.date": requestedDate,
+        "slot.time": requestedTime,
+        status: { $ne: "cancelled" },
+      }).distinct("assignedProvider");
+      bookedBlocked = new Set((booked || []).map((x) => String(x)));
+    }
+    const isAvailableAtSlot = (providerId) => {
+      if (!DEFAULT_TIME_SLOTS.includes(requestedTime)) return true;
+      const set = availByProviderId.get(providerId);
+      if (set) return set.has(requestedTime);
+      return defaultAvailableSet.has(requestedTime);
+    };
+    candidateProviders = providers
+      .filter(p => matchesSpecialty(p))
+      .filter(p => !leaveBlocked.has(p._id.toString()))
+      .filter(p => !bookedBlocked.has(p._id.toString()))
+      .filter(p => isAvailableAtSlot(p._id.toString()))
+      .sort((a, b) => {
+        const r = Number(b.rating || 0) - Number(a.rating || 0);
+        if (r !== 0) return r;
+        return Number(b.totalJobs || 0) - Number(a.totalJobs || 0);
+      })
+      .map((p) => p._id.toString());
+  }
+
+  const providerIsCandidate = (pid) => !!pid && candidateProviders.includes(pid);
+  if (preferredProviderId && !autoAssign && !providerIsCandidate(preferredProviderId)) {
+    if (candidateProviders.length === 0) {
+      return res.status(409).json({
+        error: "No providers available for this booking slot. Please select another slot or time.",
+        code: "NO_PROVIDERS",
+      });
+    }
+    return res.status(409).json({
+      error: "This provider is unavailable for the required booking slot. Do you want to auto assign to the available provider for that slot?",
+      code: "PREFERRED_UNAVAILABLE",
+      canAutoAssign: candidateProviders.length > 0,
+    });
+  }
+
+  let assignedProvider = "";
+  if (preferredProviderId && providerIsCandidate(preferredProviderId)) {
+    assignedProvider = preferredProviderId;
+    candidateProviders = [preferredProviderId, ...candidateProviders.filter((x) => x !== preferredProviderId)];
+  } else if (candidateProviders.length > 0) {
+    assignedProvider = candidateProviders[0];
+  }
+
+  // If the user explicitly requested a specific provider or confirmed auto-assign, we must fail fast when none match.
+  // Otherwise we allow the booking to be created and escalated to admin/manual assignment.
+  if (!assignedProvider && (preferredProviderId || autoAssign)) {
+    return res.status(409).json({
+      error: "No providers available for this booking slot. Please select another slot or time.",
+      code: "NO_PROVIDERS",
+    });
+  }
   const assignmentIndex = assignedProvider ? 0 : -1;
   const lastAssignedAt = assignedProvider ? new Date() : null;
+  const expiresAt = assignedProvider ? computeExpiresAt(lastAssignedAt) : null;
   const booking = await Booking.create({
     customerId: req.user._id.toString(),
     customerName: req.user.name || "",
@@ -156,6 +367,7 @@ export async function create(req, res) {
     rejectedProviders: [],
     assignmentIndex,
     lastAssignedAt,
+    expiresAt,
     adminEscalated: !assignedProvider,
   });
   let order = null;
@@ -175,12 +387,19 @@ export async function create(req, res) {
       order = null;
     }
   }
-  res.status(201).json({
-    booking,
-    totals,
-    advanceAmount,
-    order,
-  });
+  {
+    const base = { ...booking.toObject(), id: booking._id.toString() };
+    const enriched = (await attachProviderToBookings([{
+      ...base,
+      items: Array.isArray(base.items) ? base.items : bookingServicesToItems(base.services),
+    }]))[0];
+    res.status(201).json({
+      booking: enriched,
+      totals,
+      advanceAmount,
+      order,
+    });
+  }
   if (notificationStatus === "queued") {
     await BookingLog.create({
       action: "booking:queue",
@@ -199,13 +418,21 @@ export async function create(req, res) {
 
 export async function getById(req, res) {
   const id = req.params.id;
+  if (!mongoose.isValidObjectId(id)) return res.status(404).json({ error: "Not found" });
   const booking = await Booking.findOne({ _id: id, customerId: req.user._id.toString() }).lean();
   if (!booking) return res.status(404).json({ error: "Not found" });
-  res.json({ booking });
+  const base = {
+    ...booking,
+    id: booking._id?.toString?.() || booking.id,
+    items: Array.isArray(booking.items) ? booking.items : bookingServicesToItems(booking.services),
+  };
+  const enriched = (await attachProviderToBookings([base]))[0];
+  res.json({ booking: enriched });
 }
 
 export async function createCustomEnquiry(req, res) {
   const { name, phone, eventType, noOfPeople, date, timeSlot, selectedServices, notes, address } = req.body;
+  const fallbackAddr = (req.user?.addresses && req.user.addresses[0]) ? req.user.addresses[0] : {};
   const items = (selectedServices || []).map((s) => ({
     id: s.id, name: s.name, category: s.category, serviceType: s.serviceType, quantity: s.quantity || 1, price: Number(s.price) || 0,
   }));
@@ -216,12 +443,12 @@ export async function createCustomEnquiry(req, res) {
     items,
     notes: notes || "",
     address: {
-      houseNo: address?.houseNo || "",
-      area: address?.area || "",
-      landmark: address?.landmark || "",
-      lat: address?.lat ?? null,
-      lng: address?.lng ?? null,
-      city: address?.city || "",
+      houseNo: address?.houseNo || fallbackAddr.houseNo || "",
+      area: address?.area || fallbackAddr.area || "",
+      landmark: address?.landmark || fallbackAddr.landmark || "",
+      lat: address?.lat ?? fallbackAddr.lat ?? null,
+      lng: address?.lng ?? fallbackAddr.lng ?? null,
+      city: address?.city || fallbackAddr.city || "",
     },
     status: "pending",
     timeline: [{ action: "created" }],
@@ -285,6 +512,9 @@ export async function adminFinalApprove(req, res) {
     slot: { date: enq.scheduledAt?.date || new Date().toISOString().slice(0, 10), time: enq.scheduledAt?.timeSlot || "10:00" },
     bookingType: "customized",
     status: "final_approved",
+    assignedProvider: enq.maintainerProvider || "",
+    maintainProvider: enq.maintainerProvider || "",
+    teamMembers: Array.isArray(enq.teamMembers) ? enq.teamMembers : [],
   });
   enq.status = "final_approved";
   enq.timeline.push({ action: "final_approved", meta: { bookingId: b._id.toString() } });
