@@ -325,7 +325,7 @@ export async function ensureCategoriesAndServices() {
     { id: "massage-m", name: "Massage", icon: "💪", gender: "men", serviceType: "skin", bookingType: "instant", image: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=150&h=150&fit=crop" },
   ];
   for (const c of mustHaveCategories) {
-    await Category.findOneAndUpdate({ id: c.id, gender: c.gender }, c, { upsert: true });
+    await Category.updateOne({ id: c.id, gender: c.gender }, { $setOnInsert: c }, { upsert: true });
   }
 
   // Upsert services across categories with price variations
@@ -371,6 +371,6 @@ export async function ensureCategoriesAndServices() {
     { id: "massage_relax_m1", name: "Relaxing Massage", category: "massage-m", gender: "men", price: 1199, originalPrice: 1499, duration: "60m", rating: 4.8, reviews: 145, description: "Full body massage", includes: ["Oil", "Massage"], image: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&h=300&fit=crop" },
   ];
   for (const s of servicesToEnsure) {
-    await Service.findOneAndUpdate({ id: s.id }, s, { upsert: true });
+    await Service.updateOne({ id: s.id }, { $setOnInsert: s }, { upsert: true });
   }
 }

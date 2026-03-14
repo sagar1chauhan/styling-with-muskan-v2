@@ -23,7 +23,7 @@ const BookingSchema = new mongoose.Schema(
     balanceAmount: { type: Number, default: 0 },
     paymentStatus: { type: String, default: "Pending" },
     payoutStatus: { type: String, default: "pending" },
-    address: { houseNo: String, area: String, landmark: String },
+    address: { houseNo: String, area: String, city: { type: String, default: "" }, landmark: String },
     slot: { date: String, time: String },
     bookingType: String,
     status: { type: String, default: "incoming" },
@@ -53,5 +53,12 @@ const BookingSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Analytics-friendly indexes (city/zone + time window queries)
+BookingSchema.index({ createdAt: 1 });
+BookingSchema.index({ status: 1 });
+BookingSchema.index({ "address.city": 1 });
+BookingSchema.index({ "address.area": 1 });
+BookingSchema.index({ createdAt: 1, status: 1, "address.city": 1 });
 
 export default mongoose.models.Booking || mongoose.model("Booking", BookingSchema);

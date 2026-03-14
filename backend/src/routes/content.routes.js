@@ -1,16 +1,24 @@
 import { Router } from "express";
 import { redis } from "../startup/redis.js";
 import { ServiceType, BookingType, Category, Service, Banner, Provider, OfficeSettings } from "../models/Content.js";
+import { Spotlight, GalleryItem, Testimonial } from "../models/SiteContent.js";
 import { ensureCategoriesAndServices } from "../startup/seed.js";
+import { versionedKey } from "../lib/contentCache.js";
 
 const router = Router();
 
-async function cached(key, fn) {
-  const hit = await redis.get(key);
-  if (hit) return JSON.parse(hit);
-  const data = await fn();
-  await redis.set(key, JSON.stringify(data), { EX: 300 });
-  return data;
+async function cached(keyBase, fn) {
+  try {
+    const key = await versionedKey(keyBase);
+    const hit = await redis.get(key);
+    if (hit) return JSON.parse(hit);
+    const data = await fn();
+    await redis.set(key, JSON.stringify(data), { EX: 300 });
+    return data;
+  } catch {
+    // If Redis is down/misconfigured, serve fresh data without caching.
+    return await fn();
+  }
 }
 
 router.get("/service-types", async (_req, res) => {
@@ -62,7 +70,7 @@ router.get("/categories", async (req, res) => {
   if (!Array.isArray(data) || data.length === 0) {
     try {
       await ensureCategoriesAndServices();
-      await redis.del(`content:categories:${gender || "all"}`);
+      // Content is versioned; no explicit del required.
       data = await (gender ? Category.find({ gender }).lean() : Category.find().lean());
     } catch {}
   }
@@ -104,7 +112,7 @@ router.get("/services", async (req, res) => {
   if (!Array.isArray(data) || data.length === 0) {
     try {
       await ensureCategoriesAndServices();
-      await redis.del(key);
+      // Content is versioned; no explicit del required.
       data = await Service.find(q).lean();
     } catch {}
   }
@@ -117,15 +125,84 @@ router.get("/banners", async (req, res) => {
   let data = {};
   try {
     data = await cached(key, async () => {
+      const now = new Date();
       const items = await Banner.find(gender ? { gender } : {}).lean();
-      return items.reduce((acc, b) => {
+      const active = (items || []).filter((b) => {
+        if (b.startAt && new Date(b.startAt).getTime() > now.getTime()) return false;
+        if (b.endAt && new Date(b.endAt).getTime() < now.getTime()) return false;
+        return true;
+      });
+      active.sort((a, b) => (Number(b.priority || 0) - Number(a.priority || 0)));
+      const grouped = active.reduce((acc, b) => {
         acc[b.gender] = acc[b.gender] || [];
-        acc[b.gender].push({ id: b.id, title: b.title, subtitle: b.subtitle, gradient: b.gradient, image: b.image, cta: b.cta });
+        acc[b.gender].push({
+          id: b.id,
+          title: b.title,
+          subtitle: b.subtitle,
+          gradient: b.gradient,
+          image: b.image,
+          cta: b.cta,
+          linkTo: b.linkTo || "",
+          priority: b.priority || 1,
+          startAt: b.startAt || null,
+          endAt: b.endAt || null,
+        });
         return acc;
       }, {});
+      return { women: grouped.women || [], men: grouped.men || [] };
     });
   } catch {
     data = { women: [], men: [] };
+  }
+  res.json({ data });
+});
+
+router.get("/spotlights", async (req, res) => {
+  const { gender } = req.query;
+  const key = `content:spotlights:${gender || "all"}`;
+  let data = [];
+  try {
+    data = await cached(key, async () => {
+      const now = new Date();
+      const q = { isActive: true };
+      if (gender) q.$or = [{ gender }, { gender: "" }];
+      const items = await Spotlight.find(q).lean();
+      return (items || [])
+        .filter((s) => {
+          if (s.startAt && new Date(s.startAt).getTime() > now.getTime()) return false;
+          if (s.endAt && new Date(s.endAt).getTime() < now.getTime()) return false;
+          return true;
+        })
+        .sort((a, b) => (Number(b.priority || 0) - Number(a.priority || 0)));
+    });
+  } catch {
+    data = [];
+  }
+  res.json({ data });
+});
+
+router.get("/gallery", async (_req, res) => {
+  let data = [];
+  try {
+    data = await cached("content:gallery", async () => {
+      const items = await GalleryItem.find({ isActive: true }).lean();
+      return (items || []).sort((a, b) => (Number(b.priority || 0) - Number(a.priority || 0)));
+    });
+  } catch {
+    data = [];
+  }
+  res.json({ data });
+});
+
+router.get("/testimonials", async (_req, res) => {
+  let data = [];
+  try {
+    data = await cached("content:testimonials", async () => {
+      const items = await Testimonial.find({ isActive: true }).lean();
+      return (items || []).sort((a, b) => (Number(b.priority || 0) - Number(a.priority || 0)));
+    });
+  } catch {
+    data = [];
   }
   res.json({ data });
 });

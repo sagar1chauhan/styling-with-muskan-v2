@@ -112,29 +112,53 @@ export const AdminAuthProvider = ({ children }) => {
         const flat = [];
         for (const g of ["women", "men"]) {
             for (const b of data[g] || []) {
+                const toDate = (v) => {
+                    try {
+                        if (!v) return "";
+                        const d = new Date(v);
+                        if (isNaN(d.getTime())) return "";
+                        return d.toISOString().slice(0, 10);
+                    } catch { return ""; }
+                };
                 flat.push({
                     id: b.id,
                     gender: g,
                     title: b.title,
                     imageUrl: b.image,
-                    linkTo: b.cta || "",
-                    priority: 1,
-                    startDate: "",
-                    endDate: "",
+                    linkTo: b.linkTo || "",
+                    priority: b.priority || 1,
+                    startDate: toDate(b.startAt),
+                    endDate: toDate(b.endAt),
                 });
             }
         }
         return flat;
     };
     const addBanner = async (banner) => {
+        const toStartAt = (dateStr) => {
+            if (!dateStr) return null;
+            const d = new Date(dateStr);
+            return isNaN(d.getTime()) ? null : d.toISOString();
+        };
+        const toEndAt = (dateStr) => {
+            if (!dateStr) return null;
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(23, 59, 59, 999);
+            return d.toISOString();
+        };
         const payload = {
             id: Date.now(),
             gender: "women",
             title: banner.title,
-            subtitle: "",
-            gradient: "",
+            subtitle: "Exclusive deals for you",
+            gradient: "from-indigo-600/50 to-purple-600/50",
             image: banner.imageUrl || "",
-            cta: banner.linkTo || "",
+            cta: "Book Now",
+            linkTo: banner.linkTo || "",
+            priority: Number(banner.priority || 1),
+            startAt: toStartAt(banner.startDate),
+            endAt: toEndAt(banner.endDate),
         };
         await api.admin.addBanner(payload);
     };
@@ -157,9 +181,10 @@ export const AdminAuthProvider = ({ children }) => {
     const updateCommissionSettings = async (settings) => { await api.admin.updateCommission(settings); };
 
     // ───── METRICS ─────
-    const getMetricsOverview = async () => (await api.admin.metricsOverview()).overview;
-    const getRevenueByMonth = async () => (await api.admin.metricsRevenueByMonth()).series;
-    const getBookingTrend = async () => (await api.admin.metricsBookingTrend()).series;
+    const getMetricsOverview = async (params = {}) => (await api.admin.metricsOverview(params)).overview;
+    const getRevenueByMonth = async (params = {}) => (await api.admin.metricsRevenueByMonth(params)).series;
+    const getBookingTrend = async (params = {}) => (await api.admin.metricsBookingTrend(params)).series;
+    const getMetricsCities = async () => (await api.admin.metricsCities()).cities;
 
     return (
         <AdminAuthContext.Provider value={{
@@ -173,7 +198,7 @@ export const AdminAuthProvider = ({ children }) => {
             getReferralSettings, updateReferralSettings,
             getSOSAlerts, resolveSOSAlert,
             getCommissionSettings, updateCommissionSettings,
-            getMetricsOverview, getRevenueByMonth, getBookingTrend,
+            getMetricsOverview, getRevenueByMonth, getBookingTrend, getMetricsCities,
         }}>
             {children}
         </AdminAuthContext.Provider>

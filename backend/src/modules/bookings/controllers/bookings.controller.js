@@ -140,6 +140,14 @@ export async function create(req, res) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   const { items, slot, address, bookingType, couponCode } = req.body;
+  const fallbackAddr = (req.user?.addresses && req.user.addresses[0]) ? req.user.addresses[0] : {};
+  // Persist booking city for analytics + filtering. Back-compat: if city not provided, fall back to area.
+  const safeAddress = {
+    houseNo: address?.houseNo || fallbackAddr.houseNo || "",
+    area: address?.area || fallbackAddr.area || "",
+    landmark: address?.landmark || fallbackAddr.landmark || "",
+    city: address?.city || address?.area || fallbackAddr.city || fallbackAddr.area || "",
+  };
   const preferredProviderId = String(req.body.preferredProviderId || "").trim();
   const autoAssign = req.body.autoAssign === true;
   let coupon = null;
@@ -351,7 +359,7 @@ export async function create(req, res) {
     prepaidAmount: 0,
     balanceAmount: totals.finalTotal,
     paymentStatus: "Pending",
-    address,
+    address: safeAddress,
     slot,
     bookingType,
     status: "pending",
@@ -508,7 +516,12 @@ export async function adminFinalApprove(req, res) {
     totalAmount: total,
     prepaidAmount: 0,
     balanceAmount: total,
-    address: { houseNo: enq.address?.houseNo || "", area: enq.address?.area || "", landmark: enq.address?.landmark || "" },
+    address: {
+      houseNo: enq.address?.houseNo || "",
+      area: enq.address?.area || "",
+      landmark: enq.address?.landmark || "",
+      city: enq.address?.city || enq.address?.area || "",
+    },
     slot: { date: enq.scheduledAt?.date || new Date().toISOString().slice(0, 10), time: enq.scheduledAt?.timeSlot || "10:00" },
     bookingType: "customized",
     status: "final_approved",

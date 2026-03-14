@@ -12,4 +12,7 @@ const VendorSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Analytics/admin filters often query by city
+VendorSchema.index({ city: 1 });
+
 export default mongoose.models.Vendor || mongoose.model("Vendor", VendorSchema);

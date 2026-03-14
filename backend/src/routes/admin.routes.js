@@ -13,8 +13,10 @@ import * as AdminController from "../modules/admin/controllers/admin.controller.
 import LeaveRequest from "../models/LeaveRequest.js";
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from "../config.js";
 import { ServiceType, Category, Service } from "../models/Content.js";
+import { Spotlight, GalleryItem, Testimonial } from "../models/SiteContent.js";
 import * as BookingsController from "../modules/bookings/controllers/bookings.controller.js";
 import { computeExpiresAt } from "../lib/assignment.js";
+import { bumpContentVersion } from "../lib/contentCache.js";
 
 const router = Router();
 
@@ -53,6 +55,7 @@ router.get("/vendors", requireRole("admin"), AdminController.listVendors);
 router.get("/metrics/overview", requireRole("admin"), AdminController.metricsOverview);
 router.get("/metrics/revenue-by-month", requireRole("admin"), AdminController.metricsRevenueByMonth);
 router.get("/metrics/booking-trend", requireRole("admin"), AdminController.metricsBookingTrend);
+router.get("/metrics/cities", requireRole("admin"), AdminController.metricsCities);
 
 // ───── ADMIN CONTENT (Parents/Categories/Services) ─────
 router.get("/parents", requireRole("admin"), async (_req, res) => {
@@ -67,6 +70,7 @@ router.post("/parents",
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const doc = await ServiceType.findOneAndUpdate({ id: req.body.id }, { ...req.body }, { new: true, upsert: true });
+    await bumpContentVersion();
     res.status(201).json({ parent: doc });
   }
 );
@@ -78,6 +82,7 @@ router.put("/parents/:id",
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const doc = await ServiceType.findOneAndUpdate({ id: req.params.id }, { ...req.body }, { new: true });
     if (!doc) return res.status(404).json({ error: "Not found" });
+    await bumpContentVersion();
     res.json({ parent: doc });
   }
 );
@@ -86,6 +91,7 @@ router.delete("/parents/:id",
   param("id").isString(),
   async (req, res) => {
     await ServiceType.deleteOne({ id: req.params.id });
+    await bumpContentVersion();
     res.json({ success: true });
   }
 );
@@ -106,6 +112,7 @@ router.post("/categories",
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const doc = await Category.findOneAndUpdate({ id: req.body.id, gender: req.body.gender }, { ...req.body }, { new: true, upsert: true });
+    await bumpContentVersion();
     res.status(201).json({ category: doc });
   }
 );
@@ -117,6 +124,7 @@ router.put("/categories/:id",
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const doc = await Category.findOneAndUpdate({ id: req.params.id, gender: req.body.gender }, { ...req.body }, { new: true });
     if (!doc) return res.status(404).json({ error: "Not found" });
+    await bumpContentVersion();
     res.json({ category: doc });
   }
 );
@@ -125,6 +133,7 @@ router.delete("/categories/:id",
   param("id").isString(),
   async (req, res) => {
     await Category.deleteMany({ id: req.params.id }); // remove gender variants
+    await bumpContentVersion();
     res.json({ success: true });
   }
 );
@@ -147,6 +156,7 @@ router.post("/services",
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const doc = await Service.findOneAndUpdate({ id: req.body.id }, { ...req.body }, { new: true, upsert: true });
+    await bumpContentVersion();
     res.status(201).json({ service: doc });
   }
 );
@@ -158,6 +168,7 @@ router.put("/services/:id",
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const doc = await Service.findOneAndUpdate({ id: req.params.id }, { ...req.body }, { new: true });
     if (!doc) return res.status(404).json({ error: "Not found" });
+    await bumpContentVersion();
     res.json({ service: doc });
   }
 );
@@ -166,6 +177,7 @@ router.delete("/services/:id",
   param("id").isString(),
   async (req, res) => {
     await Service.deleteOne({ id: req.params.id });
+    await bumpContentVersion();
     res.json({ success: true });
   }
 );
@@ -233,14 +245,142 @@ router.delete("/coupons/:id", requireRole("admin"), param("id").isString(), asyn
 });
 
 router.post("/banners", requireRole("admin"), body("gender").isString(), body("id").isNumeric(), async (req, res) => {
-  const b = await Banner.create({ gender: req.body.gender, id: req.body.id, title: req.body.title, subtitle: req.body.subtitle, gradient: req.body.gradient, image: req.body.image, cta: req.body.cta });
+  const b = await Banner.create({
+    gender: req.body.gender,
+    id: req.body.id,
+    title: req.body.title,
+    subtitle: req.body.subtitle,
+    gradient: req.body.gradient,
+    image: req.body.image,
+    cta: req.body.cta,
+    linkTo: req.body.linkTo || "",
+    priority: Number(req.body.priority || 1),
+    startAt: req.body.startAt ? new Date(req.body.startAt) : null,
+    endAt: req.body.endAt ? new Date(req.body.endAt) : null,
+  });
+  await bumpContentVersion();
   res.status(201).json({ banner: b });
 });
 
 router.post("/banners/upload", requireRole("admin"), upload.single("image"), AdminController.uploadBanner);
 
+router.put("/banners/:id/:gender", requireRole("admin"), param("id").isString(), param("gender").isString(), async (req, res) => {
+  const doc = await Banner.findOneAndUpdate(
+    { id: Number(req.params.id), gender: req.params.gender },
+    {
+      ...req.body,
+      linkTo: req.body.linkTo || "",
+      priority: Number(req.body.priority || 1),
+      startAt: req.body.startAt ? new Date(req.body.startAt) : null,
+      endAt: req.body.endAt ? new Date(req.body.endAt) : null,
+    },
+    { new: true }
+  );
+  if (!doc) return res.status(404).json({ error: "Not found" });
+  await bumpContentVersion();
+  res.json({ banner: doc });
+});
+
 router.delete("/banners/:id/:gender", requireRole("admin"), param("id").isString(), param("gender").isString(), async (req, res) => {
   await Banner.deleteOne({ id: Number(req.params.id), gender: req.params.gender });
+  await bumpContentVersion();
+  res.json({ success: true });
+});
+
+// â”€â”€â”€â”€â”€ ADMIN HOME CONTENT (Spotlights / Gallery / Testimonials) â”€â”€â”€â”€â”€
+router.post("/spotlights",
+  requireRole("admin"),
+  body("id").isString().notEmpty(),
+  body("title").optional().isString(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    const doc = await Spotlight.findOneAndUpdate(
+      { id: req.body.id },
+      { ...req.body, priority: Number(req.body.priority || 1), startAt: req.body.startAt ? new Date(req.body.startAt) : null, endAt: req.body.endAt ? new Date(req.body.endAt) : null },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    await bumpContentVersion();
+    res.status(201).json({ spotlight: doc });
+  }
+);
+router.put("/spotlights/:id", requireRole("admin"), param("id").isString(), async (req, res) => {
+  const doc = await Spotlight.findOneAndUpdate(
+    { id: req.params.id },
+    { ...req.body, priority: Number(req.body.priority || 1), startAt: req.body.startAt ? new Date(req.body.startAt) : null, endAt: req.body.endAt ? new Date(req.body.endAt) : null },
+    { new: true }
+  );
+  if (!doc) return res.status(404).json({ error: "Not found" });
+  await bumpContentVersion();
+  res.json({ spotlight: doc });
+});
+router.delete("/spotlights/:id", requireRole("admin"), param("id").isString(), async (req, res) => {
+  await Spotlight.deleteOne({ id: req.params.id });
+  await bumpContentVersion();
+  res.json({ success: true });
+});
+
+router.post("/gallery",
+  requireRole("admin"),
+  body("id").isString().notEmpty(),
+  body("image").optional().isString(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    const doc = await GalleryItem.findOneAndUpdate(
+      { id: req.body.id },
+      { ...req.body, priority: Number(req.body.priority || 1) },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    await bumpContentVersion();
+    res.status(201).json({ gallery: doc });
+  }
+);
+router.put("/gallery/:id", requireRole("admin"), param("id").isString(), async (req, res) => {
+  const doc = await GalleryItem.findOneAndUpdate(
+    { id: req.params.id },
+    { ...req.body, priority: Number(req.body.priority || 1) },
+    { new: true }
+  );
+  if (!doc) return res.status(404).json({ error: "Not found" });
+  await bumpContentVersion();
+  res.json({ gallery: doc });
+});
+router.delete("/gallery/:id", requireRole("admin"), param("id").isString(), async (req, res) => {
+  await GalleryItem.deleteOne({ id: req.params.id });
+  await bumpContentVersion();
+  res.json({ success: true });
+});
+
+router.post("/testimonials",
+  requireRole("admin"),
+  body("id").isString().notEmpty(),
+  body("name").optional().isString(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    const doc = await Testimonial.findOneAndUpdate(
+      { id: req.body.id },
+      { ...req.body, priority: Number(req.body.priority || 1) },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    await bumpContentVersion();
+    res.status(201).json({ testimonial: doc });
+  }
+);
+router.put("/testimonials/:id", requireRole("admin"), param("id").isString(), async (req, res) => {
+  const doc = await Testimonial.findOneAndUpdate(
+    { id: req.params.id },
+    { ...req.body, priority: Number(req.body.priority || 1) },
+    { new: true }
+  );
+  if (!doc) return res.status(404).json({ error: "Not found" });
+  await bumpContentVersion();
+  res.json({ testimonial: doc });
+});
+router.delete("/testimonials/:id", requireRole("admin"), param("id").isString(), async (req, res) => {
+  await Testimonial.deleteOne({ id: req.params.id });
+  await bumpContentVersion();
   res.json({ success: true });
 });
 

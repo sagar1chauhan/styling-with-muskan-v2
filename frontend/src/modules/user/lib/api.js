@@ -90,6 +90,9 @@ export const api = {
       return request(`/content/services${q ? `?${q}` : ""}`);
     },
     banners: (gender) => request(`/content/banners${gender ? `?gender=${gender}` : ""}`),
+    spotlights: (gender) => request(`/content/spotlights${gender ? `?gender=${gender}` : ""}`),
+    gallery: () => request("/content/gallery"),
+    testimonials: () => request("/content/testimonials"),
     providers: () => request("/content/providers"),
     officeSettings: () => request("/content/office-settings"),
   },
@@ -186,14 +189,25 @@ export const api = {
     addCoupon: (payload) => request("/admin/coupons", { method: "POST", body: payload }),
     deleteCoupon: (id) => request(`/admin/coupons/${id}`, { method: "DELETE" }),
     addBanner: (payload) => request("/admin/banners", { method: "POST", body: payload }),
+    updateBanner: (id, gender, payload) => request(`/admin/banners/${id}/${gender}`, { method: "PUT", body: payload }),
     deleteBanner: (id, gender) => request(`/admin/banners/${id}/${gender}`, { method: "DELETE" }),
     getReferral: () => request("/admin/referral"),
     updateReferral: (payload) => request("/admin/referral", { method: "PUT", body: payload }),
     getCommission: () => request("/admin/commission"),
     updateCommission: (payload) => request("/admin/commission", { method: "PUT", body: payload }),
-    metricsOverview: () => request("/admin/metrics/overview"),
-    metricsRevenueByMonth: () => request("/admin/metrics/revenue-by-month"),
-    metricsBookingTrend: () => request("/admin/metrics/booking-trend"),
+    metricsOverview: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/admin/metrics/overview${q ? `?${q}` : ""}`);
+    },
+    metricsRevenueByMonth: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/admin/metrics/revenue-by-month${q ? `?${q}` : ""}`);
+    },
+    metricsBookingTrend: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/admin/metrics/booking-trend${q ? `?${q}` : ""}`);
+    },
+    metricsCities: () => request("/admin/metrics/cities"),
     sos: () => request("/admin/sos"),
     resolveSos: (id) => request(`/admin/sos/${id}/resolve`, { method: "PATCH" }),
     leaves: () => request("/admin/leaves"),
@@ -220,6 +234,19 @@ export const api = {
     customEnquiries: () => request("/admin/custom-enquiries"),
     customEnquiryPriceQuote: (id, body) => request(`/admin/custom-enquiries/${id}/price-quote`, { method: "PATCH", body }),
     customEnquiryFinalApprove: (id) => request(`/admin/custom-enquiries/${id}/final-approve`, { method: "PATCH" }),
+
+    // Home content (reels/gallery/testimonials)
+    addSpotlight: (payload) => request("/admin/spotlights", { method: "POST", body: payload }),
+    updateSpotlight: (id, payload) => request(`/admin/spotlights/${id}`, { method: "PUT", body: payload }),
+    deleteSpotlight: (id) => request(`/admin/spotlights/${id}`, { method: "DELETE" }),
+
+    addGalleryItem: (payload) => request("/admin/gallery", { method: "POST", body: payload }),
+    updateGalleryItem: (id, payload) => request(`/admin/gallery/${id}`, { method: "PUT", body: payload }),
+    deleteGalleryItem: (id) => request(`/admin/gallery/${id}`, { method: "DELETE" }),
+
+    addTestimonial: (payload) => request("/admin/testimonials", { method: "POST", body: payload }),
+    updateTestimonial: (id, payload) => request(`/admin/testimonials/${id}`, { method: "PUT", body: payload }),
+    deleteTestimonial: (id) => request(`/admin/testimonials/${id}`, { method: "DELETE" }),
   },
 
   // SOS (customer/provider)

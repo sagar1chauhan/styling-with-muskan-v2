@@ -4,6 +4,7 @@ import { LayoutDashboard, Users, Store, CalendarRange, IndianRupee, TrendingUp, 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/modules/user/components/ui/card";
 import { Button } from "@/modules/user/components/ui/button";
 import { Badge } from "@/modules/user/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/modules/user/components/ui/select";
 import { Link } from "react-router-dom";
 import { useAdminAuth } from "@/modules/admin/contexts/AdminAuthContext";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
@@ -26,51 +27,41 @@ const defaultBookingTrend = [
 ];
 
 export default function AdminDashboard() {
-    const { isLoggedIn, getAllVendors, getAllServiceProviders, getAllBookings, getUserBookings, getSOSAlerts, getRevenueByMonth, getBookingTrend } = useAdminAuth();
+    const {
+        isLoggedIn,
+        getAllVendors,
+        getAllServiceProviders,
+        getAllBookings,
+        getUserBookings,
+        getSOSAlerts,
+        getMetricsOverview,
+        getRevenueByMonth,
+        getBookingTrend,
+        getMetricsCities,
+    } = useAdminAuth();
     const [stats, setStats] = useState({});
     const [revenueSeries, setRevenueSeries] = useState(defaultRevenueData);
     const [bookingSeries, setBookingSeries] = useState(defaultBookingTrend);
     const [allBookings, setAllBookings] = useState([]);
+    const [cities, setCities] = useState([]);
+    const [selectedCity, setSelectedCity] = useState("");
+    const now = new Date();
+    const [selectedPeriod, setSelectedPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
 
     useEffect(() => {
         if (!isLoggedIn) return;
         let cancelled = false;
         (async () => {
             try {
-                const [vendors, sps, providerBookings, userBookings, sos] = await Promise.all([
-                    getAllVendors(),
-                    getAllServiceProviders(),
-                    getAllBookings(),
-                    getUserBookings(),
-                    getSOSAlerts(),
-                ]);
+                // Prefer server-provided city list for dropdown (fast). Fallback stays below.
+                const list = await getMetricsCities?.();
                 if (cancelled) return;
-                const pBookings = Array.isArray(providerBookings) ? providerBookings : [];
-                const uBookings = Array.isArray(userBookings) ? userBookings : [];
-                const allBookings = [...pBookings, ...uBookings];
-                setAllBookings(allBookings);
-                const completed = pBookings.filter(b => b.status === "completed");
-                const cancelledBookings = pBookings.filter(b => ["cancelled", "rejected"].includes(b.status));
-                setStats({
-                    totalVendors: (vendors || []).length,
-                    totalSPs: (sps || []).length,
-                    activeSPs: (sps || []).filter(sp => sp.approvalStatus === "approved").length,
-                    pendingSPs: (sps || []).filter(sp => sp.approvalStatus === "pending").length,
-                    totalBookings: pBookings.length,
-                    activeBookings: pBookings.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes(b.status)).length,
-                    totalRevenue: completed.reduce((s, b) => s + (b.totalAmount || 0), 0),
-                    commissionEarned: Math.round(completed.reduce((s, b) => s + (b.totalAmount || 0), 0) * 0.15),
-                    cancellationRate: pBookings.length > 0 ? Math.round((cancelledBookings.length / pBookings.length) * 100) : 0,
-                    customerCount: new Set(pBookings.map(b => b.customerId)).size,
-                    sosAlerts: (sos || []).filter(s => s.status !== "resolved").length,
-                });
+                if (Array.isArray(list) && list.length) {
+                    const cleaned = list.map((c) => String(c || "").trim()).filter((c) => c && c !== "All Cities");
+                    setCities(cleaned);
+                }
             } catch {
-                if (cancelled) return;
-                setStats({
-                    totalVendors: 0, totalSPs: 0, activeSPs: 0, pendingSPs: 0,
-                    totalBookings: 0, activeBookings: 0, totalRevenue: 0,
-                    commissionEarned: 0, cancellationRate: 0, customerCount: 0, sosAlerts: 0,
-                });
+                // ignore (fallback will populate cities if needed)
             }
         })();
         return () => { cancelled = true; };
@@ -81,39 +72,122 @@ export default function AdminDashboard() {
         let cancelled = false;
         (async () => {
             try {
-                const [rev, trend] = await Promise.all([
-                    getRevenueByMonth?.(),
-                    getBookingTrend?.(),
+                // Keep local copies for fallback computations (only used if metrics endpoints fail)
+                const [vendors, sps, providerBookings, userBookings, sos] = await Promise.all([
+                    getAllVendors(),
+                    getAllServiceProviders(),
+                    getAllBookings(),
+                    getUserBookings(),
+                    getSOSAlerts(),
                 ]);
                 if (cancelled) return;
-                let appliedRevenue = false;
-                if (Array.isArray(rev) && rev.length) {
-                    setRevenueSeries(rev);
-                    appliedRevenue = true;
-                }
-                if (!appliedRevenue && Array.isArray(allBookings) && allBookings.length) {
-                    // Fallback: compute monthly revenue from local bookings
-                    const map = new Map();
-                    (allBookings || []).filter(b => (b.status || "").toLowerCase() === "completed").forEach(b => {
-                        const d = new Date(b.createdAt || Date.now());
-                        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-                        const label = d.toLocaleString("en-US", { month: "short" });
-                        const prev = map.get(key) || { month: label, revenue: 0 };
-                        prev.revenue += b.totalAmount || 0;
-                        map.set(key, prev);
-                    });
-                    const series = Array.from(map.entries())
-                        .sort(([a], [b]) => (a > b ? 1 : -1))
-                        .map(([, v]) => ({ month: v.month, revenue: v.revenue, commission: Math.round(v.revenue * 0.15) }));
-                    if (series.length) setRevenueSeries(series);
-                }
-                if (Array.isArray(trend) && trend.length) setBookingSeries(trend);
+                const pBookings = Array.isArray(providerBookings) ? providerBookings : [];
+                const uBookings = Array.isArray(userBookings) ? userBookings : [];
+                const merged = [...pBookings, ...uBookings];
+                setAllBookings(merged);
+                const citySet = new Set();
+                (vendors || []).forEach(v => v?.city && citySet.add(v.city));
+                (sps || []).forEach(sp => sp?.city && citySet.add(sp.city));
+                (merged || []).forEach(b => { const c = b.address?.city || b.address?.area; if (c) citySet.add(c); });
+                setCities((prev) => (prev && prev.length ? prev : Array.from(citySet).sort()));
+                // If metrics endpoints are down, at least show SOS in cards
+                setStats((prev) => ({
+                    ...prev,
+                    sosAlerts: (sos || []).filter(s => s.status !== "resolved").length,
+                }));
             } catch {
-                // keep defaults
+                // ignore (metrics effect below will set defaults)
             }
         })();
         return () => { cancelled = true; };
-    }, [allBookings, isLoggedIn]);
+    }, [isLoggedIn]);
+
+    useEffect(() => {
+        if (!isLoggedIn) return;
+        let cancelled = false;
+        (async () => {
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
+            const period = `${selectedPeriod.year}-${String(selectedPeriod.month).padStart(2, "0")}`;
+            const params = { tz, period };
+            if (selectedCity) params.city = selectedCity;
+
+            const matchCity = (b) => {
+                if (!selectedCity) return true;
+                const c = b?.address?.city || b?.address?.area || "";
+                return String(c) === String(selectedCity);
+            };
+            const inSelectedMonth = (b) => {
+                try {
+                    const d = new Date(b?.createdAt || 0);
+                    if (isNaN(d.getTime())) return false;
+                    return d.getFullYear() === selectedPeriod.year && (d.getMonth() + 1) === selectedPeriod.month;
+                } catch { return false; }
+            };
+
+            try {
+                const [overview, rev, trend] = await Promise.all([
+                    getMetricsOverview?.(params),
+                    getRevenueByMonth?.({ ...params, months: 6 }),
+                    getBookingTrend?.({ ...params, days: 7 }),
+                ]);
+                if (cancelled) return;
+                const mapped = {
+                    ...(overview || {}),
+                    sosAlerts: Number(overview?.sosActive ?? overview?.sosAlerts ?? 0),
+                    zones: Array.isArray(overview?.zones) ? overview.zones : undefined,
+                };
+                if (!Array.isArray(mapped.zones) || mapped.zones.length === 0) {
+                    const filtered = (allBookings || []).filter(matchCity).filter(inSelectedMonth);
+                    mapped.zones = getZones(filtered);
+                }
+                setStats(mapped);
+                if (Array.isArray(rev) && rev.length) setRevenueSeries(rev);
+                if (Array.isArray(trend) && trend.length) setBookingSeries(trend);
+            } catch {
+                if (cancelled) return;
+                // Fallback: compute filtered booking-based metrics locally (keeps UI working if API fails)
+                const filtered = (allBookings || []).filter(matchCity).filter(inSelectedMonth);
+                const completed = filtered.filter(b => (b.status || "").toLowerCase() === "completed");
+                const cancelledBookings = filtered.filter(b => ["cancelled", "rejected"].includes((b.status || "").toLowerCase()));
+                const totalRevenue = completed.reduce((s, b) => s + (b.totalAmount || 0), 0);
+
+                setStats((prev) => ({
+                    ...prev,
+                    totalBookings: filtered.length,
+                    activeBookings: filtered.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes((b.status || "").toLowerCase())).length,
+                    totalRevenue,
+                    commissionEarned: Math.round(totalRevenue * 0.15),
+                    cancellationRate: filtered.length > 0 ? Math.round((cancelledBookings.length / filtered.length) * 100) : 0,
+                    customerCount: new Set(filtered.map(b => b.customerId).filter(Boolean)).size,
+                    zones: getZones(filtered),
+                }));
+
+                // Revenue series fallback (last 6 months ending at selected period)
+                const monthKeys = [];
+                const endIdx = selectedPeriod.year * 12 + (selectedPeriod.month - 1);
+                for (let i = 5; i >= 0; i--) {
+                    const idx = endIdx - i;
+                    const y = Math.floor(idx / 12);
+                    const m = (idx % 12) + 1;
+                    monthKeys.push(`${y}-${String(m).padStart(2, "0")}`);
+                }
+                const map = new Map();
+                (allBookings || []).filter(matchCity).filter(b => (b.status || "").toLowerCase() === "completed").forEach(b => {
+                    const d = new Date(b.createdAt || Date.now());
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                    map.set(key, (map.get(key) || 0) + (b.totalAmount || 0));
+                });
+                const revSeries = monthKeys.map((key) => {
+                    const [y, m] = key.split("-").map(Number);
+                    const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", { month: "short" });
+                    const revenue = map.get(key) || 0;
+                    return { key, month: label, revenue, commission: Math.round(revenue * 0.15) };
+                });
+                setRevenueSeries(revSeries);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [isLoggedIn, selectedCity, selectedPeriod.year, selectedPeriod.month, allBookings]);
     const getZones = (bookings) => {
         const zonesMap = {};
         if (Array.isArray(bookings)) {
@@ -152,9 +226,45 @@ export default function AdminDashboard() {
 
     return (
         <div className="space-y-8">
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-                <h1 className="text-2xl md:text-3xl font-black tracking-tight">Admin Dashboard</h1>
-                <p className="text-sm text-muted-foreground font-medium mt-1">Global overview of stylingwithmuskan</p>
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-end justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-black tracking-tight">Admin Dashboard</h1>
+                    <p className="text-sm text-muted-foreground font-medium mt-1">Global overview of stylingwithmuskan</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Select
+                        value={selectedCity || "__ALL__"}
+                        onValueChange={(v) => setSelectedCity(v === "__ALL__" ? "" : v)}
+                    >
+                        <SelectTrigger className="w-[160px] h-10 rounded-xl">
+                            <SelectValue placeholder="Select Zone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="__ALL__">All Cities</SelectItem>
+                            {cities.map((c) => (
+                                <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Select value={`${selectedPeriod.year}-${selectedPeriod.month}`} onValueChange={(v) => { const [y, m] = v.split("-").map(Number); setSelectedPeriod({ year: y, month: m }); }}>
+                        <SelectTrigger className="w-[160px] h-10 rounded-xl">
+                            <SelectValue placeholder="Month & Year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {(() => {
+                                const opts = [];
+                                const now = new Date();
+                                const start = new Date(); start.setMonth(start.getMonth() - 23); // last 24 months
+                                for (let d = new Date(start.getFullYear(), start.getMonth(), 1); d <= new Date(now.getFullYear(), now.getMonth(), 1); d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+                                    const y = d.getFullYear(); const m = d.getMonth() + 1;
+                                    const label = d.toLocaleString("en-US", { month: "short", year: "numeric" });
+                                    opts.push({ value: `${y}-${m}`, label });
+                                }
+                                return opts.map(o => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>));
+                            })()}
+                        </SelectContent>
+                    </Select>
+                </div>
             </motion.div>
 
             {/* Stats Grid */}

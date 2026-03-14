@@ -12,6 +12,12 @@ if (useMemory) {
     async set(key, value, opts) { store.set(key, value); if (opts?.EX) setTimeout(() => store.delete(key), opts.EX * 1000); },
     async get(key) { return store.get(key) || null; },
     async del(key) { store.delete(key); },
+    async incr(key) {
+      const cur = parseInt(store.get(key) || "0", 10);
+      const next = Number.isFinite(cur) ? cur + 1 : 1;
+      store.set(key, String(next));
+      return next;
+    },
   };
 } else {
   redis = createClient({
@@ -34,6 +40,12 @@ export async function connectRedis() {
       async set(key, value, opts) { store.set(key, value); if (opts?.EX) setTimeout(() => store.delete(key), opts.EX * 1000); },
       async get(key) { return store.get(key) || null; },
       async del(key) { store.delete(key); },
+      async incr(key) {
+        const cur = parseInt(store.get(key) || "0", 10);
+        const next = Number.isFinite(cur) ? cur + 1 : 1;
+        store.set(key, String(next));
+        return next;
+      },
     };
   }
 }

@@ -39,4 +39,7 @@ const ProviderAccountSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Common admin dashboard filters
+ProviderAccountSchema.index({ city: 1, approvalStatus: 1, registrationComplete: 1 });
+
 export default mongoose.models.ProviderAccount || mongoose.model("ProviderAccount", ProviderAccountSchema);

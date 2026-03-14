@@ -1,5 +1,15 @@
 import mongoose from "mongoose";
 
+const DisabledDateSchema = new mongoose.Schema(
+  {
+    date: String, // "YYYY-MM-DD"
+    fullDay: { type: Boolean, default: false },
+    startTime: String, // "HH:mm" (optional)
+    endTime: String, // "HH:mm" (optional)
+  },
+  { _id: false }
+);
+
 const ServiceTypeSchema = new mongoose.Schema({
   id: { type: String, unique: true },
   label: String,
@@ -8,6 +18,8 @@ const ServiceTypeSchema = new mongoose.Schema({
   color: String,
   textColor: String,
   bgColor: String,
+  zones: { type: [String], default: [] },
+  disabledDates: { type: [DisabledDateSchema], default: [] },
 });
 
 const BookingTypeSchema = new mongoose.Schema({
@@ -26,6 +38,8 @@ const CategorySchema = new mongoose.Schema({
   bookingType: String,
   image: String,
   advancePercentage: { type: Number, default: 0 },
+  zones: { type: [String], default: [] },
+  disabledDates: { type: [DisabledDateSchema], default: [] },
 });
 
 const ServiceSchema = new mongoose.Schema({
@@ -41,6 +55,9 @@ const ServiceSchema = new mongoose.Schema({
   description: String,
   includes: [String],
   steps: [{ name: String, description: String, image: String }],
+  gallery: { type: [String], default: [] },
+  zones: { type: [String], default: [] },
+  disabledDates: { type: [DisabledDateSchema], default: [] },
   image: String,
 });
 
@@ -52,6 +69,10 @@ const BannerSchema = new mongoose.Schema({
   gradient: String,
   image: String,
   cta: String,
+  linkTo: { type: String, default: "" },
+  priority: { type: Number, default: 1 },
+  startAt: { type: Date, default: null },
+  endAt: { type: Date, default: null },
 });
 
 const ProviderSchema = new mongoose.Schema({

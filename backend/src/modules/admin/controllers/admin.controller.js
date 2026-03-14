@@ -3,6 +3,106 @@ import ProviderAccount from "../../../models/ProviderAccount.js";
 import Booking from "../../../models/Booking.js";
 import Coupon from "../../../models/Coupon.js";
 import { uploadBuffer } from "../../../startup/cloudinary.js";
+import SOSAlert from "../../../models/SOSAlert.js";
+import { CommissionSettings } from "../../../models/Settings.js";
+
+const DEFAULT_TZ = "Asia/Kolkata";
+
+function normalizeCity(v) {
+  const s = String(v || "").trim();
+  if (!s) return "";
+  if (s.toLowerCase() === "all cities") return "";
+  return s;
+}
+
+function normalizeTz(v) {
+  const tz = String(v || "").trim() || DEFAULT_TZ;
+  try {
+    // Throws RangeError for invalid IANA tz names
+    Intl.DateTimeFormat("en-US", { timeZone: tz }).format(new Date());
+    return tz;
+  } catch {
+    return DEFAULT_TZ;
+  }
+}
+
+function getZonedYearMonth(date, tz) {
+  const dtf = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "2-digit" });
+  const parts = dtf.formatToParts(date);
+  const vals = Object.fromEntries(parts.filter((p) => p.type !== "literal").map((p) => [p.type, p.value]));
+  return { year: Number(vals.year), month: Number(vals.month) };
+}
+
+function parsePeriod(period, tz) {
+  if (typeof period === "string" && period.trim()) {
+    const raw = period.trim();
+    const m = raw.match(/^(\d{4})-(\d{1,2})$/);
+    if (m) {
+      const y = Number(m[1]);
+      const mm = Number(m[2]);
+      if (y >= 1970 && mm >= 1 && mm <= 12) return { year: y, month: mm };
+    }
+  }
+  return getZonedYearMonth(new Date(), tz);
+}
+
+function getTimeZoneOffsetMinutes(tz, date) {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(date);
+  const vals = Object.fromEntries(parts.filter((p) => p.type !== "literal").map((p) => [p.type, p.value]));
+  const asUTC = Date.UTC(
+    Number(vals.year),
+    Number(vals.month) - 1,
+    Number(vals.day),
+    Number(vals.hour),
+    Number(vals.minute),
+    Number(vals.second)
+  );
+  return (asUTC - date.getTime()) / 60000;
+}
+
+function zonedTimeToUtc({ year, month, day, hour = 0, minute = 0, second = 0 }, tz) {
+  const baseUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+  let guess = new Date(baseUtcMs);
+  const off1 = getTimeZoneOffsetMinutes(tz, guess);
+  let utc = new Date(baseUtcMs - off1 * 60000);
+  const off2 = getTimeZoneOffsetMinutes(tz, utc);
+  if (off2 !== off1) utc = new Date(baseUtcMs - off2 * 60000);
+  return utc;
+}
+
+function monthRangeUtc({ year, month }, tz) {
+  const start = zonedTimeToUtc({ year, month, day: 1, hour: 0, minute: 0, second: 0 }, tz);
+  const nextMonth = month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+  const end = zonedTimeToUtc({ year: nextMonth.year, month: nextMonth.month, day: 1, hour: 0, minute: 0, second: 0 }, tz);
+  return { start, end, nextMonth };
+}
+
+function ymKey({ year, month }) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function addMonths({ year, month }, delta) {
+  const idx = year * 12 + (month - 1) + delta;
+  const y = Math.floor(idx / 12);
+  const m = (idx % 12) + 1;
+  return { year: y, month: m };
+}
+
+function cityPredicate(city) {
+  const c = normalizeCity(city);
+  if (!c) return {};
+  return { $or: [{ "address.city": c }, { "address.area": c }] };
+}
 
 export async function listVendors(req, res) {
   const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -42,67 +142,196 @@ export async function uploadBanner(req, res) {
   res.json({ url: up.secure_url });
 }
 
-export async function metricsOverview(_req, res) {
-  const [vendors, providers, bookings, sos] = await Promise.all([
-    Vendor.countDocuments(),
-    ProviderAccount.find().lean(),
-    Booking.find().lean(),
-    (await import("../../../models/SOSAlert.js")).default.find().lean(),
-  ]).then(([vCount, pList, bList, sList]) => [vCount, pList, bList, sList]).catch(() => [0, [], [], []]);
-  const pArr = Array.isArray(providers) ? providers : [];
-  const bArr = Array.isArray(bookings) ? bookings : [];
-  const sArr = Array.isArray(sos) ? sos : [];
-  const completed = bArr.filter(b => (b.status || "").toLowerCase() === "completed");
-  const totalRevenue = completed.reduce((s, b) => s + (b.totalAmount || 0), 0);
-  const commission = Math.round(totalRevenue * 0.15);
-  const cancelled = bArr.filter(b => ["cancelled", "rejected"].includes((b.status || "").toLowerCase()));
-  const activeBookings = bArr.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes((b.status || "").toLowerCase())).length;
-  const customerCount = new Set(bArr.map(b => b.customerId).filter(Boolean)).size;
+export async function metricsOverview(req, res) {
+  const tz = normalizeTz(req.query.tz);
+  const city = normalizeCity(req.query.city);
+  const period = parsePeriod(req.query.period, tz);
+  const { start, end } = monthRangeUtc(period, tz);
+
+  const [vendorCount, totalSPs, activeSPs, pendingSPs, commissionSettings, bookingAgg, sosCount] = await Promise.all([
+    Vendor.countDocuments(city ? { city } : {}),
+    ProviderAccount.countDocuments({ registrationComplete: true, ...(city ? { city } : {}) }),
+    ProviderAccount.countDocuments({ registrationComplete: true, approvalStatus: "approved", ...(city ? { city } : {}) }),
+    ProviderAccount.countDocuments({ registrationComplete: true, approvalStatus: "pending", ...(city ? { city } : {}) }),
+    CommissionSettings.findOne().lean(),
+    Booking.aggregate([
+      { $match: { createdAt: { $gte: start, $lt: end }, ...cityPredicate(city) } },
+      {
+        $facet: {
+          totals: [{ $count: "count" }],
+          active: [
+            { $match: { status: { $in: ["accepted", "travelling", "arrived", "in_progress"] } } },
+            { $count: "count" },
+          ],
+          completedRevenue: [
+            { $match: { status: "completed" } },
+            { $group: { _id: null, revenue: { $sum: { $ifNull: ["$totalAmount", 0] } } } },
+          ],
+          cancelled: [
+            { $match: { status: { $in: ["cancelled", "rejected"] } } },
+            { $count: "count" },
+          ],
+          customers: [
+            { $match: { customerId: { $ne: null } } },
+            { $group: { _id: "$customerId" } },
+            { $count: "count" },
+          ],
+          zones: [
+            {
+              $addFields: {
+                zone: {
+                  $cond: [
+                    { $and: [{ $ne: ["$address.area", null] }, { $ne: ["$address.area", ""] }] },
+                    "$address.area",
+                    "$address.city",
+                  ],
+                },
+              },
+            },
+            { $match: { zone: { $nin: [null, ""] } } },
+            { $group: { _id: "$zone", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 50 },
+          ],
+        },
+      },
+    ]),
+    SOSAlert.countDocuments({ status: { $ne: "resolved" } }),
+  ]);
+
+  const f = (Array.isArray(bookingAgg) && bookingAgg[0]) ? bookingAgg[0] : {};
+  const totalBookings = Number(f?.totals?.[0]?.count || 0);
+  const activeBookings = Number(f?.active?.[0]?.count || 0);
+  const totalRevenue = Number(f?.completedRevenue?.[0]?.revenue || 0);
+  const cancelledCount = Number(f?.cancelled?.[0]?.count || 0);
+  const customerCount = Number(f?.customers?.[0]?.count || 0);
+  const zones = Array.isArray(f?.zones) ? f.zones.map((z) => [z._id, z.count]) : [];
+
+  const ratePct = Math.max(0, Number(commissionSettings?.rate ?? 15));
+  const commissionEarned = Math.round(totalRevenue * (ratePct / 100));
+
   res.json({
     overview: {
-      totalVendors: vendors || 0,
-      totalSPs: pArr.length,
-      activeSPs: pArr.filter(p => p.approvalStatus === "approved").length,
-      pendingSPs: pArr.filter(p => p.approvalStatus === "pending").length,
-      totalBookings: bArr.length,
+      totalVendors: vendorCount || 0,
+      totalSPs: totalSPs || 0,
+      activeSPs: activeSPs || 0,
+      pendingSPs: pendingSPs || 0,
+      totalBookings,
       activeBookings,
       totalRevenue,
-      commissionEarned: commission,
-      cancellationRate: bArr.length ? Math.round((cancelled.length / bArr.length) * 100) : 0,
+      commissionEarned,
+      cancellationRate: totalBookings ? Math.round((cancelledCount / totalBookings) * 100) : 0,
       customerCount,
-      sosActive: sArr.filter(s => s.status !== "resolved").length,
+      sosActive: sosCount || 0,
+      // Optional: used by existing UI's Zone-wise Analysis section
+      zones,
     },
   });
 }
 
-export async function metricsRevenueByMonth(_req, res) {
-  const bookings = await Booking.find({ status: "completed" }).select("totalAmount createdAt").lean();
-  const map = new Map(); // key: YYYY-MM, value: { monthLabel, revenue, commission }
-  (bookings || []).forEach((b) => {
-    const d = new Date(b.createdAt || Date.now());
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const monthLabel = d.toLocaleString("en-US", { month: "short" });
-    const prev = map.get(key) || { month: monthLabel, revenue: 0, commission: 0 };
-    prev.revenue += b.totalAmount || 0;
-    map.set(key, prev);
-  });
-  const series = Array.from(map.entries())
-    .sort(([a], [b]) => (a > b ? 1 : -1))
-    .map(([, v]) => ({ month: v.month, revenue: v.revenue, commission: Math.round(v.revenue * 0.15) }));
+export async function metricsRevenueByMonth(req, res) {
+  const tz = normalizeTz(req.query.tz);
+  const city = normalizeCity(req.query.city);
+  const period = parsePeriod(req.query.period, tz);
+  const months = Math.max(1, Math.min(parseInt(req.query.months) || 6, 24));
+
+  const endRange = monthRangeUtc(period, tz).end; // exclusive
+  const startPeriod = addMonths(period, -(months - 1));
+  const startRange = monthRangeUtc(startPeriod, tz).start;
+
+  const commissionSettings = await CommissionSettings.findOne().lean();
+  const ratePct = Math.max(0, Number(commissionSettings?.rate ?? 15));
+
+  const agg = await Booking.aggregate([
+    {
+      $match: {
+        status: "completed",
+        createdAt: { $gte: startRange, $lt: endRange },
+        ...cityPredicate(city),
+      },
+    },
+    {
+      $group: {
+        _id: { $dateToString: { format: "%Y-%m", date: "$createdAt", timezone: tz } },
+        revenue: { $sum: { $ifNull: ["$totalAmount", 0] } },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  const byKey = new Map((agg || []).map((r) => [String(r._id), Number(r.revenue || 0)]));
+  const series = [];
+  for (let i = 0; i < months; i++) {
+    const p = addMonths(startPeriod, i);
+    const key = ymKey(p);
+    const revenue = byKey.get(key) || 0;
+    const d = new Date(Date.UTC(p.year, p.month - 1, 1));
+    const label = d.toLocaleString("en-US", { month: "short" });
+    series.push({
+      key,
+      month: label,
+      revenue,
+      commission: Math.round(revenue * (ratePct / 100)),
+    });
+  }
+
   res.json({ series });
 }
 
-export async function metricsBookingTrend(_req, res) {
+export async function metricsBookingTrend(req, res) {
+  const tz = normalizeTz(req.query.tz);
+  const city = normalizeCity(req.query.city);
+  const period = parsePeriod(req.query.period, tz);
+  const days = Math.max(1, Math.min(parseInt(req.query.days) || 7, 31));
+
   const now = new Date();
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
-  const bookings = await Booking.find({ createdAt: { $gte: weekAgo } }).select("createdAt").lean();
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const counts = new Array(7).fill(0);
-  (bookings || []).forEach((b) => {
-    const d = new Date(b.createdAt || Date.now());
-    counts[d.getDay()] += 1;
+  const currentPeriod = getZonedYearMonth(now, tz);
+  const selectedKey = ymKey(period);
+  const currentKey = ymKey(currentPeriod);
+
+  const { end: selectedEndExclusive } = monthRangeUtc(period, tz);
+  const windowEnd = selectedKey < currentKey ? selectedEndExclusive : now;
+  const windowStart = new Date(windowEnd.getTime() - days * 24 * 3600 * 1000);
+
+  const agg = await Booking.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: windowStart, $lt: windowEnd },
+        ...cityPredicate(city),
+      },
+    },
+    {
+      $group: {
+        _id: { $dateToString: { format: "%u", date: "$createdAt", timezone: tz } }, // ISO day of week: 1..7 (Mon..Sun)
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  const byDow = new Map((agg || []).map((r) => [String(r._id), Number(r.count || 0)]));
+  const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const series = labels.map((day, idx) => {
+    const key = String(idx + 1);
+    return { day, bookings: byDow.get(key) || 0 };
   });
-  const order = [1, 2, 3, 4, 5, 6, 0]; // Mon..Sun
-  const series = order.map((idx) => ({ day: days[idx], bookings: counts[idx] || 0 }));
   res.json({ series });
+}
+
+export async function metricsCities(_req, res) {
+  const [vCities, pCities, bCities, bAreas] = await Promise.all([
+    Vendor.distinct("city", { city: { $nin: [null, ""] } }),
+    ProviderAccount.distinct("city", { city: { $nin: [null, ""] } }),
+    Booking.distinct("address.city", { "address.city": { $nin: [null, ""] } }),
+    Booking.distinct("address.area", { "address.area": { $nin: [null, ""] } }),
+  ]);
+  const set = new Set();
+  for (const arr of [vCities, pCities, bCities, bAreas]) {
+    for (const c of arr || []) {
+      const s = String(c || "").trim();
+      if (s) set.add(s);
+    }
+  }
+  const cities = ["All Cities", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  res.json({ cities });
 }

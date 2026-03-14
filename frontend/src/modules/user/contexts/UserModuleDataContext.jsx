@@ -23,36 +23,16 @@ export const UserModuleDataProvider = ({ children }) => {
     const [providers, setProviders] = useState([]);
     const [officeSettings, setOfficeSettings] = useState({ startTime: "09:00", endTime: "21:00", autoAssign: true, notificationMessage: "Our pros are sleeping. Service starts at 9:00 AM" });
 
-    // Site Content States
-    const [spotlights, setSpotlights] = useState(() => {
-        const saved = localStorage.getItem("swm_spotlights");
-        return saved ? JSON.parse(saved) : initialSpotlights;
-    });
-
-    const [gallery, setGallery] = useState(() => {
-        const saved = localStorage.getItem("swm_gallery");
-        return saved ? JSON.parse(saved) : initialGallery;
-    });
-
-    const [testimonials, setTestimonials] = useState(() => {
-        const saved = localStorage.getItem("swm_testimonials");
-        return saved ? JSON.parse(saved) : initialTestimonials;
-    });
-
-    // Safe Save Helper
-    const safeSave = (key, value) => {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch (e) {
-            console.error(`Storage failed for ${key}`, e);
-        }
-    }
+    // Site Content States (server-backed; fallback only if API fails)
+    const [spotlights, setSpotlights] = useState([]);
+    const [gallery, setGallery] = useState([]);
+    const [testimonials, setTestimonials] = useState([]);
 
     useEffect(() => {
         let cancelled = false;
         (async () => {
             try {
-                const [st, bt, cats, srv, ban, prov, off] = await Promise.all([
+                const [st, bt, cats, srv, ban, prov, off, sp, gal, tes] = await Promise.all([
                     api.content.serviceTypes(),
                     api.content.bookingTypes(),
                     api.content.categories(),
@@ -60,6 +40,9 @@ export const UserModuleDataProvider = ({ children }) => {
                     api.content.banners(),
                     api.content.providers(),
                     api.content.officeSettings(),
+                    api.content.spotlights(),
+                    api.content.gallery(),
+                    api.content.testimonials(),
                 ]);
                 if (cancelled) return;
                 setServiceTypes(st.data || []);
@@ -69,6 +52,9 @@ export const UserModuleDataProvider = ({ children }) => {
                 setBanners(ban.data || { women: [], men: [] });
                 setProviders(prov.data || []);
                 setOfficeSettings(off.data || officeSettings);
+                setSpotlights(sp.data || []);
+                setGallery(gal.data || []);
+                setTestimonials(tes.data || []);
             } catch (e) {
                 setServiceTypes(FALLBACK_SERVICE_TYPES);
                 setBookingTypeConfig(FALLBACK_BOOKING_TYPES);
@@ -76,22 +62,13 @@ export const UserModuleDataProvider = ({ children }) => {
                 setServices(FALLBACK_SERVICES);
                 setBanners(FALLBACK_BANNERS);
                 setProviders(FALLBACK_PROVIDERS);
+                setSpotlights(initialSpotlights);
+                setGallery(initialGallery);
+                setTestimonials(initialTestimonials);
             }
         })();
         return () => { cancelled = true; };
     }, []);
-
-    useEffect(() => {
-        safeSave("swm_spotlights", spotlights);
-    }, [spotlights]);
-
-    useEffect(() => {
-        safeSave("swm_gallery", gallery);
-    }, [gallery]);
-
-    useEffect(() => {
-        safeSave("swm_testimonials", testimonials);
-    }, [testimonials]);
 
     // CRUD operations
     const addCategory = (category) => setCategories(prev => [...prev, category]);

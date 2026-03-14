@@ -415,21 +415,27 @@ const UserModuleManagement = () => {
 
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this item?")) return;
+        let ok = false;
         try {
             if (activeTab === "parent_categories") {
                 await api.admin.deleteParent(id);
-                deleteServiceType(id);
             } else if (activeTab === "categories") {
                 await api.admin.deleteCategory(id);
-                deleteCategory(id);
             } else if (activeTab === "services") {
                 await api.admin.deleteService(id);
-                deleteService(id);
+            } else if (activeTab === "spotlights") {
+                await api.admin.deleteSpotlight(id);
+            } else if (activeTab === "gallery") {
+                await api.admin.deleteGalleryItem(id);
+            } else if (activeTab === "testimonials") {
+                await api.admin.deleteTestimonial(id);
             }
+            ok = true;
             toast.success("Deleted");
         } catch (e) {
             toast.error(e?.message || "Delete failed");
         }
+        if (!ok) return;
         if (activeTab === "parent_categories") deleteServiceType(id);
         else if (activeTab === "categories") deleteCategory(id);
         else if (activeTab === "services") deleteService(id);
@@ -462,25 +468,24 @@ const UserModuleManagement = () => {
                 if (isCreate) await api.admin.addService(payload);
                 else await api.admin.updateService(payload.id, payload);
                 if (isCreate) addService(payload); else updateService(payload.id, payload);
+            } else if (activeTab === "spotlights") {
+                if (isCreate) await api.admin.addSpotlight(payload);
+                else await api.admin.updateSpotlight(payload.id, payload);
+                if (isCreate) addSpotlight(payload); else updateSpotlight(payload.id, payload);
+            } else if (activeTab === "gallery") {
+                if (isCreate) await api.admin.addGalleryItem(payload);
+                else await api.admin.updateGalleryItem(payload.id, payload);
+                if (isCreate) addGallery(payload); else updateGallery(payload.id, payload);
+            } else if (activeTab === "testimonials") {
+                if (isCreate) await api.admin.addTestimonial(payload);
+                else await api.admin.updateTestimonial(payload.id, payload);
+                if (isCreate) addTestimonial(payload); else updateTestimonial(payload.id, payload);
             }
             toast.success(isCreate ? "Created" : "Updated");
         } catch (e) {
             toast.error(e?.message || "Server action failed");
         } finally {
             setIsAddModalOpen(false);
-        }
-
-        // Handle local context updates for tabs that don't have API calls yet
-        if (["spotlights", "gallery", "testimonials"].includes(activeTab)) {
-            if (isCreate) {
-                if (activeTab === "spotlights") addSpotlight(payload);
-                else if (activeTab === "gallery") addGallery(payload);
-                else if (activeTab === "testimonials") addTestimonial(payload);
-            } else {
-                if (activeTab === "spotlights") updateSpotlight(payload.id, payload);
-                else if (activeTab === "gallery") updateGallery(payload.id, payload);
-                else if (activeTab === "testimonials") updateTestimonial(payload.id, payload);
-            }
         }
     };
 
