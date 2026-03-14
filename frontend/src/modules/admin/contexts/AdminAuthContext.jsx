@@ -183,6 +183,8 @@ export const AdminAuthProvider = ({ children }) => {
     // ───── METRICS ─────
     const getMetricsOverview = async (params = {}) => (await api.admin.metricsOverview(params)).overview;
     const getRevenueByMonth = async (params = {}) => (await api.admin.metricsRevenueByMonth(params)).series;
+    const getCustomersByMonth = async (params = {}) => (await api.admin.metricsCustomersByMonth(params)).series;
+    const getProvidersByMonth = async (params = {}) => (await api.admin.metricsProvidersByMonth(params)).series;
     const getBookingTrend = async (params = {}) => (await api.admin.metricsBookingTrend(params)).series;
     const getMetricsCities = async () => (await api.admin.metricsCities()).cities;
 
@@ -198,7 +200,7 @@ export const AdminAuthProvider = ({ children }) => {
             getReferralSettings, updateReferralSettings,
             getSOSAlerts, resolveSOSAlert,
             getCommissionSettings, updateCommissionSettings,
-            getMetricsOverview, getRevenueByMonth, getBookingTrend, getMetricsCities,
+            getMetricsOverview, getRevenueByMonth, getCustomersByMonth, getProvidersByMonth, getBookingTrend, getMetricsCities,
         }}>
             {children}
         </AdminAuthContext.Provider>

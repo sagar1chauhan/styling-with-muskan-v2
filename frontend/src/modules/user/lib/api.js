@@ -203,6 +203,14 @@ export const api = {
       const q = new URLSearchParams(params).toString();
       return request(`/admin/metrics/revenue-by-month${q ? `?${q}` : ""}`);
     },
+    metricsCustomersByMonth: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/admin/metrics/customers-by-month${q ? `?${q}` : ""}`);
+    },
+    metricsProvidersByMonth: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/admin/metrics/providers-by-month${q ? `?${q}` : ""}`);
+    },
     metricsBookingTrend: (params = {}) => {
       const q = new URLSearchParams(params).toString();
       return request(`/admin/metrics/booking-trend${q ? `?${q}` : ""}`);

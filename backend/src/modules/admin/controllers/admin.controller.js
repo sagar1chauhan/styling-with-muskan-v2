@@ -278,6 +278,95 @@ export async function metricsRevenueByMonth(req, res) {
   res.json({ series });
 }
 
+export async function metricsCustomersByMonth(req, res) {
+  const tz = normalizeTz(req.query.tz);
+  const city = normalizeCity(req.query.city);
+  const period = parsePeriod(req.query.period, tz);
+  const months = Math.max(1, Math.min(parseInt(req.query.months) || 6, 24));
+
+  const endRange = monthRangeUtc(period, tz).end; // exclusive
+  const startPeriod = addMonths(period, -(months - 1));
+  const startRange = monthRangeUtc(startPeriod, tz).start;
+
+  const agg = await Booking.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startRange, $lt: endRange },
+        ...cityPredicate(city),
+        customerId: { $nin: [null, ""] },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          month: { $dateToString: { format: "%Y-%m", date: "$createdAt", timezone: tz } },
+          customerId: "$customerId",
+        },
+      },
+    },
+    { $group: { _id: "$_id.month", customers: { $sum: 1 } } },
+    { $sort: { _id: 1 } },
+  ]);
+
+  const byKey = new Map((agg || []).map((r) => [String(r._id), Number(r.customers || 0)]));
+  const series = [];
+  for (let i = 0; i < months; i++) {
+    const p = addMonths(startPeriod, i);
+    const key = ymKey(p);
+    const customers = byKey.get(key) || 0;
+    const d = new Date(Date.UTC(p.year, p.month - 1, 1));
+    const label = d.toLocaleString("en-US", { month: "short" });
+    series.push({ key, month: label, customers });
+  }
+
+  res.json({ series });
+}
+
+export async function metricsProvidersByMonth(req, res) {
+  const tz = normalizeTz(req.query.tz);
+  const city = normalizeCity(req.query.city);
+  const period = parsePeriod(req.query.period, tz);
+  const months = Math.max(1, Math.min(parseInt(req.query.months) || 6, 24));
+
+  const endRange = monthRangeUtc(period, tz).end; // exclusive
+  const startPeriod = addMonths(period, -(months - 1));
+  const startRange = monthRangeUtc(startPeriod, tz).start;
+
+  // Active SPs inferred from bookings in each month (distinct assignedProvider), filtered by booking city + time range.
+  const agg = await Booking.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startRange, $lt: endRange },
+        ...cityPredicate(city),
+        assignedProvider: { $nin: [null, ""] },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          month: { $dateToString: { format: "%Y-%m", date: "$createdAt", timezone: tz } },
+          providerId: "$assignedProvider",
+        },
+      },
+    },
+    { $group: { _id: "$_id.month", providers: { $sum: 1 } } },
+    { $sort: { _id: 1 } },
+  ]);
+
+  const byKey = new Map((agg || []).map((r) => [String(r._id), Number(r.providers || 0)]));
+  const series = [];
+  for (let i = 0; i < months; i++) {
+    const p = addMonths(startPeriod, i);
+    const key = ymKey(p);
+    const providers = byKey.get(key) || 0;
+    const d = new Date(Date.UTC(p.year, p.month - 1, 1));
+    const label = d.toLocaleString("en-US", { month: "short" });
+    series.push({ key, month: label, providers });
+  }
+
+  res.json({ series });
+}
+
 export async function metricsBookingTrend(req, res) {
   const tz = normalizeTz(req.query.tz);
   const city = normalizeCity(req.query.city);

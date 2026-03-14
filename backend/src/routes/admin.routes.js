@@ -54,6 +54,8 @@ router.post("/logout", (req, res) => {
 router.get("/vendors", requireRole("admin"), AdminController.listVendors);
 router.get("/metrics/overview", requireRole("admin"), AdminController.metricsOverview);
 router.get("/metrics/revenue-by-month", requireRole("admin"), AdminController.metricsRevenueByMonth);
+router.get("/metrics/customers-by-month", requireRole("admin"), AdminController.metricsCustomersByMonth);
+router.get("/metrics/providers-by-month", requireRole("admin"), AdminController.metricsProvidersByMonth);
 router.get("/metrics/booking-trend", requireRole("admin"), AdminController.metricsBookingTrend);
 router.get("/metrics/cities", requireRole("admin"), AdminController.metricsCities);
 

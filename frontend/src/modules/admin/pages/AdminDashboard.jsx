@@ -26,6 +26,24 @@ const defaultBookingTrend = [
     { day: "Thu", bookings: 38 }, { day: "Fri", bookings: 55 }, { day: "Sat", bookings: 68 }, { day: "Sun", bookings: 45 },
 ];
 
+const defaultCustomersByMonth = [
+    { month: "Jan", customers: 0 },
+    { month: "Feb", customers: 0 },
+    { month: "Mar", customers: 0 },
+    { month: "Apr", customers: 0 },
+    { month: "May", customers: 0 },
+    { month: "Jun", customers: 0 },
+];
+
+const defaultProvidersByMonth = [
+    { month: "Jan", providers: 0 },
+    { month: "Feb", providers: 0 },
+    { month: "Mar", providers: 0 },
+    { month: "Apr", providers: 0 },
+    { month: "May", providers: 0 },
+    { month: "Jun", providers: 0 },
+];
+
 export default function AdminDashboard() {
     const {
         isLoggedIn,
@@ -36,12 +54,16 @@ export default function AdminDashboard() {
         getSOSAlerts,
         getMetricsOverview,
         getRevenueByMonth,
+        getCustomersByMonth,
+        getProvidersByMonth,
         getBookingTrend,
         getMetricsCities,
     } = useAdminAuth();
     const [stats, setStats] = useState({});
     const [revenueSeries, setRevenueSeries] = useState(defaultRevenueData);
     const [bookingSeries, setBookingSeries] = useState(defaultBookingTrend);
+    const [customersSeries, setCustomersSeries] = useState(defaultCustomersByMonth);
+    const [providersSeries, setProvidersSeries] = useState(defaultProvidersByMonth);
     const [allBookings, setAllBookings] = useState([]);
     const [cities, setCities] = useState([]);
     const [selectedCity, setSelectedCity] = useState("");
@@ -125,9 +147,11 @@ export default function AdminDashboard() {
             };
 
             try {
-                const [overview, rev, trend] = await Promise.all([
+                const [overview, rev, custSeries, provSeries, trend] = await Promise.all([
                     getMetricsOverview?.(params),
                     getRevenueByMonth?.({ ...params, months: 6 }),
+                    getCustomersByMonth?.({ ...params, months: 6 }),
+                    getProvidersByMonth?.({ ...params, months: 6 }),
                     getBookingTrend?.({ ...params, days: 7 }),
                 ]);
                 if (cancelled) return;
@@ -142,6 +166,8 @@ export default function AdminDashboard() {
                 }
                 setStats(mapped);
                 if (Array.isArray(rev) && rev.length) setRevenueSeries(rev);
+                if (Array.isArray(custSeries) && custSeries.length) setCustomersSeries(custSeries);
+                if (Array.isArray(provSeries) && provSeries.length) setProvidersSeries(provSeries);
                 if (Array.isArray(trend) && trend.length) setBookingSeries(trend);
             } catch {
                 if (cancelled) return;
@@ -184,6 +210,42 @@ export default function AdminDashboard() {
                     return { key, month: label, revenue, commission: Math.round(revenue * 0.15) };
                 });
                 setRevenueSeries(revSeries);
+
+                // Customers series fallback
+                const custMap = new Map();
+                (allBookings || []).filter(matchCity).forEach((b) => {
+                    const d = new Date(b.createdAt || Date.now());
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                    if (!monthKeys.includes(key)) return;
+                    const cid = b.customerId;
+                    if (!cid) return;
+                    const set = custMap.get(key) || new Set();
+                    set.add(String(cid));
+                    custMap.set(key, set);
+                });
+                setCustomersSeries(monthKeys.map((key) => {
+                    const [y, m] = key.split("-").map(Number);
+                    const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", { month: "short" });
+                    return { key, month: label, customers: (custMap.get(key)?.size || 0) };
+                }));
+
+                // Providers series fallback (distinct assignedProvider per month)
+                const provMap = new Map();
+                (allBookings || []).filter(matchCity).forEach((b) => {
+                    const d = new Date(b.createdAt || Date.now());
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                    if (!monthKeys.includes(key)) return;
+                    const pid = b.assignedProvider;
+                    if (!pid) return;
+                    const set = provMap.get(key) || new Set();
+                    set.add(String(pid));
+                    provMap.set(key, set);
+                });
+                setProvidersSeries(monthKeys.map((key) => {
+                    const [y, m] = key.split("-").map(Number);
+                    const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", { month: "short" });
+                    return { key, month: label, providers: (provMap.get(key)?.size || 0) };
+                }));
             }
         })();
         return () => { cancelled = true; };
@@ -342,6 +404,46 @@ export default function AdminDashboard() {
                                     <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }} />
                                     <Area type="monotone" dataKey="bookings" stroke="hsl(var(--primary))" fill="url(#bookingGrad)" strokeWidth={2} />
                                 </AreaChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
+                    <Card className="border-border/50 shadow-none">
+                        <CardHeader>
+                            <CardTitle className="text-base font-bold">Customers</CardTitle>
+                            <CardDescription className="text-xs">Monthly active customers</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={220}>
+                                <BarChart data={customersSeries}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                                    <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }} />
+                                    <Bar dataKey="customers" fill="hsl(var(--primary) / 0.8)" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+                    <Card className="border-border/50 shadow-none">
+                        <CardHeader>
+                            <CardTitle className="text-base font-bold">Service Providers</CardTitle>
+                            <CardDescription className="text-xs">Monthly active providers</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={220}>
+                                <BarChart data={providersSeries}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                                    <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }} />
+                                    <Bar dataKey="providers" fill="hsl(var(--primary) / 0.5)" radius={[4, 4, 0, 0]} />
+                                </BarChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
