@@ -11,6 +11,7 @@ import { Input } from "@/modules/user/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/modules/user/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/modules/user/components/ui/tabs";
 import { useVenderAuth } from "@/modules/vender/contexts/VenderAuthContext";
+import { toast } from "sonner";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } };
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
@@ -27,11 +28,14 @@ const statusColors = {
     cancelled: "bg-red-100 text-red-700 border-red-200",
     rejected: "bg-red-100 text-red-700 border-red-200",
     "Unassigned": "bg-orange-100 text-orange-700 border-orange-200",
-    vendor_assigned: "bg-blue-100 text-blue-700 border-blue-200",
+    enquiry_created: "bg-slate-100 text-slate-700 border-slate-200",
+    quote_submitted: "bg-blue-100 text-blue-700 border-blue-200",
     admin_approved: "bg-green-100 text-green-700 border-green-200",
-    user_accepted: "bg-teal-100 text-teal-700 border-teal-200",
-    team_assigned: "bg-cyan-100 text-cyan-700 border-cyan-200",
-    final_approved: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    waiting_for_customer_payment: "bg-amber-100 text-amber-700 border-amber-200",
+    advance_paid: "bg-teal-100 text-teal-700 border-teal-200",
+    service_confirmed: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    service_completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    quote_expired: "bg-red-100 text-red-700 border-red-200",
 };
 
 export default function VenderBookings() {
@@ -47,6 +51,9 @@ export default function VenderBookings() {
     const [selectedTeam, setSelectedTeam] = useState([]);
     const [customPrice, setCustomPrice] = useState(0);
     const [discountPrice, setDiscountPrice] = useState(0);
+    const [prebookAmount, setPrebookAmount] = useState(0);
+    const [totalServiceTime, setTotalServiceTime] = useState("");
+    const [quoteExpiryHours, setQuoteExpiryHours] = useState(12);
     // Team assignment modal (after user accepts)
     const [teamAssignModal, setTeamAssignModal] = useState(null);
     const [teamSelectedMembers, setTeamSelectedMembers] = useState([]);
@@ -71,8 +78,12 @@ export default function VenderBookings() {
                 notes: e.notes,
                 totalAmount: e.quote?.totalAmount || 0,
                 discountPrice: e.quote?.discountPrice || 0,
+                prebookAmount: e.quote?.prebookAmount || 0,
+                totalServiceTime: e.quote?.totalServiceTime || "",
+                paymentStatus: e.paymentStatus || "",
                 teamMembers: e.teamMembers || [],
                 maintainProvider: e.maintainerProvider || "",
+                assignedProvider: e.assignedProvider || e.maintainerProvider || "",
                 enquiry: e,
             }));
             setBookings([...normal, ...custom]);
@@ -87,10 +98,10 @@ export default function VenderBookings() {
         const status = (b.status || "").toLowerCase();
 
         let tabMatch = true;
-        if (tab === "active") tabMatch = ["accepted", "travelling", "arrived", "in_progress"].includes(status);
-        else if (tab === "pending") tabMatch = ["incoming", "pending", "unassigned", "vendor_assigned", "user_accepted", "team_assigned"].includes(status);
+        if (tab === "active") tabMatch = ["accepted", "travelling", "arrived", "in_progress", "service_confirmed"].includes(status);
+        else if (tab === "pending") tabMatch = ["incoming", "pending", "unassigned", "enquiry_created", "quote_submitted", "admin_approved", "waiting_for_customer_payment", "advance_paid"].includes(status);
         else if (tab === "completed") tabMatch = status === "completed";
-        else if (tab === "cancelled") tabMatch = ["cancelled", "rejected"].includes(status);
+        else if (tab === "cancelled") tabMatch = ["cancelled", "rejected", "quote_expired"].includes(status);
 
         let typeMatch = true;
         if (typeFilter !== "all") {
@@ -102,12 +113,12 @@ export default function VenderBookings() {
     });
 
     // Step 1: Vendor sets price & discount price (NO team assignment yet)
-    const handleSetPrice = () => {
+    const handleSetPrice = async () => {
         if (!assignModal) return;
 
         if (assignModal.bookingType === "customized" || assignModal.eventType) {
             if (customPrice <= 0) {
-                alert("Please set a valid price.");
+                toast.error("Please set a valid price.");
                 return;
             }
             const payload = {
@@ -115,12 +126,25 @@ export default function VenderBookings() {
                 teamMembers: [],
                 price: parseFloat(customPrice),
                 discountPrice: parseFloat(discountPrice) || 0,
-                status: "vendor_assigned"
+                prebookAmount: parseFloat(prebookAmount) || 0,
+                totalServiceTime: totalServiceTime || "",
+                quoteExpiryHours: Number(quoteExpiryHours) || 12,
+                status: "quote_submitted"
             };
-            assignTeamToBooking(assignModal.id, payload);
+            try {
+                await assignTeamToBooking(assignModal.id, payload);
+                toast.success("Quote submitted for admin approval.");
+            } catch (e) {
+                toast.error(e?.message || "Failed to submit quote");
+            }
         } else {
             if (selectedProvider) {
-                assignSPToBooking(assignModal.id, selectedProvider);
+                try {
+                    await assignSPToBooking(assignModal.id, selectedProvider);
+                    toast.success("Service provider assigned.");
+                } catch (e) {
+                    toast.error(e?.message || "Assignment failed");
+                }
             }
         }
 
@@ -130,13 +154,16 @@ export default function VenderBookings() {
         setSelectedTeam([]);
         setCustomPrice(0);
         setDiscountPrice(0);
+        setPrebookAmount(0);
+        setTotalServiceTime("");
+        setQuoteExpiryHours(12);
     };
 
     // Step 5: After user accepts, vendor assigns team + lead
-    const handleAssignTeam = () => {
+    const handleAssignTeam = async () => {
         if (!teamAssignModal) return;
         if (teamSelectedMembers.length === 0 || !teamLeadMember) {
-            alert("Please select team members and a lead member.");
+            toast.error("Please select team members and a lead member.");
             return;
         }
         const payload = {
@@ -147,9 +174,14 @@ export default function VenderBookings() {
             }),
             price: teamAssignModal.totalAmount,
             discountPrice: teamAssignModal.discountPrice || 0,
-            status: "team_assigned"
+            status: "assign_team"
         };
-        assignTeamToBooking(teamAssignModal.id, payload);
+        try {
+            await assignTeamToBooking(teamAssignModal.id, payload);
+            toast.success("Team assigned successfully.");
+        } catch (e) {
+            toast.error(e?.message || "Team assignment failed");
+        }
         load();
         setTeamAssignModal(null);
         setTeamSelectedMembers([]);
@@ -182,17 +214,18 @@ export default function VenderBookings() {
     const getButtonLabel = (booking) => {
         const st = (booking.status || "").toLowerCase();
         if (booking.bookingType === "customized" || booking.eventType) {
-            if (st === "user_accepted") return "Assign Team";
-            if (st === "vendor_assigned") return "Modify Price";
-            if (booking.totalAmount > 0 && !booking.assignedProvider) return "Edit Price";
-            return "Set Price";
+            if (st === "advance_paid") return "Assign Team";
+            if (st === "quote_submitted") return "Modify Quote";
+            if (st === "enquiry_created") return "Set Quote";
+            if (booking.totalAmount > 0 && !booking.assignedProvider) return "Edit Quote";
+            return "Set Quote";
         }
         return booking.assignedProvider ? "Re-assign" : "Assign";
     };
 
     const handleBookingAction = (booking) => {
         const st = (booking.status || "").toLowerCase();
-        if ((booking.bookingType === "customized" || booking.eventType) && st === "user_accepted") {
+        if ((booking.bookingType === "customized" || booking.eventType) && st === "advance_paid") {
             // Open team assignment modal
             setTeamAssignModal(booking);
             setTeamSelectedMembers(booking.teamMembers?.map(m => m.id) || []);
@@ -202,13 +235,16 @@ export default function VenderBookings() {
             setAssignModal(booking);
             setCustomPrice(booking.totalAmount || 0);
             setDiscountPrice(booking.discountPrice || 0);
+            setPrebookAmount(booking.prebookAmount || 0);
+            setTotalServiceTime(booking.totalServiceTime || "");
+            setQuoteExpiryHours(12);
         }
     };
 
     const canShowAction = (booking) => {
         const st = (booking.status || "").toLowerCase();
         if (booking.bookingType === "customized" || booking.eventType) {
-            return ["pending", "unassigned", "rejected", "vendor_assigned", "user_accepted"].includes(st);
+            return ["enquiry_created", "quote_submitted", "advance_paid"].includes(st);
         }
         return ["incoming", "pending", "Pending", "unassigned", "Unassigned", "rejected"].includes(booking.status);
     };
@@ -231,8 +267,8 @@ export default function VenderBookings() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
                     { label: "Total", val: bookings.length, color: "bg-blue-50 text-blue-600 border-blue-200" },
-                    { label: "Active", val: bookings.filter(b => ["accepted", "travelling", "arrived", "in_progress"].includes((b.status || "").toLowerCase())).length, color: "bg-emerald-50 text-emerald-600 border-emerald-200" },
-                    { label: "Pending", val: bookings.filter(b => ["incoming", "pending"].includes((b.status || "").toLowerCase())).length, color: "bg-amber-50 text-amber-600 border-amber-200" },
+                    { label: "Active", val: bookings.filter(b => ["accepted", "travelling", "arrived", "in_progress", "service_confirmed"].includes((b.status || "").toLowerCase())).length, color: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+                    { label: "Pending", val: bookings.filter(b => ["incoming", "pending", "enquiry_created", "quote_submitted", "admin_approved", "waiting_for_customer_payment", "advance_paid"].includes((b.status || "").toLowerCase())).length, color: "bg-amber-50 text-amber-600 border-amber-200" },
                     { label: "Unassigned", val: bookings.filter(b => (b.status || "").toLowerCase() === "unassigned").length, color: "bg-orange-50 text-orange-600 border-orange-200" },
                     { label: "Completed", val: bookings.filter(b => (b.status || "").toLowerCase() === "completed").length, color: "bg-green-50 text-green-600 border-green-200" },
                 ].map((s, i) => (
@@ -370,13 +406,17 @@ export default function VenderBookings() {
                                                             <Users className="h-3.5 w-3.5" /> 
                                                             {getButtonLabel(booking)}
                                                         </Button>
-                                                    ) : booking.status === "vendor_assigned" ? (
+                                                    ) : booking.status === "quote_submitted" ? (
                                                         <Badge variant="outline" className="h-8 px-3 rounded-lg bg-blue-50 text-blue-600 border-blue-200 font-bold cursor-pointer hover:bg-blue-100 transition-colors" onClick={() => handleBookingAction(booking)}>Pending Admin ✎</Badge>
                                                     ) : booking.status === "admin_approved" ? (
                                                         <Badge variant="outline" className="h-8 px-3 rounded-lg bg-green-50 text-green-700 border-green-200 font-bold">Pending User</Badge>
-                                                    ) : booking.status === "team_assigned" ? (
-                                                        <Badge variant="outline" className="h-8 px-3 rounded-lg bg-cyan-50 text-cyan-700 border-cyan-200 font-bold">Pending Admin ✓</Badge>
-                                                    ) : booking.status === "final_approved" ? (
+                                                    ) : booking.status === "waiting_for_customer_payment" ? (
+                                                        <Badge variant="outline" className="h-8 px-3 rounded-lg bg-amber-50 text-amber-700 border-amber-200 font-bold">Waiting Payment</Badge>
+                                                    ) : booking.status === "advance_paid" ? (
+                                                        <Badge variant="outline" className="h-8 px-3 rounded-lg bg-teal-50 text-teal-700 border-teal-200 font-bold">Ready for Team</Badge>
+                                                    ) : booking.status === "quote_expired" ? (
+                                                        <Badge variant="outline" className="h-8 px-3 rounded-lg bg-red-50 text-red-700 border-red-200 font-bold">Quote Expired</Badge>
+                                                    ) : booking.status === "service_confirmed" ? (
                                                         <Badge variant="outline" className="h-8 px-3 rounded-lg bg-emerald-50 text-emerald-700 border-emerald-200 font-bold">Live Booking</Badge>
                                                     ) : null}
                                                 </div>
@@ -489,6 +529,42 @@ export default function VenderBookings() {
                                             className="h-11 rounded-xl"
                                         />
                                     </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1 flex items-center gap-1.5">
+                                            <IndianRupee className="h-3 w-3 text-amber-600" /> Advance Amount (₹)
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            value={prebookAmount}
+                                            onChange={(e) => setPrebookAmount(e.target.value)}
+                                            placeholder="Advance to confirm booking"
+                                            className="h-11 rounded-xl"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">
+                                            Total Service Time
+                                        </label>
+                                        <Input
+                                            type="text"
+                                            value={totalServiceTime}
+                                            onChange={(e) => setTotalServiceTime(e.target.value)}
+                                            placeholder="Example: 4 hours"
+                                            className="h-11 rounded-xl"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">
+                                            Quote Expiry (hours)
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            value={quoteExpiryHours}
+                                            onChange={(e) => setQuoteExpiryHours(e.target.value)}
+                                            placeholder="12"
+                                            className="h-11 rounded-xl"
+                                        />
+                                    </div>
                                     {customPrice > 0 && (
                                         <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
                                             <div className="flex justify-between items-center">
@@ -563,7 +639,7 @@ export default function VenderBookings() {
                                         <p className="text-sm font-black">#{teamAssignModal.id}</p>
                                     </div>
                                     <div className="text-right">
-                                        <Badge variant="outline" className="text-[9px] bg-teal-50 text-teal-600 border-teal-200">User Accepted ✓</Badge>
+                                        <Badge variant="outline" className="text-[9px] bg-teal-50 text-teal-600 border-teal-200">Advance Paid ✓</Badge>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -632,3 +708,8 @@ export default function VenderBookings() {
         </div>
     );
 }
+
+
+
+
+

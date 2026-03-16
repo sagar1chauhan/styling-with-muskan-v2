@@ -4,8 +4,30 @@ import ProviderAccount from "../../../models/ProviderAccount.js";
 import Booking from "../../../models/Booking.js";
 import SOSAlert from "../../../models/SOSAlert.js";
 import CustomEnquiry from "../../../models/CustomEnquiry.js";
+import ProviderWalletTxn from "../../../models/ProviderWalletTxn.js";
+import { CommissionSettings, BookingSettings } from "../../../models/Settings.js";
 import { issueRoleToken } from "../../../middleware/roles.js";
 import { redis } from "../../../startup/redis.js";
+
+function escapeRegex(s) {
+  return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normCity(s) {
+  return String(s || "").trim();
+}
+
+async function withinNotificationWindow() {
+  const s = await BookingSettings.findOne().lean();
+  const start = (s?.providerNotificationStartTime || "07:00").split(":").map(Number);
+  const end = (s?.providerNotificationEndTime || "22:00").split(":").map(Number);
+  if (start.length < 2 || end.length < 2) return true;
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const startMin = (start[0] * 60) + (start[1] || 0);
+  const endMin = (end[0] * 60) + (end[1] || 0);
+  return mins >= startMin && mins <= endMin;
+}
 
 export async function register(req, res) {
   const errors = validationResult(req);
@@ -14,7 +36,7 @@ export async function register(req, res) {
     name: req.body.name,
     email: req.body.email,
     phone: req.body.phone || "",
-    city: req.body.city || "",
+    city: normCity(req.body.city) || "",
     businessName: req.body.businessName || "",
     status: "approved",
   });
@@ -75,8 +97,9 @@ export async function verifyOtp(req, res) {
 export async function listProviders(req, res) {
   const vendorId = req.auth?.sub;
   const vendor = await Vendor.findById(vendorId).lean();
-  const city = vendor?.city || "";
-  const q = city ? { city } : {};
+  const city = normCity(vendor?.city) || "";
+  // City match should be forgiving (case/whitespace), otherwise vendor panels look "empty".
+  const q = city ? { city: new RegExp(`^${escapeRegex(city)}$`, "i") } : {};
   let items = await ProviderAccount.find(q).lean();
 
   // Seed fake providers if empty for smoother demo/dev experience
@@ -120,11 +143,14 @@ export async function updateProviderStatus(req, res) {
 export async function listBookings(req, res) {
   const vendorId = req.auth?.sub;
   const vendor = await Vendor.findById(vendorId).lean();
-  const city = vendor?.city || "";
-  let providers = [];
-  if (city) {
-    providers = await ProviderAccount.find({ city }).select("_id").lean();
+  const city = normCity(vendor?.city) || "";
+  if (!city) {
+    // Backstop: if vendor city isn't configured, don't return an empty panel.
+    const bookings = await Booking.find().sort({ createdAt: -1 }).limit(200).lean();
+    return res.json({ bookings });
   }
+  let providers = [];
+  providers = await ProviderAccount.find({ city: new RegExp(`^${escapeRegex(city)}$`, "i") }).select("_id").lean();
   const providerIds = providers.map((p) => p._id?.toString());
   let byProvider = providerIds.length
     ? await Booking.find({ assignedProvider: { $in: providerIds } }).lean()
@@ -209,16 +235,30 @@ export async function priceQuoteCustomEnquiry(req, res) {
   const enq = await CustomEnquiry.findById(req.params.id);
   if (!enq) return res.status(404).json({ error: "Not found" });
 
+  let expiryAt = null;
+  if (req.body.quoteExpiryAt) {
+    const dt = new Date(req.body.quoteExpiryAt);
+    expiryAt = Number.isNaN(dt.getTime()) ? null : dt;
+  } else if (req.body.quoteExpiryHours) {
+    const hours = Number(req.body.quoteExpiryHours);
+    if (Number.isFinite(hours) && hours > 0) {
+      expiryAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+    }
+  }
+
   enq.quote = {
     ...(enq.quote || {}),
     totalAmount: Number(req.body.totalAmount) || 0,
     discountPrice: Number(req.body.discountPrice) || 0,
     notes: req.body.notes || enq.quote?.notes || "",
+    prebookAmount: Number(req.body.prebookAmount) || enq.quote?.prebookAmount || 0,
+    totalServiceTime: String(req.body.totalServiceTime || enq.quote?.totalServiceTime || ""),
+    expiryAt: expiryAt || enq.quote?.expiryAt || null,
     items: enq.quote?.items?.length ? enq.quote.items : enq.items,
   };
-  enq.status = "vendor_assigned";
+  enq.status = "quote_submitted";
   enq.timeline = Array.isArray(enq.timeline) ? enq.timeline : [];
-  enq.timeline.push({ action: "vendor_assigned", meta: { totalAmount: enq.quote.totalAmount, discountPrice: enq.quote.discountPrice } });
+  enq.timeline.push({ action: "quote_submitted", meta: { totalAmount: enq.quote.totalAmount, discountPrice: enq.quote.discountPrice } });
   await enq.save();
   res.json({ enquiry: enq });
 }
@@ -229,6 +269,9 @@ export async function assignTeamCustomEnquiry(req, res) {
 
   const enq = await CustomEnquiry.findById(req.params.id);
   if (!enq) return res.status(404).json({ error: "Not found" });
+  if (enq.paymentStatus !== "paid" && enq.status !== "advance_paid") {
+    return res.status(409).json({ error: "Advance payment is required before assignment." });
+  }
 
   const teamMembers = Array.isArray(req.body.teamMembers) ? req.body.teamMembers : [];
   const cleaned = teamMembers
@@ -237,12 +280,88 @@ export async function assignTeamCustomEnquiry(req, res) {
   if (cleaned.length === 0) return res.status(400).json({ error: "Invalid teamMembers" });
 
   enq.maintainerProvider = String(req.body.maintainerProvider || "").trim();
+  enq.assignedProvider = enq.maintainerProvider;
   enq.teamMembers = cleaned;
-  enq.status = "team_assigned";
+  const provider = await ProviderAccount.findById(enq.maintainerProvider);
+  if (!provider) return res.status(404).json({ error: "Provider not found" });
+
+  const commissionSettings = await CommissionSettings.findOne().lean();
+  const rate = Number(commissionSettings?.rate || 20);
+  const totalAmount = Number(enq.quote?.totalAmount || 0);
+  const required = Math.max(Math.round(totalAmount * (rate / 100)), 0);
+  if (required > 0 && Number(provider.credits || 0) < required) {
+    return res.status(409).json({
+      error: "Selected service provider does not have sufficient wallet balance to cover the platform commission.",
+      code: "INSUFFICIENT_WALLET",
+      required,
+      available: Number(provider.credits || 0),
+    });
+  }
+  if (required > 0) {
+    provider.credits = Math.max(Number(provider.credits || 0) - required, 0);
+    await provider.save();
+    await ProviderWalletTxn.create({
+      providerId: provider._id.toString(),
+      bookingId: enq.bookingId || "",
+      type: "commission_hold",
+      amount: -required,
+      balanceAfter: provider.credits,
+      meta: { rate, totalAmount, source: "custom_enquiry" },
+    });
+  }
+
+  // Create a booking if not exists
+  let booking = null;
+  if (enq.bookingId) {
+    booking = await Booking.findById(enq.bookingId);
+  }
+  if (!booking) {
+    const items = (enq.quote?.items || enq.items || []);
+    booking = await Booking.create({
+      customerId: enq.userId,
+      customerName: enq.name || "",
+      services: items.map(it => ({ name: it.name, price: it.price, duration: "", category: it.category, serviceType: it.serviceType })),
+      totalAmount,
+      prepaidAmount: Number(enq.prebookAmountPaid || 0),
+      balanceAmount: Math.max(totalAmount - Number(enq.prebookAmountPaid || 0), 0),
+      paymentStatus: (Number(enq.prebookAmountPaid || 0) > 0) ? "Partially Paid" : "Pending",
+      address: {
+        houseNo: enq.address?.houseNo || "",
+        area: enq.address?.area || "",
+        landmark: enq.address?.landmark || "",
+        city: enq.address?.city || enq.address?.area || "",
+        lat: enq.address?.lat ?? null,
+        lng: enq.address?.lng ?? null,
+      },
+      slot: { date: enq.scheduledAt?.date || new Date().toISOString().slice(0, 10), time: enq.scheduledAt?.timeSlot || "10:00" },
+      bookingType: "customized",
+      status: "accepted",
+      notificationStatus: (await withinNotificationWindow()) ? "immediate" : "queued",
+      assignedProvider: enq.maintainerProvider,
+      maintainProvider: enq.maintainerProvider,
+      teamMembers: Array.isArray(enq.teamMembers) ? enq.teamMembers : [],
+      commissionAmount: required,
+      commissionChargedAt: required > 0 ? new Date() : null,
+    });
+    enq.bookingId = booking._id.toString();
+  } else {
+    booking.assignedProvider = enq.maintainerProvider;
+    booking.maintainProvider = enq.maintainerProvider;
+    booking.status = "accepted";
+    booking.notificationStatus = (await withinNotificationWindow()) ? "immediate" : "queued";
+    booking.teamMembers = Array.isArray(enq.teamMembers) ? enq.teamMembers : [];
+    booking.commissionAmount = required;
+    booking.commissionChargedAt = required > 0 ? new Date() : booking.commissionChargedAt;
+    await booking.save();
+  }
+
+  enq.status = "service_confirmed";
   enq.timeline = Array.isArray(enq.timeline) ? enq.timeline : [];
-  enq.timeline.push({ action: "team_assigned", meta: { maintainerProvider: enq.maintainerProvider, teamCount: cleaned.length } });
+  enq.timeline.push({ action: "provider_assigned", meta: { maintainerProvider: enq.maintainerProvider, teamCount: cleaned.length } });
+  enq.timeline.push({ action: "service_confirmed", meta: { bookingId: enq.bookingId || "" } });
+  enq.providerAssignedAt = new Date();
   await enq.save();
-  res.json({ enquiry: enq });
+  res.json({ enquiry: enq, booking });
 }
 
 export async function listSOS(req, res) {
@@ -263,8 +382,10 @@ export async function resolveSOS(req, res) {
 export async function stats(req, res) {
   const vendorId = req.auth?.sub;
   const vendor = await Vendor.findById(vendorId).lean();
-  const city = vendor?.city || "";
-  const providers = city ? await ProviderAccount.find({ city }).lean() : await ProviderAccount.find().lean();
+  const city = normCity(vendor?.city) || "";
+  const providers = city
+    ? await ProviderAccount.find({ city: new RegExp(`^${escapeRegex(city)}$`, "i") }).lean()
+    : await ProviderAccount.find().lean();
   const providerIds = providers.map((p) => p._id?.toString());
   const bookings = providerIds.length
     ? await Booking.find({ assignedProvider: { $in: providerIds } }).lean()

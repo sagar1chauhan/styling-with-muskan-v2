@@ -44,6 +44,10 @@ router.patch(
   param("id").isString(),
   body("totalAmount").isNumeric(),
   body("discountPrice").optional().isNumeric(),
+  body("prebookAmount").optional().isNumeric(),
+  body("totalServiceTime").optional().isString(),
+  body("quoteExpiryAt").optional().isString(),
+  body("quoteExpiryHours").optional().isNumeric(),
   body("notes").optional().isString(),
   VendorController.priceQuoteCustomEnquiry
 );

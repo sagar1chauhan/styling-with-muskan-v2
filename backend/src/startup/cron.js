@@ -1,23 +1,52 @@
 import Booking from "../models/Booking.js";
 import { OfficeSettings } from "../models/Content.js";
+import { BookingSettings } from "../models/Settings.js";
+import CustomEnquiry from "../models/CustomEnquiry.js";
 import { getIO } from "./socket.js";
 import BookingLog from "../models/BookingLog.js";
 
-function withinOffice(now, office) {
-  const [startH, startM] = (office?.startTime || "09:00").split(":").map(Number);
-  const [endH, endM] = (office?.endTime || "21:00").split(":").map(Number);
+function withinWindow(now, startTime, endTime) {
+  const [startH, startM] = String(startTime || "07:00").split(":").map(Number);
+  const [endH, endM] = String(endTime || "22:00").split(":").map(Number);
+  if (Number.isNaN(startH) || Number.isNaN(endH)) return true;
   const mins = now.getHours() * 60 + now.getMinutes();
-  const start = startH * 60 + startM;
-  const end = endH * 60 + endM;
-  return mins >= start && mins <= end;
+  const start = startH * 60 + (startM || 0);
+  const end = endH * 60 + (endM || 0);
+  if (start === end) return true;
+  if (end > start) return mins >= start && mins <= end;
+  return mins >= start || mins <= end;
 }
 
 export async function startCron() {
   setInterval(async () => {
     try {
-      const office = await OfficeSettings.findOne().lean();
       const now = new Date();
-      if (!withinOffice(now, office)) return;
+
+      // Auto-expire custom enquiry quotes
+      try {
+        const expirable = await CustomEnquiry.find({
+          status: { $in: ["quote_submitted", "admin_approved", "waiting_for_customer_payment"] },
+          "quote.expiryAt": { $lt: now },
+        }).limit(50);
+        if (expirable.length > 0) {
+          for (const enq of expirable) {
+            if (enq.status === "quote_expired") continue;
+            enq.status = "quote_expired";
+            enq.timeline = Array.isArray(enq.timeline) ? enq.timeline : [];
+            enq.timeline.push({ action: "quote_expired", meta: { at: now.toISOString() } });
+            await enq.save();
+          }
+        }
+      } catch {}
+
+      const office = await OfficeSettings.findOne().lean();
+      const bookingSettings = await BookingSettings.findOne().lean();
+      const windowOpen = withinWindow(
+        now,
+        bookingSettings?.providerNotificationStartTime || office?.startTime || "07:00",
+        bookingSettings?.providerNotificationEndTime || office?.endTime || "22:00"
+      );
+      if (!windowOpen) return;
       const queued = await Booking.find({ notificationStatus: "queued" }).limit(50);
       if (queued.length === 0) return;
       for (const b of queued) {

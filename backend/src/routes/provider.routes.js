@@ -3,6 +3,7 @@ import { body, validationResult, param } from "express-validator";
 import jwt from "jsonwebtoken";
 import ProviderAccount from "../models/ProviderAccount.js";
 import Booking from "../models/Booking.js";
+import ProviderWalletTxn from "../models/ProviderWalletTxn.js";
 import { redis } from "../startup/redis.js";
 import { upload } from "../middleware/upload.js";
 import { uploadBuffer } from "../startup/cloudinary.js";
@@ -14,6 +15,7 @@ import ProviderDayAvailability from "../models/ProviderDayAvailability.js";
 import { DEFAULT_TIME_SLOTS, defaultSlotsMap, isIsoDate, normalizeSlotsPayload, slotLabelToLocalDateTime, slotsMapToAvailableSlots } from "../lib/slots.js";
 import { daysBetweenInclusive, isoDateRangeIncludesWeekend, isoDateToLocalEnd, isoDateToLocalStart, toIsoDateFromAny } from "../lib/isoDateTime.js";
 import { computeExpiresAt, getAcceptWindowMs, pickNextProviderForBooking } from "../lib/assignment.js";
+import { CommissionSettings } from "../models/Settings.js";
 
 const router = Router();
 
@@ -251,7 +253,7 @@ router.post("/register", body("phone").matches(/^\d{10}$/), body("name").isStrin
     name: req.body.name,
     email: req.body.email || "",
     address: req.body.address || "",
-    city: req.body.city || "",
+    city: String(req.body.city || "").trim(),
     gender: req.body.gender || "",
     dob: req.body.dob || "",
     experience: req.body.experience || "0-1",
@@ -394,9 +396,84 @@ router.get("/credits/:phone", param("phone").matches(/^\d{10}$/), async (req, re
   const acc = await ProviderAccount.findOne({ phone: req.params.phone }).lean();
   if (!acc) return res.status(404).json({ error: "Not found" });
   const credits = acc.credits || 0;
-  const transactions = [];
+  const transactions = await ProviderWalletTxn.find({ providerId: acc._id.toString() }).sort({ createdAt: -1 }).limit(50).lean();
   res.json({ credits, transactions });
 });
+
+router.post(
+  "/wallet/recharge",
+  requireRole("provider"),
+  body("amount").isNumeric(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    const amount = Math.max(Number(req.body.amount) || 0, 0);
+    if (amount <= 0) return res.status(400).json({ error: "Invalid amount" });
+    const acc = await ProviderAccount.findById(req.auth.sub);
+    if (!acc) return res.status(404).json({ error: "Not found" });
+    acc.credits = Number(acc.credits || 0) + amount;
+    await acc.save();
+    await ProviderWalletTxn.create({
+      providerId: acc._id.toString(),
+      type: "recharge",
+      amount,
+      balanceAfter: acc.credits,
+      meta: { title: "Recharge Credits", source: "mock" },
+    });
+    res.json({ success: true, credits: acc.credits });
+  }
+);
+
+router.post(
+  "/wallet/expense",
+  requireRole("provider"),
+  body("amount").isNumeric(),
+  body("title").optional().isString(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    const amount = Math.max(Number(req.body.amount) || 0, 0);
+    if (amount <= 0) return res.status(400).json({ error: "Invalid amount" });
+    const acc = await ProviderAccount.findById(req.auth.sub);
+    if (!acc) return res.status(404).json({ error: "Not found" });
+    if (Number(acc.credits || 0) < amount) return res.status(409).json({ error: "Insufficient balance" });
+    acc.credits = Math.max(Number(acc.credits || 0) - amount, 0);
+    await acc.save();
+    await ProviderWalletTxn.create({
+      providerId: acc._id.toString(),
+      type: "expense",
+      amount: -amount,
+      balanceAfter: acc.credits,
+      meta: { title: req.body.title || "Wallet Expense", source: "mock" },
+    });
+    res.json({ success: true, credits: acc.credits });
+  }
+);
+
+router.post(
+  "/wallet/refund",
+  requireRole("provider"),
+  body("amount").isNumeric(),
+  body("title").optional().isString(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    const amount = Math.max(Number(req.body.amount) || 0, 0);
+    if (amount <= 0) return res.status(400).json({ error: "Invalid amount" });
+    const acc = await ProviderAccount.findById(req.auth.sub);
+    if (!acc) return res.status(404).json({ error: "Not found" });
+    acc.credits = Number(acc.credits || 0) + amount;
+    await acc.save();
+    await ProviderWalletTxn.create({
+      providerId: acc._id.toString(),
+      type: "refund",
+      amount,
+      balanceAfter: acc.credits,
+      meta: { title: req.body.title || "Wallet Refund", source: "mock" },
+    });
+    res.json({ success: true, credits: acc.credits });
+  }
+);
 
 router.patch("/me/location",
   requireRole("provider"),
@@ -474,6 +551,10 @@ router.patch("/bookings/:id/status", requireRole("provider"), param("id").isStri
   let b = await Booking.findById(req.params.id);
   if (!b) return res.status(404).json({ error: "Not found" });
   if ((b.assignedProvider || "") !== (pId || "")) return res.status(403).json({ error: "Forbidden" });
+
+  if ((b.bookingType || "").toLowerCase() === "customized" && (next === "rejected" || next === "cancelled")) {
+    return res.status(403).json({ error: "Customized bookings cannot be cancelled by provider." });
+  }
 
   const now = new Date();
 
@@ -556,6 +637,36 @@ router.patch("/bookings/:id/status", requireRole("provider"), param("id").isStri
       b.expiresAt = null;
     }
   } else if (next === "accepted") {
+    // Wallet commission check before accepting
+    const ProviderAccount = (await import("../models/ProviderAccount.js")).default;
+    const acc = await ProviderAccount.findById(pId);
+    if (!acc) return res.status(403).json({ error: "Forbidden" });
+    const commissionSettings = await CommissionSettings.findOne().lean();
+    const rate = Number(commissionSettings?.rate || 20);
+    const totalAmount = Number(b.totalAmount || 0);
+    const required = Math.max(Math.round(totalAmount * (rate / 100)), 0);
+    if (!b.commissionChargedAt && required > 0 && Number(acc.credits || 0) < required) {
+      return res.status(409).json({
+        error: "Insufficient wallet balance to accept this booking.",
+        code: "INSUFFICIENT_WALLET",
+        required,
+        available: Number(acc.credits || 0),
+      });
+    }
+    if (!b.commissionChargedAt && required > 0) {
+      acc.credits = Math.max(Number(acc.credits || 0) - required, 0);
+      await acc.save();
+      b.commissionAmount = required;
+      b.commissionChargedAt = new Date();
+      await ProviderWalletTxn.create({
+        providerId: pId,
+        bookingId: b._id.toString(),
+        type: "commission_hold",
+        amount: -required,
+        balanceAfter: acc.credits,
+        meta: { rate, totalAmount },
+      });
+    }
     b.status = "accepted";
     b.expiresAt = null;
     b.adminEscalated = false;
@@ -566,6 +677,24 @@ router.patch("/bookings/:id/status", requireRole("provider"), param("id").isStri
     if (next !== "pending") b.expiresAt = null;
   }
 
+  if ((next === "cancelled" || next === "rejected") && b.commissionChargedAt && !b.commissionRefundedAt) {
+    const ProviderAccount = (await import("../models/ProviderAccount.js")).default;
+    const acc = await ProviderAccount.findById(pId);
+    if (acc) {
+      acc.credits = Number(acc.credits || 0) + Number(b.commissionAmount || 0);
+      await acc.save();
+      b.commissionRefundedAt = new Date();
+      await ProviderWalletTxn.create({
+        providerId: pId,
+        bookingId: b._id.toString(),
+        type: "commission_refund",
+        amount: Number(b.commissionAmount || 0),
+        balanceAfter: acc.credits,
+        meta: { reason: next },
+      });
+    }
+  }
+
   await b.save();
   await BookingLog.create({ action: "booking:status", userId: pId, bookingId: req.params.id, meta: { status: next } });
   try {
@@ -574,6 +703,41 @@ router.patch("/bookings/:id/status", requireRole("provider"), param("id").isStri
   } catch {}
   res.json({ booking: b });
 });
+
+router.patch(
+  "/bookings/:id/location",
+  requireRole("provider"),
+  param("id").isString(),
+  body("lat").isFloat({ min: -90, max: 90 }),
+  body("lng").isFloat({ min: -180, max: 180 }),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    const bookingId = req.params.id;
+    const providerId = req.auth?.sub;
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ error: "Not found" });
+    const provider = await ProviderAccount.findById(providerId).lean();
+    if (!provider) return res.status(404).json({ error: "Provider not found" });
+    const assigned = String(booking.assignedProvider || "");
+    if (assigned !== String(providerId || "") && assigned !== String(provider.phone || "")) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    await ProviderAccount.findByIdAndUpdate(providerId, {
+      currentLocation: { lat: req.body.lat, lng: req.body.lng },
+    });
+    try {
+      const io = getIO();
+      io?.of("/bookings").to(`booking:${bookingId}`).emit("booking:location", {
+        bookingId,
+        lat: req.body.lat,
+        lng: req.body.lng,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch {}
+    res.json({ success: true });
+  }
+);
 
 router.post("/bookings/:id/verify-otp", requireRole("provider"), param("id").isString(), body("otp").isString(), async (req, res) => {
   const b = await Booking.findById(req.params.id);

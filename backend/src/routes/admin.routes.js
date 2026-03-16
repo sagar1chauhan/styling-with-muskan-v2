@@ -6,7 +6,7 @@ import Booking from "../models/Booking.js";
 import Coupon from "../models/Coupon.js";
 import { Banner } from "../models/Content.js";
 import SOSAlert from "../models/SOSAlert.js";
-import { ReferralSettings, CommissionSettings } from "../models/Settings.js";
+import { ReferralSettings, CommissionSettings, BookingSettings } from "../models/Settings.js";
 import { upload } from "../middleware/upload.js";
 import { issueRoleToken, requireRole } from "../middleware/roles.js";
 import * as AdminController from "../modules/admin/controllers/admin.controller.js";
@@ -246,6 +246,13 @@ router.delete("/coupons/:id", requireRole("admin"), param("id").isString(), asyn
   res.json({ success: true });
 });
 
+router.get("/banners", requireRole("admin"), async (_req, res) => {
+  // Admin listing should show all banners (including scheduled/future), unlike /content/banners which is active-only.
+  const items = await Banner.find().lean();
+  items.sort((a, b) => (Number(b.priority || 0) - Number(a.priority || 0)) || (Number(b.id || 0) - Number(a.id || 0)));
+  res.json({ banners: items });
+});
+
 router.post("/banners", requireRole("admin"), body("gender").isString(), body("id").isNumeric(), async (req, res) => {
   const b = await Banner.create({
     gender: req.body.gender,
@@ -406,6 +413,53 @@ router.put("/commission", requireRole("admin"), body("rate").isNumeric(), body("
   res.json({ settings: s });
 });
 
+router.get("/booking-settings", requireRole("admin"), async (_req, res) => {
+  const s = await BookingSettings.findOne().lean();
+  res.json({
+    settings: s || {
+      minBookingAmount: 500,
+      minLeadTimeMinutes: 60,
+      providerBufferMinutes: 60,
+      serviceStartTime: "08:00",
+      serviceEndTime: "19:00",
+      slotIntervalMinutes: 30,
+      maxBookingDays: 6,
+      maxServicesPerBooking: 10,
+      providerSearchLimit: 5,
+      bookingHoldMinutes: 10,
+      maxServiceRadiusKm: 5,
+      providerNotificationStartTime: "07:00",
+      providerNotificationEndTime: "22:00",
+      allowPayAfterService: true,
+      prebookingRequired: false,
+    },
+  });
+});
+
+router.put(
+  "/booking-settings",
+  requireRole("admin"),
+  body("minBookingAmount").optional().isNumeric(),
+  body("minLeadTimeMinutes").optional().isNumeric(),
+  body("providerBufferMinutes").optional().isNumeric(),
+  body("serviceStartTime").optional().isString(),
+  body("serviceEndTime").optional().isString(),
+  body("slotIntervalMinutes").optional().isNumeric(),
+  body("maxBookingDays").optional().isNumeric(),
+  body("maxServicesPerBooking").optional().isNumeric(),
+  body("providerSearchLimit").optional().isNumeric(),
+  body("bookingHoldMinutes").optional().isNumeric(),
+  body("maxServiceRadiusKm").optional().isNumeric(),
+  body("providerNotificationStartTime").optional().isString(),
+  body("providerNotificationEndTime").optional().isString(),
+  body("allowPayAfterService").optional().isBoolean(),
+  body("prebookingRequired").optional().isBoolean(),
+  async (req, res) => {
+    const s = await BookingSettings.findOneAndUpdate({}, req.body, { upsert: true, new: true });
+    res.json({ settings: s });
+  }
+);
+
 // Customized Enquiries (Admin)
 router.get("/custom-enquiries", requireRole("admin"), BookingsController.adminListCustomEnquiries);
 router.patch("/custom-enquiries/:id/price-quote",
@@ -413,6 +467,10 @@ router.patch("/custom-enquiries/:id/price-quote",
   body("items").isArray(),
   body("totalAmount").isNumeric(),
   body("discountPrice").optional().isNumeric(),
+  body("prebookAmount").optional().isNumeric(),
+  body("totalServiceTime").optional().isString(),
+  body("quoteExpiryAt").optional().isString(),
+  body("quoteExpiryHours").optional().isNumeric(),
   BookingsController.adminPriceQuote
 );
 router.patch("/custom-enquiries/:id/final-approve", requireRole("admin"), BookingsController.adminFinalApprove);

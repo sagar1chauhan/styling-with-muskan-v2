@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { redis } from "../startup/redis.js";
 import { ServiceType, BookingType, Category, Service, Banner, Provider, OfficeSettings } from "../models/Content.js";
+import { BookingSettings } from "../models/Settings.js";
 import { Spotlight, GalleryItem, Testimonial } from "../models/SiteContent.js";
 import { ensureCategoriesAndServices } from "../startup/seed.js";
 import { versionedKey } from "../lib/contentCache.js";
@@ -226,6 +227,51 @@ router.get("/office-settings", async (_req, res) => {
     });
   } catch {
     data = { startTime: "09:00", endTime: "21:00", autoAssign: true, notificationMessage: "Our pros are sleeping. Service starts at 9:00 AM" };
+  }
+  res.json({ data });
+});
+
+router.get("/booking-settings", async (_req, res) => {
+  let data = {};
+  try {
+    data = await cached("content:booking-settings", async () => {
+      const s = await BookingSettings.findOne().lean();
+      return s || {
+        minBookingAmount: 500,
+        minLeadTimeMinutes: 60,
+        providerBufferMinutes: 60,
+        serviceStartTime: "08:00",
+        serviceEndTime: "19:00",
+        slotIntervalMinutes: 30,
+        maxBookingDays: 6,
+        maxServicesPerBooking: 10,
+        providerSearchLimit: 5,
+        bookingHoldMinutes: 10,
+        maxServiceRadiusKm: 5,
+        providerNotificationStartTime: "07:00",
+        providerNotificationEndTime: "22:00",
+        allowPayAfterService: true,
+        prebookingRequired: false,
+      };
+    });
+  } catch {
+    data = {
+      minBookingAmount: 500,
+      minLeadTimeMinutes: 60,
+      providerBufferMinutes: 60,
+      serviceStartTime: "08:00",
+      serviceEndTime: "19:00",
+      slotIntervalMinutes: 30,
+      maxBookingDays: 6,
+      maxServicesPerBooking: 10,
+      providerSearchLimit: 5,
+      bookingHoldMinutes: 10,
+      maxServiceRadiusKm: 5,
+      providerNotificationStartTime: "07:00",
+      providerNotificationEndTime: "22:00",
+      allowPayAfterService: true,
+      prebookingRequired: false,
+    };
   }
   res.json({ data });
 });

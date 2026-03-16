@@ -1,8 +1,16 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Calendar, Clock, MapPin, Star, Phone, MessageSquare, Zap, Receipt, ShieldCheck, ChevronRight, CheckCircle2, Navigation, Home, Scissors } from "lucide-react";
+import { io } from "socket.io-client";
+import LiveMap from "@/components/LiveMap";
+import { api, API_BASE_URL } from "@/modules/user/lib/api";
 
 const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
     if (!booking) return null;
+    const [userLocation, setUserLocation] = useState(null);
+    const [providerLocation, setProviderLocation] = useState(null);
+    const [socketConnected, setSocketConnected] = useState(false);
+    const pollRef = useRef(null);
 
     const getFormattedDate = (dateStr) => {
         if (!dateStr) return "";
@@ -27,6 +35,16 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
     };
 
     const currentStatus = (booking.status || 'pending').toLowerCase();
+    const showTracking = ['travelling', 'arrived', 'in_progress'].includes(currentStatus);
+    const bookingId = booking._id || booking.id;
+    const token = useMemo(() => {
+        try {
+            return localStorage.getItem("swm_token") || "";
+        } catch {
+            return "";
+        }
+    }, []);
+    const trackingBadge = showTracking ? (socketConnected ? "Socket Live" : "Polling") : "Tracking Off";
 
     const getStepIndex = () => {
         if (currentStatus === 'completed') return 4;
@@ -46,6 +64,69 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
         { id: 'in_progress', label: 'Service Started', icon: Scissors },
         { id: 'completed', label: 'Service Completed', icon: Star },
     ];
+
+    useEffect(() => {
+        if (!isOpen || !bookingId) return;
+        const lat = booking.address?.lat;
+        const lng = booking.address?.lng;
+        if (typeof lat === "number" && typeof lng === "number") {
+            setUserLocation({ lat, lng });
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await api.bookings.track(bookingId);
+                if (!cancelled) {
+                    setUserLocation(res.userLocation || null);
+                    setProviderLocation(res.providerLocation || null);
+                }
+            } catch {}
+        })();
+        return () => { cancelled = true; };
+    }, [isOpen, bookingId]);
+
+    useEffect(() => {
+        if (!isOpen || !showTracking || !bookingId || !token) return;
+        const socket = io(`${API_BASE_URL}/bookings`, {
+            auth: { token },
+            transports: ["websocket"],
+        });
+        socket.on("connect", () => {
+            setSocketConnected(true);
+            socket.emit("join:booking", { bookingId });
+        });
+        socket.on("booking:location", (payload) => {
+            if (payload?.bookingId !== bookingId) return;
+            if (typeof payload?.lat === "number" && typeof payload?.lng === "number") {
+                setProviderLocation({ lat: payload.lat, lng: payload.lng });
+            }
+        });
+        socket.on("connect_error", () => {
+            setSocketConnected(false);
+        });
+        return () => {
+            try { socket.emit("leave:booking", { bookingId }); } catch {}
+            try { socket.disconnect(); } catch {}
+            setSocketConnected(false);
+        };
+    }, [isOpen, showTracking, bookingId, token]);
+
+    useEffect(() => {
+        if (!isOpen || !showTracking || !bookingId) return;
+        if (socketConnected) return;
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = setInterval(async () => {
+            try {
+                const res = await api.bookings.track(bookingId);
+                setUserLocation(res.userLocation || null);
+                setProviderLocation(res.providerLocation || null);
+            } catch {}
+        }, 15000);
+        return () => {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+        };
+    }, [isOpen, showTracking, bookingId, socketConnected]);
 
     return (
         <AnimatePresence>
@@ -82,20 +163,23 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                         {/* Content */}
                         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 hide-scrollbar pb-32">
 
-                            {/* Track Map showing if travelling/arrived */}
-                            {['travelling', 'arrived'].includes(currentStatus) && (
+                            {/* Track Map showing if travelling/arrived/in-progress */}
+                            {showTracking && (
                                 <div className="rounded-2xl overflow-hidden border border-border/50 bg-accent/20 relative h-48 shadow-inner animate-in fade-in zoom-in duration-500">
-                                    <img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?w=600&h=300&fit=crop" className="w-full h-full object-cover opacity-60 grayscale mix-blend-multiply" alt="Map Route" />
-                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background to-transparent h-24" />
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-full p-2 shadow-xl animate-bounce">
-                                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                                            <Navigation className="w-5 h-5 text-primary fill-primary/20" />
-                                        </div>
+                                    <LiveMap
+                                        className="w-full h-full"
+                                        height={192}
+                                        userLocation={userLocation}
+                                        providerLocation={providerLocation}
+                                    />
+                                    <div className="absolute top-3 right-3 bg-white/90 border border-border/60 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full shadow-sm">
+                                        {trackingBadge}
                                     </div>
+                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background to-transparent h-24" />
                                     <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md rounded-2xl p-4 flex items-center justify-between shadow-lg border border-border/50">
                                         <div>
-                                            <p className="text-sm font-black text-gray-900">{currentStatus === 'travelling' ? 'Reaching in 15 mins' : 'Provider Arrived at Location'}</p>
-                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-0.5">{currentStatus === 'travelling' ? `Provider is 2.5km away` : 'Please guide them in'}</p>
+                                            <p className="text-sm font-black text-gray-900">{currentStatus === 'travelling' ? 'Provider on the way' : currentStatus === 'arrived' ? 'Provider Arrived at Location' : 'Service in Progress'}</p>
+                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-0.5">{providerLocation ? 'Live tracking enabled' : 'Waiting for provider location'}</p>
                                         </div>
                                         <button className="h-10 w-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center shadow-sm">
                                             <Phone className="w-4 h-4 fill-green-600/20" />

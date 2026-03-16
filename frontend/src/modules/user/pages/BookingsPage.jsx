@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGenderTheme } from "@/modules/user/contexts/GenderThemeContext";
 import { useBookings } from "@/modules/user/contexts/BookingContext";
+import { toast } from "sonner";
 import {
     ArrowLeft, Calendar, Clock, ChevronRight,
     MapPin, ShoppingBag, Star, RefreshCcw,
@@ -19,7 +20,7 @@ import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext
 const BookingsPage = () => {
     const navigate = useNavigate();
     const { gender } = useGenderTheme();
-    const { bookings, enquiries, acceptCustomEnquiry, loadingEnquiries } = useBookings();
+    const { bookings, enquiries, acceptCustomEnquiry, payAdvanceForCustomEnquiry, loadingEnquiries } = useBookings();
     useEffect(() => {
         try {
             bookings.forEach(b => {
@@ -45,12 +46,20 @@ const BookingsPage = () => {
         .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
         .map((enq) => {
             const status = (enq.status || "").toLowerCase();
+            const expiryAt = enq.quote?.expiryAt ? new Date(enq.quote.expiryAt) : null;
+            const isExpired = expiryAt && !Number.isNaN(expiryAt.getTime()) && expiryAt.getTime() < Date.now();
+            if (isExpired && ["quote_submitted", "admin_approved", "waiting_for_customer_payment"].includes(status)) {
+                return { ...enq, statusLabel: "Quote Expired", displayPhase: "expired" };
+            }
+            if (status === "enquiry_created") return { ...enq, statusLabel: "Enquiry Received", displayPhase: "pending" };
+            if (status === "quote_submitted") return { ...enq, statusLabel: "Under Admin Review", displayPhase: "vendor_pricing" };
             if (status === "admin_approved") return { ...enq, statusLabel: "Quote Ready", displayPhase: "pricing" };
-            if (status === "user_accepted") return { ...enq, statusLabel: "Awaiting Team", displayPhase: "team_pending" };
-            if (status === "team_assigned") return { ...enq, statusLabel: "Team Under Review", displayPhase: "team_review" };
-            if (status === "final_approved") return { ...enq, statusLabel: "Booking Created", displayPhase: "final" };
-            if (status === "vendor_assigned") return { ...enq, statusLabel: "Under Review", displayPhase: "vendor_pricing" };
+            if (status === "waiting_for_customer_payment") return { ...enq, statusLabel: "Advance Pending", displayPhase: "payment" };
+            if (status === "advance_paid") return { ...enq, statusLabel: "Advance Paid", displayPhase: "team_pending" };
+            if (status === "service_confirmed") return { ...enq, statusLabel: "Service Confirmed", displayPhase: "final" };
+            if (status === "service_completed") return { ...enq, statusLabel: "Completed", displayPhase: "final" };
             if (status === "rejected") return { ...enq, statusLabel: "Rejected", displayPhase: "rejected" };
+            if (status === "quote_expired") return { ...enq, statusLabel: "Quote Expired", displayPhase: "expired" };
             return { ...enq, statusLabel: "Under Review", displayPhase: "pending" };
         });
 
@@ -104,10 +113,12 @@ const BookingsPage = () => {
     const getPhaseColor = (phase) => {
         switch (phase) {
             case "pricing": return "bg-green-100 text-green-700";
+            case "payment": return "bg-amber-100 text-amber-700";
             case "team_pending": return "bg-blue-100 text-blue-700";
             case "team_review": return "bg-cyan-100 text-cyan-700";
             case "final": return "bg-emerald-100 text-emerald-700";
             case "vendor_pricing": return "bg-amber-100 text-amber-700";
+            case "expired": return "bg-red-100 text-red-700";
             default: return "bg-primary/10 text-primary";
         }
     };
@@ -115,10 +126,12 @@ const BookingsPage = () => {
     const getPhaseDescription = (phase) => {
         switch (phase) {
             case "pricing": return "Pricing has been approved. Review and accept the quote.";
+            case "payment": return "Quote accepted. Please pay the advance to confirm.";
             case "team_pending": return "Your acceptance is confirmed. Vendor is now assigning the team.";
             case "team_review": return "Team has been assigned. Admin is reviewing the assignment.";
             case "final": return "Booking has been created. You will see it in Normal Bookings.";
             case "vendor_pricing": return "Vendor is setting the pricing. You'll be notified once admin approves.";
+            case "expired": return "Quote expired. Please request a new quote.";
             default: return "Your enquiry is being processed.";
         }
     };
@@ -389,11 +402,11 @@ const BookingsPage = () => {
                                             <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">Preferred Schedule</p>
                                             <div className="flex items-center gap-2 text-sm font-bold">
                                                 <Calendar className="w-4 h-4 text-primary" />
-                                                {enq.date}
+                                                {enq.scheduledAt?.date || enq.date}
                                             </div>
                                             <div className="flex items-center gap-2 text-sm font-bold">
                                                 <Clock className="w-4 h-4 text-primary" />
-                                                {enq.timeSlot}
+                                                {enq.scheduledAt?.timeSlot || enq.timeSlot}
                                             </div>
                                         </div>
                                         <div className="space-y-1">
@@ -403,21 +416,31 @@ const BookingsPage = () => {
                                                 {enq.noOfPeople} People
                                             </div>
                                             {/* Price & Discount Display */}
-                                            {(enq.totalAmount > 0) && (
+                                            {((enq.quote?.totalAmount || enq.totalAmount || 0) > 0) && (
                                                 <div className="space-y-0.5">
                                                     <div className="flex items-center gap-1 text-sm font-black text-primary">
                                                         <IndianRupee className="w-3 h-3" />
-                                                        ₹{enq.totalAmount?.toLocaleString()}
+                                                        ₹{(enq.quote?.totalAmount || enq.totalAmount || 0).toLocaleString()}
                                                     </div>
-                                                    {enq.discountPrice > 0 && (
+                                                    {((enq.quote?.discountPrice || enq.discountPrice || 0) > 0) && (
                                                         <div className="flex items-center gap-1 text-[10px] font-bold text-green-600">
                                                             <Percent className="w-2.5 h-2.5" />
-                                                            Discount: ₹{enq.discountPrice?.toLocaleString()}
+                                                            Discount: ₹{(enq.quote?.discountPrice || enq.discountPrice || 0).toLocaleString()}
                                                         </div>
                                                     )}
-                                                    {enq.discountPrice > 0 && (
+                                                    {((enq.quote?.discountPrice || enq.discountPrice || 0) > 0) && (
                                                         <p className="text-[10px] font-black text-emerald-700">
-                                                            Final: ₹{((enq.totalAmount || 0) - (enq.discountPrice || 0)).toLocaleString()}
+                                                            Final: ₹{((enq.quote?.totalAmount || enq.totalAmount || 0) - (enq.quote?.discountPrice || enq.discountPrice || 0)).toLocaleString()}
+                                                        </p>
+                                                    )}
+                                                    {(enq.quote?.prebookAmount || 0) > 0 && (
+                                                        <p className="text-[10px] font-black text-amber-700">
+                                                            Advance: ₹{(enq.quote?.prebookAmount || 0).toLocaleString()}
+                                                        </p>
+                                                    )}
+                                                    {enq.quote?.totalServiceTime && (
+                                                        <p className="text-[10px] font-bold text-muted-foreground">
+                                                            Service Time: {enq.quote.totalServiceTime}
                                                         </p>
                                                     )}
                                                 </div>
@@ -479,13 +502,54 @@ const BookingsPage = () => {
                                             <button
                                                 onClick={async () => {
                                                     try {
+                                                        const expiryAt = enq.quote?.expiryAt ? new Date(enq.quote.expiryAt) : null;
+                                                        if (expiryAt && !Number.isNaN(expiryAt.getTime()) && expiryAt.getTime() < Date.now()) {
+                                                            toast.error("This quote has expired. Please request a new quote.");
+                                                            return;
+                                                        }
                                                         await acceptCustomEnquiry(enq._id || enq.id);
-                                                    } catch (e) {}
+                                                        toast.success("Quote accepted. Please pay the advance.");
+                                                    } catch (e) {
+                                                        toast.error(e?.message || "Failed to accept quote");
+                                                    }
                                                 }}
                                                 className="px-4 py-2 rounded-xl bg-green-600 text-white text-[10px] font-black uppercase tracking-widest"
                                             >
                                                 Accept Quote
                                             </button>
+                                        </div>
+                                    ) : enq.displayPhase === "payment" ? (
+                                        <div className="mt-5 pt-4 border-t border-border/30 flex items-center justify-between gap-3">
+                                            <span className="text-[10px] font-bold text-muted-foreground">
+                                                Pay advance to confirm booking.
+                                            </span>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const expiryAt = enq.quote?.expiryAt ? new Date(enq.quote.expiryAt) : null;
+                                                        if (expiryAt && !Number.isNaN(expiryAt.getTime()) && expiryAt.getTime() < Date.now()) {
+                                                            toast.error("This quote has expired. Please request a new quote.");
+                                                            return;
+                                                        }
+                                                        const amt = Number(enq.quote?.prebookAmount || 0);
+                                                        await payAdvanceForCustomEnquiry(enq._id || enq.id, amt);
+                                                        toast.success("Advance payment confirmed.");
+                                                    } catch (e) {
+                                                        toast.error(e?.message || "Failed to record advance payment");
+                                                    }
+                                                }}
+                                                disabled={!(enq.quote?.prebookAmount > 0)}
+                                                className="px-4 py-2 rounded-xl bg-amber-600 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                                            >
+                                                Pay Advance
+                                            </button>
+                                        </div>
+                                    ) : enq.displayPhase === "expired" ? (
+                                        <div className="mt-5 pt-4 border-t border-border/30 flex items-center justify-between gap-3">
+                                            <span className="text-[10px] font-bold text-red-600">
+                                                This quote has expired. Please submit a new enquiry.
+                                            </span>
+                                            <span className="text-[10px] font-bold text-muted-foreground">Support Help</span>
                                         </div>
                                     ) : (
                                         <div className="mt-5 pt-4 border-t border-border/30 flex items-center justify-between text-[10px] font-bold text-muted-foreground">
@@ -554,3 +618,5 @@ const BookingsPage = () => {
 };
 
 export default BookingsPage;
+
+

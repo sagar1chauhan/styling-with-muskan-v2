@@ -1,9 +1,11 @@
-import { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, MapPin, Clock, Calendar, Check, Navigation, Camera, ChevronRight, Shield, IndianRupee, Map as MapIcon, UserCircle, Package, CheckCircle2, Smartphone, Wallet, Star, MessageSquare } from "lucide-react";
 import { useProviderBookings } from "@/modules/serviceprovider/contexts/ProviderBookingContext";
 import { Button } from "@/modules/user/components/ui/button";
+import LiveMap from "@/components/LiveMap";
+import { api } from "@/modules/user/lib/api";
 
 const statusSteps = [
     { key: "accepted", label: "Accepted", icon: Check },
@@ -19,7 +21,8 @@ const ProviderBookingDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { bookings, updateBookingStatus, verifyOTP, addBeforeImages, addAfterImages, addProductImages, addProviderImages } = useProviderBookings();
-    const booking = bookings.find(b => b.id === id);
+    const booking = bookings.find(b => (b.id || b._id) === id);
+    const bookingId = booking?.id || booking?._id;
 
     const [otpInput, setOtpInput] = useState(["", "", "", ""]);
     const [otpError, setOtpError] = useState(false);
@@ -28,6 +31,44 @@ const ProviderBookingDetailPage = () => {
     const [showComplete, setShowComplete] = useState(false);
     const [customerRating, setCustomerRating] = useState(0);
     const [customerNote, setCustomerNote] = useState("");
+    const [providerLocation, setProviderLocation] = useState(null);
+    const [userLocation, setUserLocation] = useState(null);
+    const [gpsStatus, setGpsStatus] = useState("idle");
+    const lastSentRef = useRef(0);
+
+    const currentIdx = statusSteps.findIndex(s => s.key === booking?.status);
+    const trackingActive = ["travelling", "arrived", "in_progress"].includes(String(booking?.status || "").toLowerCase());
+
+    useEffect(() => {
+        if (!booking) return;
+        const lat = booking.address?.lat;
+        const lng = booking.address?.lng;
+        if (typeof lat === "number" && typeof lng === "number") {
+            setUserLocation({ lat, lng });
+        }
+    }, [booking]);
+
+    useEffect(() => {
+        if (!trackingActive || !bookingId) return;
+        if (!navigator.geolocation) return;
+        const watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+                const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                setProviderLocation(coords);
+                setGpsStatus("live");
+                const now = Date.now();
+                if (now - lastSentRef.current > 5000) {
+                    lastSentRef.current = now;
+                    api.provider.updateBookingLocation(bookingId, coords.lat, coords.lng).catch(() => {});
+                }
+            },
+            () => { setGpsStatus("error"); },
+            { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 }
+        );
+        return () => {
+            if (navigator.geolocation && watchId) navigator.geolocation.clearWatch(watchId);
+        };
+    }, [trackingActive, bookingId]);
 
     if (!booking) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
@@ -35,8 +76,6 @@ const ProviderBookingDetailPage = () => {
             <Button onClick={() => navigate("/provider/bookings")} variant="outline" className="h-10 px-6 rounded-xl text-xs font-bold border-gray-200">Back to List</Button>
         </div>
     );
-
-    const currentIdx = statusSteps.findIndex(s => s.key === booking.status);
 
     const handleOtpChange = (idx, val) => {
         if (isNaN(val)) return;
@@ -48,7 +87,7 @@ const ProviderBookingDetailPage = () => {
 
     const handleVerifyOTP = () => {
         const entered = otpInput.join("");
-        const result = verifyOTP(id, entered);
+        const result = verifyOTP(bookingId, entered);
         if (!result) {
             setOtpError(true);
             setTimeout(() => setOtpError(false), 2000);
@@ -62,7 +101,7 @@ const ProviderBookingDetailPage = () => {
         if (customerRating > 0) {
             const fb = {
                 id: `FB${Date.now()}`,
-                bookingId: booking.id,
+                bookingId,
                 customerName: booking.customerName || "Customer",
                 providerName: "Service Provider",
                 serviceName: (booking.services?.[0]?.name || booking.items?.[0]?.name || "Service"),
@@ -76,12 +115,12 @@ const ProviderBookingDetailPage = () => {
             existing.unshift(fb);
             localStorage.setItem("muskan-feedback", JSON.stringify(existing));
         }
-        updateBookingStatus(id, "completed");
+        updateBookingStatus(bookingId, "completed");
         setShowComplete(false);
     };
 
     const handleCollectPayment = () => {
-        updateBookingStatus(id, "payment");
+        updateBookingStatus(bookingId, "payment");
     };
 
     const handleFinalizePayment = (method) => {
@@ -92,13 +131,13 @@ const ProviderBookingDetailPage = () => {
             localStorage.setItem(`swm_vendor_wallet_${vendorId}`, JSON.stringify(currentWallet + (booking.balanceAmount || booking.totalAmount || 0)));
             alert("Online Payment Logged: Amount credited to City Vendor Wallet.");
         }
-        updateBookingStatus(id, "documentation");
+        updateBookingStatus(bookingId, "documentation");
     };
 
     const getNextAction = () => {
         switch (booking.status) {
-            case "accepted": return { label: "Start Travelling", icon: Navigation, action: () => updateBookingStatus(id, "travelling") };
-            case "travelling": return { label: "Mark as Arrived", icon: MapPin, action: () => updateBookingStatus(id, "arrived") };
+            case "accepted": return { label: "Start Travelling", icon: Navigation, action: () => updateBookingStatus(bookingId, "travelling") };
+            case "travelling": return { label: "Mark as Arrived", icon: MapPin, action: () => updateBookingStatus(bookingId, "arrived") };
             case "arrived": return { label: "Verify Customer OTP", icon: Shield, action: () => setShowOTP(true) };
             case "in_progress": return { label: "Collect Service Payment", icon: IndianRupee, action: () => handleCollectPayment() };
             case "payment": return null; // Actions inside payment card
@@ -117,7 +156,7 @@ const ProviderBookingDetailPage = () => {
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="font-black text-sm tracking-tight text-gray-900">#{booking.id.toUpperCase()}</h1>
+                        <h1 className="font-black text-sm tracking-tight text-gray-900">#{String(bookingId || "").toUpperCase()}</h1>
                         <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{booking.bookingType}</p>
                     </div>
                 </div>
@@ -201,28 +240,25 @@ const ProviderBookingDetailPage = () => {
                 </div>
 
                 {/* Map View during Travelling */}
-                {booking.status === "travelling" && (
+                {trackingActive && (
                     <div className="bg-white border border-gray-100 rounded-[20px] p-5 shadow-sm shadow-purple-50 space-y-4">
                         <div className="flex items-center justify-between">
                             <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
                                 <Navigation className="w-3.5 h-3.5 text-blue-500" /> Live Navigation
                             </h3>
-                            <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md">8 MINS AWAY</span>
+                            <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                                {providerLocation ? "LIVE" : "WAITING"}
+                            </span>
                         </div>
                         <div className="relative w-full h-48 bg-gray-100 rounded-2xl overflow-hidden border border-gray-100 group">
-                            {/* Simulated Map Background */}
-                            <div className="absolute inset-0 bg-[url('https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/77.06,28.45,12/400x300?access_token=pk.eyJ1IjoibW9ja3VwIiwiYSI6ImNreTZ6...')] bg-cover bg-center opacity-40 grayscale-[0.5]"></div>
-                            <div className="absolute inset-0 bg-gradient-to-t from-white/80 to-transparent"></div>
-
-                            {/* Animated Tracking UI */}
-                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
-                                <div className="relative">
-                                    <div className="w-16 h-16 rounded-full bg-blue-100/50 animate-ping absolute -inset-0"></div>
-                                    <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center relative border border-blue-500/20 shadow-xl">
-                                        <Navigation className="w-8 h-8 text-blue-600" />
-                                    </div>
-                                </div>
-                                <p className="text-[11px] font-black text-blue-600 mt-4 uppercase tracking-[0.2em] animate-pulse">Navigating to Site...</p>
+                            <LiveMap
+                                className="w-full h-full"
+                                height={192}
+                                userLocation={userLocation}
+                                providerLocation={providerLocation}
+                            />
+                            <div className="absolute top-3 right-3 bg-white/90 border border-gray-200 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full shadow-sm">
+                                {trackingActive ? (gpsStatus === "live" ? "GPS Live" : gpsStatus === "error" ? "GPS Error" : "GPS Waiting") : "Tracking Off"}
                             </div>
 
                             {/* Google Maps External Button */}

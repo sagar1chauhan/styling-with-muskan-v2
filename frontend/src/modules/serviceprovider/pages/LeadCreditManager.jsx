@@ -13,11 +13,31 @@ import { Button } from "@/modules/user/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/modules/user/components/ui/tabs";
 import { Badge } from "@/modules/user/components/ui/badge";
 import { Wallet, Plus, ArrowDownRight, ArrowUpRight, Ban } from "lucide-react";
+import { toast } from "sonner";
 
 export default function LeadCreditManager() {
     const { provider } = useProviderAuth();
     const [balance, setBalance] = useState(0);
     const [transactions, setTransactions] = useState([]);
+    const normalizeTxn = (t) => {
+        const amount = Number(t.amount || 0);
+        const type = String(t.type || t.txnType || "").trim();
+        const title = t.meta?.title || t.title || t.desc || t.meta?.desc || "Wallet Activity";
+        const date = t.createdAt ? new Date(t.createdAt).toLocaleString() : (t.date || new Date().toLocaleString());
+        const mapType = type.toLowerCase();
+        let uiType = "Expense";
+        if (mapType.includes("recharge") || mapType === "credit") uiType = "Recharge";
+        else if (mapType.includes("refund")) uiType = "Refund";
+        else if (mapType.includes("penalty")) uiType = "Penalty";
+        return {
+            id: t._id || t.id || Date.now(),
+            type: uiType,
+            amount,
+            date,
+            status: "Success",
+            desc: title,
+        };
+    };
     useEffect(() => {
         let cancel = false;
         const run = async () => {
@@ -26,7 +46,7 @@ export default function LeadCreditManager() {
                 const { credits, transactions } = await api.provider.credits(provider.phone);
                 if (!cancel) {
                     setBalance(credits || 0);
-                    setTransactions(Array.isArray(transactions) ? transactions : []);
+                    setTransactions(Array.isArray(transactions) ? transactions.map(normalizeTxn) : []);
                 }
             } catch {
                 // fallback to zero balance, empty transactions
@@ -36,21 +56,49 @@ export default function LeadCreditManager() {
         return () => { cancel = true; };
     }, [provider?.phone]);
 
-    const handleBuyLead = () => {
-        if (balance < 150) return alert("Insufficient balance");
-        setBalance(prev => prev - 150);
-        setTransactions(prev => [
-            { id: Date.now(), type: "Expense", amount: -150, date: new Date().toLocaleString(), status: "Success", desc: "Bought Lead: Bridal Makeup" },
-            ...prev
-        ]);
+    const refresh = async () => {
+        if (!provider?.phone) return;
+        try {
+            const { credits, transactions } = await api.provider.credits(provider.phone);
+            setBalance(credits || 0);
+            setTransactions(Array.isArray(transactions) ? transactions.map(normalizeTxn) : []);
+        } catch {}
     };
 
-    const handleRefund = () => {
-        setBalance(prev => prev + 150);
-        setTransactions(prev => [
-            { id: Date.now(), type: "Refund", amount: 150, date: new Date().toLocaleString(), status: "Success", desc: "Mock Refund Triggered" },
-            ...prev
-        ]);
+    const handleRecharge = async () => {
+        const amt = Number(prompt("Enter recharge amount (INR):", "500"));
+        if (!Number.isFinite(amt) || amt <= 0) return;
+        try {
+            await api.provider.wallet.recharge(amt);
+            await refresh();
+            toast.success(`Recharge successful: ₹${amt}`);
+        } catch (e) {
+            toast.error(e?.message || "Recharge failed");
+        }
+    };
+
+    const handleBuyLead = async () => {
+        if (balance < 150) {
+            toast.error("Insufficient balance");
+            return;
+        }
+        try {
+            await api.provider.wallet.expense(150, "Bought Lead: Bridal Makeup");
+            await refresh();
+            toast.success("Lead purchase successful");
+        } catch (e) {
+            toast.error(e?.message || "Expense failed");
+        }
+    };
+
+    const handleRefund = async () => {
+        try {
+            await api.provider.wallet.refund(150, "Mock Refund Triggered");
+            await refresh();
+            toast.success("Refund successful");
+        } catch (e) {
+            toast.error(e?.message || "Refund failed");
+        }
     };
 
     const filterDocs = (typeStr) => transactions.filter(t => t.type === typeStr);
@@ -109,7 +157,7 @@ export default function LeadCreditManager() {
                         <p className="text-xs text-muted-foreground mt-2">1 CR = ₹1.00</p>
                     </CardContent>
                     <CardFooter className="flex flex-col gap-2">
-                        <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                        <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white" onClick={handleRecharge}>
                             <Plus className="mr-2 h-4 w-4" /> Recharge Credits
                         </Button>
 

@@ -60,6 +60,18 @@ router.patch(
   requireAuth,
   BookingsController.userAcceptCustomEnquiry
 );
+router.patch(
+  "/custom-enquiry/:id/advance-paid",
+  requireAuth,
+  body("amount").optional().isNumeric(),
+  BookingsController.userMarkCustomAdvancePaid
+);
+
+router.get(
+  "/:id/track",
+  requireAuth,
+  BookingsController.track
+);
 
 router.get(
   "/:id",

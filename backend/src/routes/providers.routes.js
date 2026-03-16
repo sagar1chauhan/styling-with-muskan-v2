@@ -5,7 +5,8 @@ import ProviderAccount from "../models/ProviderAccount.js";
 import ProviderDayAvailability from "../models/ProviderDayAvailability.js";
 import LeaveRequest from "../models/LeaveRequest.js";
 import Booking from "../models/Booking.js";
-import { DEFAULT_TIME_SLOTS, defaultSlotsMap, isIsoDate } from "../lib/slots.js";
+import { BookingSettings } from "../models/Settings.js";
+import { DEFAULT_TIME_SLOTS, defaultSlotsMap, isIsoDate, slotLabelToLocalDateTime, parseSlotLabelToHM } from "../lib/slots.js";
 import { isoDateToLocalEnd, isoDateToLocalStart } from "../lib/isoDateTime.js";
 
 const router = Router();
@@ -21,6 +22,15 @@ function providerCard(p) {
     city: p.city || "",
     specialties: Array.isArray(p?.documents?.specializations) ? p.documents.specializations : [],
   };
+}
+
+function parseHHMMToMinutes(v) {
+  const m = String(v || "").trim().match(/^(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+  if (Number.isNaN(h) || Number.isNaN(mm)) return null;
+  return h * 60 + mm;
 }
 
 router.get(
@@ -80,10 +90,29 @@ router.get(
     }).distinct("slot.time");
     const bookedSet = new Set((bookedTimes || []).map((t) => String(t)));
 
+    const settings = await BookingSettings.findOne().lean();
+    const leadMs = Math.max(Number(settings?.minLeadTimeMinutes || 0), 0) * 60 * 1000;
+    const windowStartMin = parseHHMMToMinutes(settings?.serviceStartTime || "");
+    const windowEndMin = parseHHMMToMinutes(settings?.serviceEndTime || "");
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const isToday = date === todayKey;
+    const now = new Date();
+
     const slotMap = {};
     const slots = [];
     for (const s of DEFAULT_TIME_SLOTS) {
-      const ok = baseMap[s] === true && !bookedSet.has(s);
+      let ok = baseMap[s] === true && !bookedSet.has(s);
+      if (ok && isToday && leadMs > 0) {
+        const slotStart = slotLabelToLocalDateTime(date, s);
+        if (slotStart && slotStart.getTime() < (now.getTime() + leadMs)) ok = false;
+      }
+      if (ok && windowStartMin !== null && windowEndMin !== null) {
+        const hm = parseSlotLabelToHM(s);
+        if (hm) {
+          const slotMin = hm.hour * 60 + hm.minute;
+          if (slotMin < windowStartMin || slotMin > windowEndMin) ok = false;
+        }
+      }
       slotMap[s] = ok;
       if (ok) slots.push(s);
     }
@@ -93,4 +122,3 @@ router.get(
 );
 
 export default router;
-

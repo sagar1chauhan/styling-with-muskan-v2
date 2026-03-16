@@ -3,11 +3,12 @@ import Booking from "../../../models/Booking.js";
 import mongoose from "mongoose";
 import Coupon from "../../../models/Coupon.js";
 import { OfficeSettings, Category } from "../../../models/Content.js";
+import { BookingSettings } from "../../../models/Settings.js";
 import ProviderAccount from "../../../models/ProviderAccount.js";
 import BookingLog from "../../../models/BookingLog.js";
 import CustomEnquiry from "../../../models/CustomEnquiry.js";
 import ProviderDayAvailability from "../../../models/ProviderDayAvailability.js";
-import { DEFAULT_TIME_SLOTS, defaultSlotsMap, slotsMapToAvailableSlots } from "../../../lib/slots.js";
+import { DEFAULT_TIME_SLOTS, defaultSlotsMap, slotsMapToAvailableSlots, slotLabelToLocalDateTime, parseSlotLabelToHM } from "../../../lib/slots.js";
 import LeaveRequest from "../../../models/LeaveRequest.js";
 import { isIsoDate, isoDateToLocalEnd, isoDateToLocalStart } from "../../../lib/isoDateTime.js";
 import { computeExpiresAt } from "../../../lib/assignment.js";
@@ -67,6 +68,36 @@ function bookingServicesToItems(services = []) {
     serviceType: s?.serviceType || "",
     quantity: 1,
   }));
+}
+
+async function loadBookingSettings() {
+  const s = await BookingSettings.findOne().lean();
+  return s || {
+    minBookingAmount: 500,
+    minLeadTimeMinutes: 60,
+    providerBufferMinutes: 60,
+    serviceStartTime: "08:00",
+    serviceEndTime: "19:00",
+    slotIntervalMinutes: 30,
+    maxBookingDays: 6,
+    maxServicesPerBooking: 10,
+    providerSearchLimit: 5,
+    bookingHoldMinutes: 10,
+    maxServiceRadiusKm: 5,
+    providerNotificationStartTime: "07:00",
+    providerNotificationEndTime: "22:00",
+    allowPayAfterService: true,
+    prebookingRequired: false,
+  };
+}
+
+function parseHHMMToMinutes(v) {
+  const m = String(v || "").trim().match(/^(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+  if (Number.isNaN(h) || Number.isNaN(mm)) return null;
+  return h * 60 + mm;
 }
 
 async function attachProviderToBookings(bookings = []) {
@@ -147,13 +178,21 @@ export async function create(req, res) {
     area: address?.area || fallbackAddr.area || "",
     landmark: address?.landmark || fallbackAddr.landmark || "",
     city: address?.city || address?.area || fallbackAddr.city || fallbackAddr.area || "",
+    lat: address?.lat ?? fallbackAddr.lat ?? null,
+    lng: address?.lng ?? fallbackAddr.lng ?? null,
   };
   const preferredProviderId = String(req.body.preferredProviderId || "").trim();
-  const autoAssign = req.body.autoAssign === true;
   let coupon = null;
   if (couponCode) coupon = await Coupon.findOne({ code: couponCode, isActive: true }).lean();
   const totals = computeTotals(items, coupon);
   const advanceAmount = await computeAdvanceFromCategories(items);
+  const settings = await loadBookingSettings();
+  if (settings?.minBookingAmount && totals.finalTotal < Number(settings.minBookingAmount)) {
+    return res.status(400).json({ error: `Minimum booking amount is INR ${settings.minBookingAmount}.` });
+  }
+  if (settings?.maxServicesPerBooking && Array.isArray(items) && items.length > Number(settings.maxServicesPerBooking)) {
+    return res.status(400).json({ error: `Maximum ${settings.maxServicesPerBooking} services allowed per booking.` });
+  }
   const office = await OfficeSettings.findOne().lean();
   const now = new Date();
   const [startH, startM] = (office?.startTime || "09:00").split(":").map(Number);
@@ -163,6 +202,8 @@ export async function create(req, res) {
   const endMinutes = endH * 60 + endM;
   const withinOffice = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
   let notificationStatus = withinOffice ? "immediate" : "queued";
+  const autoAssignAllowed = office?.autoAssign !== false;
+  const autoAssign = autoAssignAllowed && req.body.autoAssign === true;
   // Build candidate provider list within 5 km from user's address lat/lng if available
   const userLat = Number(req.user?.addresses?.[0]?.lat);
   const userLng = Number(req.user?.addresses?.[0]?.lng);
@@ -181,6 +222,31 @@ export async function create(req, res) {
   const dayStart = wantsKnownDate ? isoDateToLocalStart(requestedDate) : null;
   const dayEnd = wantsKnownDate ? isoDateToLocalEnd(requestedDate) : null;
   let candidateProviders = [];
+  // Enforce booking window + lead time if slot is valid
+  if (isIsoDate(requestedDate) && DEFAULT_TIME_SLOTS.includes(requestedTime)) {
+    const slotStart = slotLabelToLocalDateTime(requestedDate, requestedTime);
+    if (!slotStart) return res.status(400).json({ error: "Invalid booking slot" });
+    const leadMs = Math.max(Number(settings?.minLeadTimeMinutes || 0), 0) * 60 * 1000;
+    if (leadMs > 0 && slotStart.getTime() < (now.getTime() + leadMs)) {
+      return res.status(400).json({ error: "Selected slot violates minimum lead time." });
+    }
+    const maxDays = Math.max(Number(settings?.maxBookingDays || 0), 0);
+    if (maxDays > 0) {
+      const maxDate = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
+      if (slotStart.getTime() > maxDate.getTime()) {
+        return res.status(400).json({ error: "Selected slot exceeds maximum advance booking days." });
+      }
+    }
+    const windowStartMin = parseHHMMToMinutes(settings?.serviceStartTime || "");
+    const windowEndMin = parseHHMMToMinutes(settings?.serviceEndTime || "");
+    const hm = parseSlotLabelToHM(requestedTime);
+    if (windowStartMin !== null && windowEndMin !== null && hm) {
+      const slotMin = hm.hour * 60 + hm.minute;
+      if (slotMin < windowStartMin || slotMin > windowEndMin) {
+        return res.status(400).json({ error: "Selected slot is outside service hours." });
+      }
+    }
+  }
   if (!Number.isNaN(userLat) && !Number.isNaN(userLng)) {
     const providers = await ProviderAccount.find({
       approvalStatus: "approved",
@@ -245,13 +311,14 @@ export async function create(req, res) {
       return defaultAvailableSet.has(requestedTime);
     };
 
+    const maxKm = Math.max(Number(settings?.maxServiceRadiusKm || 5), 1);
     const sorted = providers
       .filter(p => matchesSpecialty(p))
       .filter(p => !leaveBlocked.has(p._id.toString()))
       .filter(p => !bookedBlocked.has(p._id.toString()))
       .filter(p => isAvailableAtSlot(p._id.toString()))
       .map(p => ({ id: p._id.toString(), d: distKm({ lat: userLat, lng: userLng }, { lat: p.currentLocation.lat, lng: p.currentLocation.lng }) }))
-      .filter(x => x.d <= 5)
+      .filter(x => x.d <= maxKm)
       .sort((a, b) => a.d - b.d);
     candidateProviders = sorted.map(s => s.id);
   }
@@ -315,7 +382,7 @@ export async function create(req, res) {
   }
 
   const providerIsCandidate = (pid) => !!pid && candidateProviders.includes(pid);
-  if (preferredProviderId && !autoAssign && !providerIsCandidate(preferredProviderId)) {
+  if (preferredProviderId && !providerIsCandidate(preferredProviderId)) {
     if (candidateProviders.length === 0) {
       return res.status(409).json({
         error: "No providers available for this booking slot. Please select another slot or time.",
@@ -323,18 +390,22 @@ export async function create(req, res) {
       });
     }
     return res.status(409).json({
-      error: "This provider is unavailable for the required booking slot. Do you want to auto assign to the available provider for that slot?",
+      error: autoAssignAllowed
+        ? "This provider is unavailable for the required booking slot. Do you want to auto assign to the available provider for that slot?"
+        : "This provider is unavailable for the required booking slot. Please select another provider or slot.",
       code: "PREFERRED_UNAVAILABLE",
-      canAutoAssign: candidateProviders.length > 0,
+      canAutoAssign: autoAssignAllowed && candidateProviders.length > 0,
     });
   }
 
   let assignedProvider = "";
-  if (preferredProviderId && providerIsCandidate(preferredProviderId)) {
-    assignedProvider = preferredProviderId;
-    candidateProviders = [preferredProviderId, ...candidateProviders.filter((x) => x !== preferredProviderId)];
-  } else if (candidateProviders.length > 0) {
-    assignedProvider = candidateProviders[0];
+  if (autoAssignAllowed) {
+    if (preferredProviderId && providerIsCandidate(preferredProviderId)) {
+      assignedProvider = preferredProviderId;
+      candidateProviders = [preferredProviderId, ...candidateProviders.filter((x) => x !== preferredProviderId)];
+    } else if (candidateProviders.length > 0) {
+      assignedProvider = candidateProviders[0];
+    }
   }
 
   // If the user explicitly requested a specific provider or confirmed auto-assign, we must fail fast when none match.
@@ -344,6 +415,10 @@ export async function create(req, res) {
       error: "No providers available for this booking slot. Please select another slot or time.",
       code: "NO_PROVIDERS",
     });
+  }
+  const maxCandidates = Math.max(Number(settings?.providerSearchLimit || 0), 0);
+  if (maxCandidates > 0 && candidateProviders.length > maxCandidates) {
+    candidateProviders = candidateProviders.slice(0, maxCandidates);
   }
   const assignmentIndex = assignedProvider ? 0 : -1;
   const lastAssignedAt = assignedProvider ? new Date() : null;
@@ -365,6 +440,7 @@ export async function create(req, res) {
     status: "pending",
     notificationStatus,
     assignedProvider,
+    maintainProvider: preferredProviderId || "",
     otp: (Math.floor(1000 + Math.random() * 9000)).toString(),
     beforeImages: [],
     afterImages: [],
@@ -376,7 +452,7 @@ export async function create(req, res) {
     assignmentIndex,
     lastAssignedAt,
     expiresAt,
-    adminEscalated: !assignedProvider,
+    adminEscalated: autoAssignAllowed ? !assignedProvider : true,
   });
   let order = null;
   if (advanceAmount > 0 && RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
@@ -438,15 +514,55 @@ export async function getById(req, res) {
   res.json({ booking: enriched });
 }
 
+export async function track(req, res) {
+  const id = req.params.id;
+  if (!mongoose.isValidObjectId(id)) return res.status(404).json({ error: "Not found" });
+  const booking = await Booking.findOne({ _id: id, customerId: req.user._id.toString() }).lean();
+  if (!booking) return res.status(404).json({ error: "Not found" });
+
+  const lat = booking.address?.lat;
+  const lng = booking.address?.lng;
+  const userLocation = (typeof lat === "number" && typeof lng === "number") ? { lat, lng } : null;
+
+  let providerLocation = null;
+  let providerMeta = null;
+  const providerId = String(booking.assignedProvider || "").trim();
+  if (providerId) {
+    let provider = null;
+    if (mongoose.isValidObjectId(providerId)) {
+      provider = await ProviderAccount.findById(providerId).select("name currentLocation").lean();
+    } else if (/^\d{10}$/.test(providerId)) {
+      provider = await ProviderAccount.findOne({ phone: providerId }).select("name currentLocation").lean();
+    }
+    if (provider) {
+      const plat = provider.currentLocation?.lat;
+      const plng = provider.currentLocation?.lng;
+      if (typeof plat === "number" && typeof plng === "number") {
+        providerLocation = { lat: plat, lng: plng };
+      }
+      providerMeta = { id: provider._id?.toString?.() || "", name: provider.name || "" };
+    }
+  }
+
+  res.json({
+    bookingId: booking._id?.toString?.() || id,
+    userLocation,
+    providerLocation,
+    providerMeta,
+  });
+}
+
 export async function createCustomEnquiry(req, res) {
   const { name, phone, eventType, noOfPeople, date, timeSlot, selectedServices, notes, address } = req.body;
   const fallbackAddr = (req.user?.addresses && req.user.addresses[0]) ? req.user.addresses[0] : {};
   const items = (selectedServices || []).map((s) => ({
     id: s.id, name: s.name, category: s.category, serviceType: s.serviceType, quantity: s.quantity || 1, price: Number(s.price) || 0,
   }));
+  const peopleCount = Number(noOfPeople);
   const doc = await CustomEnquiry.create({
     userId: req.user._id.toString(),
     name, phone, eventType, noOfPeople,
+    peopleCount: Number.isFinite(peopleCount) ? peopleCount : 0,
     scheduledAt: { date, timeSlot },
     items,
     notes: notes || "",
@@ -458,8 +574,9 @@ export async function createCustomEnquiry(req, res) {
       lng: address?.lng ?? fallbackAddr.lng ?? null,
       city: address?.city || fallbackAddr.city || "",
     },
-    status: "pending",
-    timeline: [{ action: "created" }],
+    status: "enquiry_created",
+    paymentStatus: "pending",
+    timeline: [{ action: "enquiry_created" }],
   });
   res.status(201).json({ enquiry: doc });
 }
@@ -473,8 +590,41 @@ export async function userAcceptCustomEnquiry(req, res) {
   const { id } = req.params;
   const enq = await CustomEnquiry.findOne({ _id: id, userId: req.user._id.toString() });
   if (!enq) return res.status(404).json({ error: "Not found" });
-  enq.status = "user_accepted";
-  enq.timeline.push({ action: "user_accepted" });
+  if (enq.quote?.expiryAt) {
+    const exp = new Date(enq.quote.expiryAt);
+    if (!Number.isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
+      enq.status = "quote_expired";
+      enq.timeline.push({ action: "quote_expired", meta: { at: exp.toISOString() } });
+      await enq.save();
+      return res.status(409).json({ error: "Quote has expired. Please request a new quote.", code: "QUOTE_EXPIRED" });
+    }
+  }
+  enq.status = "waiting_for_customer_payment";
+  enq.timeline.push({ action: "waiting_for_customer_payment" });
+  await enq.save();
+  res.json({ enquiry: enq });
+}
+
+export async function userMarkCustomAdvancePaid(req, res) {
+  const { id } = req.params;
+  const amount = Number(req.body.amount || 0);
+  const enq = await CustomEnquiry.findOne({ _id: id, userId: req.user._id.toString() });
+  if (!enq) return res.status(404).json({ error: "Not found" });
+  if (enq.quote?.expiryAt) {
+    const exp = new Date(enq.quote.expiryAt);
+    if (!Number.isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
+      enq.status = "quote_expired";
+      enq.timeline.push({ action: "quote_expired", meta: { at: exp.toISOString() } });
+      await enq.save();
+      return res.status(409).json({ error: "Quote has expired. Please request a new quote.", code: "QUOTE_EXPIRED" });
+    }
+  }
+  const paid = amount > 0 ? amount : Number(enq.quote?.prebookAmount || 0);
+  enq.paymentStatus = "paid";
+  enq.prebookAmountPaid = paid;
+  enq.prebookPaidAt = new Date();
+  enq.status = "advance_paid";
+  enq.timeline.push({ action: "advance_paid", meta: { amount: paid } });
   await enq.save();
   res.json({ enquiry: enq });
 }
@@ -487,14 +637,27 @@ export async function adminListCustomEnquiries(_req, res) {
 
 export async function adminPriceQuote(req, res) {
   const { id } = req.params;
-  const { items, totalAmount, discountPrice, notes } = req.body;
+  const { items, totalAmount, discountPrice, notes, prebookAmount, totalServiceTime, quoteExpiryHours, quoteExpiryAt } = req.body;
   const enq = await CustomEnquiry.findById(id);
   if (!enq) return res.status(404).json({ error: "Not found" });
+  let expiryAt = null;
+  if (quoteExpiryAt) {
+    const dt = new Date(quoteExpiryAt);
+    expiryAt = Number.isNaN(dt.getTime()) ? null : dt;
+  } else if (quoteExpiryHours) {
+    const hours = Number(quoteExpiryHours);
+    if (Number.isFinite(hours) && hours > 0) {
+      expiryAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+    }
+  }
   enq.quote = {
     items: (items || []).map((s) => ({ id: s.id, name: s.name, category: s.category, serviceType: s.serviceType, quantity: s.quantity || 1, price: Number(s.price) || 0 })),
     totalAmount: Number(totalAmount) || 0,
     discountPrice: Number(discountPrice) || 0,
     notes: notes || "",
+    prebookAmount: Number(prebookAmount) || 0,
+    totalServiceTime: String(totalServiceTime || ""),
+    expiryAt,
   };
   enq.status = "admin_approved";
   enq.timeline.push({ action: "admin_approved", meta: { totalAmount: enq.quote.totalAmount, discountPrice: enq.quote.discountPrice } });
@@ -506,31 +669,38 @@ export async function adminFinalApprove(req, res) {
   const { id } = req.params;
   const enq = await CustomEnquiry.findById(id);
   if (!enq) return res.status(404).json({ error: "Not found" });
-  // Convert to a normal booking with quoted items
-  const items = (enq.quote?.items || enq.items || []);
-  const total = (enq.quote?.totalAmount ?? items.reduce((s, it) => s + (Number(it.price) * (it.quantity || 1)), 0));
-  const b = await Booking.create({
-    customerId: enq.userId,
-    customerName: enq.name || "",
-    services: items.map(it => ({ name: it.name, price: it.price, duration: "", category: it.category, serviceType: it.serviceType })),
-    totalAmount: total,
-    prepaidAmount: 0,
-    balanceAmount: total,
-    address: {
-      houseNo: enq.address?.houseNo || "",
-      area: enq.address?.area || "",
-      landmark: enq.address?.landmark || "",
-      city: enq.address?.city || enq.address?.area || "",
-    },
-    slot: { date: enq.scheduledAt?.date || new Date().toISOString().slice(0, 10), time: enq.scheduledAt?.timeSlot || "10:00" },
-    bookingType: "customized",
-    status: "final_approved",
-    assignedProvider: enq.maintainerProvider || "",
-    maintainProvider: enq.maintainerProvider || "",
-    teamMembers: Array.isArray(enq.teamMembers) ? enq.teamMembers : [],
-  });
+  const createBookingNow = req.body?.createBooking !== false;
+  let booking = null;
+  if (createBookingNow) {
+    // Convert to a normal booking with quoted items
+    const items = (enq.quote?.items || enq.items || []);
+    const total = (enq.quote?.totalAmount ?? items.reduce((s, it) => s + (Number(it.price) * (it.quantity || 1)), 0));
+    booking = await Booking.create({
+      customerId: enq.userId,
+      customerName: enq.name || "",
+      services: items.map(it => ({ name: it.name, price: it.price, duration: "", category: it.category, serviceType: it.serviceType })),
+      totalAmount: total,
+      prepaidAmount: 0,
+      balanceAmount: total,
+      address: {
+        houseNo: enq.address?.houseNo || "",
+        area: enq.address?.area || "",
+        landmark: enq.address?.landmark || "",
+        city: enq.address?.city || enq.address?.area || "",
+        lat: enq.address?.lat ?? null,
+        lng: enq.address?.lng ?? null,
+      },
+      slot: { date: enq.scheduledAt?.date || new Date().toISOString().slice(0, 10), time: enq.scheduledAt?.timeSlot || "10:00" },
+      bookingType: "customized",
+      status: "final_approved",
+      assignedProvider: enq.maintainerProvider || "",
+      maintainProvider: enq.maintainerProvider || "",
+      teamMembers: Array.isArray(enq.teamMembers) ? enq.teamMembers : [],
+    });
+    enq.bookingId = booking._id.toString();
+  }
   enq.status = "final_approved";
-  enq.timeline.push({ action: "final_approved", meta: { bookingId: b._id.toString() } });
+  enq.timeline.push({ action: "final_approved", meta: { bookingId: booking?._id?.toString?.() || "" } });
   await enq.save();
-  res.json({ enquiry: enq, booking: b });
+  res.json({ enquiry: enq, booking });
 }

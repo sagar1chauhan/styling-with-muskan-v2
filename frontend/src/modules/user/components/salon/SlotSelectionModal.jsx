@@ -128,6 +128,9 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
     }, [cartItems, categories, bookingTypeConfig]);
 
     const slots = availableSlots;
+    const todayKey = new Date().toISOString().split("T")[0];
+    const isToday = tempDate === todayKey;
+    const nextAvailableSlot = slots.length > 0 ? slots[0] : null;
 
     const handleSave = () => {
         if (tempDate && tempSlot) {
@@ -271,7 +274,26 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
                             <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
                                 <Clock className="w-3.5 h-3.5 text-primary" /> Select Time Slot
                             </h3>
-                                                        <div className="grid grid-cols-4 gap-2">
+                            {isToday && nextAvailableSlot && (
+                                <div className="mb-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50/60 flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-emerald-700 tracking-wider">Next Available Slot After Lead Time</p>
+                                        <p className="text-xs font-bold text-emerald-900 mt-0.5">{nextAvailableSlot}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setTempSlot(nextAvailableSlot)}
+                                        className="text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-lg bg-emerald-600 text-white shadow-sm"
+                                    >
+                                        Book Next
+                                    </button>
+                                </div>
+                            )}
+                            {isToday && !slotsLoading && slots.length === 0 && (
+                                <div className="mb-3 p-3 rounded-xl border border-amber-200 bg-amber-50/60 text-[10px] font-bold text-amber-700">
+                                    No slots available for today after lead time. Please choose another date.
+                                </div>
+                            )}
+                            <div className="grid grid-cols-4 gap-2">
                                 {slotsLoading && (
                                     <div className="col-span-4 text-[10px] text-muted-foreground font-bold px-4 py-3 rounded-xl border border-border/40 glass">
                                         Loading available slots...

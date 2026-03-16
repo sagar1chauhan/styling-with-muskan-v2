@@ -19,18 +19,28 @@ const CustomEnquirySchema = new mongoose.Schema(
     phone: String,
     eventType: String,
     noOfPeople: String,
+    peopleCount: { type: Number, default: 0 },
     scheduledAt: { date: String, timeSlot: String },
     items: [EnquiryItemSchema],
     notes: String,
     address: { houseNo: String, area: String, landmark: String, lat: Number, lng: Number, city: String },
-    status: { type: String, default: "pending" }, // pending -> vendor_assigned/admin_approved -> user_accepted -> team_assigned -> final_approved -> rejected
+    status: { type: String, default: "enquiry_created" }, // enquiry_created -> quote_submitted -> admin_approved -> waiting_for_customer_payment -> advance_paid -> provider_assigned -> service_completed
     quote: {
       items: [EnquiryItemSchema],
       totalAmount: { type: Number, default: 0 },
       discountPrice: { type: Number, default: 0 },
       notes: String,
+      prebookAmount: { type: Number, default: 0 },
+      totalServiceTime: { type: String, default: "" },
+      expiryAt: { type: Date, default: null },
     },
+    paymentStatus: { type: String, default: "pending" }, // pending | paid | refunded
+    prebookPaidAt: { type: Date, default: null },
+    prebookAmountPaid: { type: Number, default: 0 },
+    bookingId: { type: String, default: "" },
     maintainerProvider: String,
+    assignedProvider: { type: String, default: "" },
+    providerAssignedAt: { type: Date, default: null },
     teamMembers: [
       {
         id: String,

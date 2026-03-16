@@ -71,15 +71,18 @@ export const VenderAuthProvider = ({ children }) => {
     // For customized enquiries: vendor sets quote then assigns team.
     const assignTeamToBooking = async (bookingId, payload) => {
         const st = String(payload?.status || "").toLowerCase();
-        if (st === "vendor_assigned") {
+        if (st === "quote_submitted" || st === "vendor_assigned") {
             await api.vendor.customEnquiryPriceQuote(bookingId, {
                 totalAmount: Number(payload.price) || 0,
                 discountPrice: Number(payload.discountPrice) || 0,
+                prebookAmount: Number(payload.prebookAmount) || 0,
+                totalServiceTime: payload.totalServiceTime || "",
+                quoteExpiryHours: Number(payload.quoteExpiryHours) || 12,
                 notes: "",
             });
             return;
         }
-        if (st === "team_assigned") {
+        if (st === "assign_team" || st === "team_assigned") {
             await api.vendor.customEnquiryAssignTeam(bookingId, {
                 maintainerProvider: payload.maintainerProvider,
                 teamMembers: payload.teamMembers || [],

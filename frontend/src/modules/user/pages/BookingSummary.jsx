@@ -80,7 +80,8 @@ const BookingSummary = () => {
         return;
       }
       setCouponError("");
-      setCouponApplied({ code: appliedCode, type: "AUTO", value: serverDiscount });
+      const safeDiscount = Number(serverDiscount) || 0;
+      setCouponApplied({ code: appliedCode, discountType: "flat", discountValue: safeDiscount, maxDiscount: safeDiscount });
     } catch (e) {
       setCouponError(e.message || "Coupon apply failed");
     }
@@ -96,12 +97,14 @@ const BookingSummary = () => {
   let discount = 0;
   if (couponApplied) {
     if (couponApplied.discountType === "flat") {
-      discount = Number(couponApplied.discountValue);
-    } else {
-      discount = Math.round(displayTotalPrice * (Number(couponApplied.discountValue) / 100));
+      discount = Number(couponApplied.discountValue) || 0;
+    } else if (couponApplied.discountType) {
+      discount = Math.round(displayTotalPrice * ((Number(couponApplied.discountValue) || 0) / 100));
       if (couponApplied.maxDiscount && couponApplied.maxDiscount > 0) {
         discount = Math.min(discount, couponApplied.maxDiscount);
       }
+    } else if (typeof couponApplied.value === "number") {
+      discount = couponApplied.value;
     }
   }
 

@@ -5,12 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/modules/user/compone
 import { Button } from "@/modules/user/components/ui/button";
 import { Input } from "@/modules/user/components/ui/input";
 import { useAdminAuth } from "@/modules/admin/contexts/AdminAuthContext";
+import { toast } from "sonner";
 
 export default function CustomEnquiries() {
   const { getEnquiries, priceQuoteEnquiry, finalApproveEnquiry } = useAdminAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [quote, setQuote] = useState({ totalAmount: 0, discountPrice: 0, notes: "" });
+  const [quote, setQuote] = useState({ totalAmount: 0, discountPrice: 0, notes: "", prebookAmount: 0, totalServiceTime: "", quoteExpiryHours: 12 });
   const [activeId, setActiveId] = useState("");
 
   const load = async () => {
@@ -26,12 +27,25 @@ export default function CustomEnquiries() {
   };
   useEffect(() => { load(); }, []);
 
-  const beginQuote = (id) => { setActiveId(id); setQuote({ totalAmount: 0, discountPrice: 0, notes: "" }); };
+  const beginQuote = (id) => { setActiveId(id); setQuote({ totalAmount: 0, discountPrice: 0, notes: "", prebookAmount: 0, totalServiceTime: "", quoteExpiryHours: 12 }); };
   const submitQuote = async () => {
     if (!activeId) return;
-    await priceQuoteEnquiry(activeId, { items: [], totalAmount: Number(quote.totalAmount), discountPrice: Number(quote.discountPrice) || 0, notes: quote.notes || "" });
-    setActiveId("");
-    load();
+    try {
+      await priceQuoteEnquiry(activeId, {
+        items: [],
+        totalAmount: Number(quote.totalAmount),
+        discountPrice: Number(quote.discountPrice) || 0,
+        prebookAmount: Number(quote.prebookAmount) || 0,
+        totalServiceTime: quote.totalServiceTime || "",
+        quoteExpiryHours: Number(quote.quoteExpiryHours) || 12,
+        notes: quote.notes || ""
+      });
+      toast.success("Quote approved and sent to customer.");
+      setActiveId("");
+      load();
+    } catch (e) {
+      toast.error(e?.message || "Failed to approve quote");
+    }
   };
 
   return (
@@ -50,26 +64,37 @@ export default function CustomEnquiries() {
             <CardHeader>
               <CardTitle className="text-base font-bold flex items-center justify-between">
                 <span>#{String(enq._id).slice(-6)}</span>
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-lg bg-muted">{enq.status}</span>
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${enq.status === "quote_expired" ? "bg-red-100 text-red-700" : "bg-muted"}`}>{enq.status}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="text-sm font-semibold">{enq.name} • {enq.phone}</div>
               <div className="text-[11px] text-muted-foreground">Event: {enq.eventType} | People: {enq.noOfPeople}</div>
               <div className="text-[11px] text-muted-foreground">When: {enq.scheduledAt?.date} • {enq.scheduledAt?.timeSlot}</div>
+              {enq.quote?.expiryAt && (
+                <div className="text-[11px] text-muted-foreground">
+                  Quote Expiry: {new Date(enq.quote.expiryAt).toLocaleString()}
+                </div>
+              )}
               {enq.quote?.totalAmount > 0 && (
-                <div className="text-sm font-bold">Quoted: ₹{enq.quote.totalAmount} {enq.quote.discountPrice ? `(−₹${enq.quote.discountPrice})` : ""}</div>
+                <div className="text-sm font-bold">
+                  Quoted: &#8377;{enq.quote.totalAmount} {enq.quote.discountPrice ? `(-&#8377;${enq.quote.discountPrice})` : ""}
+                  {enq.quote.prebookAmount ? ` Advance: &#8377;${enq.quote.prebookAmount}` : ""}
+                </div>
               )}
               {activeId === enq._id ? (
                 <div className="grid grid-cols-3 gap-2">
-                  <Input placeholder="Total ₹" type="number" value={quote.totalAmount} onChange={e => setQuote(q => ({ ...q, totalAmount: e.target.value }))} className="rounded-xl h-9" />
-                  <Input placeholder="Discount ₹" type="number" value={quote.discountPrice} onChange={e => setQuote(q => ({ ...q, discountPrice: e.target.value }))} className="rounded-xl h-9" />
-                  <Button onClick={submitQuote} className="rounded-xl h-9 font-bold">Send Quote</Button>
+                  <Input placeholder="Total INR" type="number" value={quote.totalAmount} onChange={e => setQuote(q => ({ ...q, totalAmount: e.target.value }))} className="rounded-xl h-9" />
+                  <Input placeholder="Discount INR" type="number" value={quote.discountPrice} onChange={e => setQuote(q => ({ ...q, discountPrice: e.target.value }))} className="rounded-xl h-9" />
+                  <Input placeholder="Advance INR" type="number" value={quote.prebookAmount} onChange={e => setQuote(q => ({ ...q, prebookAmount: e.target.value }))} className="rounded-xl h-9" />
+                  <Input placeholder="Service Time" type="text" value={quote.totalServiceTime} onChange={e => setQuote(q => ({ ...q, totalServiceTime: e.target.value }))} className="rounded-xl h-9" />
+                  <Input placeholder="Expiry (hrs)" type="number" value={quote.quoteExpiryHours} onChange={e => setQuote(q => ({ ...q, quoteExpiryHours: e.target.value }))} className="rounded-xl h-9" />
+                  <Button onClick={submitQuote} className="rounded-xl h-9 font-bold">Approve Quote</Button>
                 </div>
               ) : (
                 <div className="flex gap-2">
                   <Button onClick={() => beginQuote(enq._id)} variant="outline" className="rounded-xl h-9 text-xs font-bold">Price Quote</Button>
-                  <Button onClick={() => finalApproveEnquiry(enq._id)} className="rounded-xl h-9 text-xs font-bold gap-1"><CheckCircle className="h-3 w-3" /> Final Approve</Button>
+                  <Button onClick={async () => { try { await finalApproveEnquiry(enq._id); toast.success("Booking created."); } catch (e) { toast.error(e?.message || "Booking creation failed"); } }} className="rounded-xl h-9 text-xs font-bold gap-1"><CheckCircle className="h-3 w-3" /> Force Create Booking</Button>
                 </div>
               )}
             </CardContent>

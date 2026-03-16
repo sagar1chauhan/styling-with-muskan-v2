@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import { ALLOWED_ORIGINS, JWT_SECRET } from "../config.js";
+import Booking from "../models/Booking.js";
 
 let io = null;
 
@@ -41,7 +43,24 @@ export function initSocket(httpServer) {
           next(new Error("Unauthorized"));
         }
       }).on("connection", (socket) => {
-        // connected
+        socket.on("join:booking", async (payload) => {
+          try {
+            const bookingId = String(payload?.bookingId || "").trim();
+            if (!mongoose.isValidObjectId(bookingId)) return;
+            const booking = await Booking.findOne({ _id: bookingId, customerId: socket.data.userId }).select("_id").lean();
+            if (!booking) {
+              socket.emit("booking:error", { error: "Unauthorized" });
+              return;
+            }
+            socket.join(`booking:${bookingId}`);
+            socket.emit("booking:joined", { bookingId });
+          } catch {}
+        });
+        socket.on("leave:booking", (payload) => {
+          const bookingId = String(payload?.bookingId || "").trim();
+          if (!bookingId) return;
+          socket.leave(`booking:${bookingId}`);
+        });
       });
     }).catch(() => {});
   }

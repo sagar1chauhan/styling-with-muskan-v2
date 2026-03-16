@@ -107,32 +107,27 @@ export const AdminAuthProvider = ({ children }) => {
 
     // ───── BANNERS ─────
     const getBanners = async () => {
-        const res = await api.content.banners();
-        const data = res?.data || { women: [], men: [] };
-        const flat = [];
-        for (const g of ["women", "men"]) {
-            for (const b of data[g] || []) {
-                const toDate = (v) => {
-                    try {
-                        if (!v) return "";
-                        const d = new Date(v);
-                        if (isNaN(d.getTime())) return "";
-                        return d.toISOString().slice(0, 10);
-                    } catch { return ""; }
-                };
-                flat.push({
-                    id: b.id,
-                    gender: g,
-                    title: b.title,
-                    imageUrl: b.image,
-                    linkTo: b.linkTo || "",
-                    priority: b.priority || 1,
-                    startDate: toDate(b.startAt),
-                    endDate: toDate(b.endAt),
-                });
-            }
-        }
-        return flat;
+        // Admin should see all banners (including scheduled/future). /content/banners is active-only.
+        const res = await api.admin.bannersList();
+        const items = res?.banners || [];
+        const toDate = (v) => {
+            try {
+                if (!v) return "";
+                const d = new Date(v);
+                if (isNaN(d.getTime())) return "";
+                return d.toISOString().slice(0, 10);
+            } catch { return ""; }
+        };
+        return (items || []).map((b) => ({
+            id: b.id,
+            gender: b.gender || "women",
+            title: b.title,
+            imageUrl: b.image,
+            linkTo: b.linkTo || "",
+            priority: b.priority || 1,
+            startDate: toDate(b.startAt),
+            endDate: toDate(b.endAt),
+        }));
     };
     const addBanner = async (banner) => {
         const toStartAt = (dateStr) => {

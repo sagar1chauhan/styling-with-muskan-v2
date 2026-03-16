@@ -47,6 +47,12 @@ export const BookingProvider = ({ children }) => {
     await loadBookings();
   };
 
+  const payAdvanceForCustomEnquiry = async (id, amount) => {
+    await api.bookings.custom.advancePaid(id, amount);
+    await loadEnquiries();
+    await loadBookings();
+  };
+
   useEffect(() => {
     loadBookings();
     loadEnquiries();
@@ -62,6 +68,7 @@ export const BookingProvider = ({ children }) => {
         loadBookings,
         loadEnquiries,
         acceptCustomEnquiry,
+        payAdvanceForCustomEnquiry,
       }}
     >
       {children}

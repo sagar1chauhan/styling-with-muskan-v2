@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { ServiceType, BookingType, Category, Service, Banner, Provider, OfficeSettings } from "../models/Content.js";
+import { BookingSettings } from "../models/Settings.js";
 import User from "../models/User.js";
 import Booking from "../models/Booking.js";
 import ProviderAccount from "../models/ProviderAccount.js";
@@ -84,6 +85,23 @@ export async function seedContentIfNeeded() {
     endTime: "21:00",
     autoAssign: true,
     notificationMessage: "Our pros are sleeping. Service starts at 9:00 AM",
+  });
+  await BookingSettings.create({
+    minBookingAmount: 500,
+    minLeadTimeMinutes: 60,
+    providerBufferMinutes: 60,
+    serviceStartTime: "08:00",
+    serviceEndTime: "19:00",
+    slotIntervalMinutes: 30,
+    maxBookingDays: 6,
+    maxServicesPerBooking: 10,
+    providerSearchLimit: 5,
+    bookingHoldMinutes: 10,
+    maxServiceRadiusKm: 5,
+    providerNotificationStartTime: "07:00",
+    providerNotificationEndTime: "22:00",
+    allowPayAfterService: true,
+    prebookingRequired: false,
   });
   console.log("Seeded content");
   // Ensure extended categories/services exist

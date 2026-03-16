@@ -18,6 +18,7 @@ export const ProviderBookingProvider = ({ children }) => {
     const { provider } = useProviderAuth();
 
     const providerId = provider?._id || provider?.id;
+    const normalizeBooking = useCallback((b) => ({ ...b, id: b?.id || b?._id }), []);
 
     useEffect(() => {
         let cancelled = false;
@@ -30,7 +31,7 @@ export const ProviderBookingProvider = ({ children }) => {
                 }
                 if (!pid) return;
                 const { bookings } = await api.provider.bookings(pid);
-                const normalized = (bookings || []).map((b) => ({ ...b, id: b.id || b._id }));
+                const normalized = (bookings || []).map(normalizeBooking);
                 if (!cancelled) setBookings(normalized);
             } catch {
                 if (!cancelled) setBookings([]);
@@ -51,49 +52,55 @@ export const ProviderBookingProvider = ({ children }) => {
     const acceptBooking = useCallback(async (id) => {
         try {
             const { booking } = await api.provider.updateBookingStatus(id, "accepted");
-            setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+            const normalized = normalizeBooking(booking);
+            setBookings(prev => prev.map(b => b._id === normalized._id ? normalized : b));
         } catch (e) {
             alert(e?.message || "Failed to accept");
         }
-    }, []);
+    }, [normalizeBooking]);
 
     const rejectBooking = useCallback(async (id) => {
         try {
             const { booking } = await api.provider.updateBookingStatus(id, "rejected");
-            setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+            const normalized = normalizeBooking(booking);
+            setBookings(prev => prev.map(b => b._id === normalized._id ? normalized : b));
         } catch (e) {
             alert(e?.message || "Failed to reject");
         }
-    }, []);
+    }, [normalizeBooking]);
 
     const updateBookingStatus = useCallback(async (id, status) => {
         try {
             const { booking } = await api.provider.updateBookingStatus(id, status);
-            setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+            const normalized = normalizeBooking(booking);
+            setBookings(prev => prev.map(b => b._id === normalized._id ? normalized : b));
         } catch (e) {
             alert(e?.message || "Failed to update");
         }
-    }, []);
+    }, [normalizeBooking]);
 
     const cancelBooking = useCallback(async (id) => {
         try {
             const { booking } = await api.provider.updateBookingStatus(id, "cancelled");
-            setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+            const normalized = normalizeBooking(booking);
+            setBookings(prev => prev.map(b => b._id === normalized._id ? normalized : b));
         } catch (e) {
             alert(e?.message || "Failed to cancel");
         }
-    }, []);
+    }, [normalizeBooking]);
 
     const verifyOTP = useCallback(async (id, enteredOtp) => {
         const { booking } = await api.provider.verifyBookingOtp(id, enteredOtp);
-        setBookings(prev => prev.map(b => b._id === booking._id ? booking : b));
+        const normalized = normalizeBooking(booking);
+        setBookings(prev => prev.map(b => b._id === normalized._id ? normalized : b));
         return true;
-    }, []);
+    }, [normalizeBooking]);
 
     const uploadImages = useCallback(async (id, type, files) => {
         const { booking } = await api.provider.uploadBookingImages(id, type, files);
-        setBookings(prev => prev.map(b => (b._id === booking._id ? booking : b)));
-    }, []);
+        const normalized = normalizeBooking(booking);
+        setBookings(prev => prev.map(b => (b._id === normalized._id ? normalized : b)));
+    }, [normalizeBooking]);
 
     const addBeforeImages = useCallback((id, files) => uploadImages(id, "before-images", files), [uploadImages]);
     const addAfterImages = useCallback((id, files) => uploadImages(id, "after-images", files), [uploadImages]);

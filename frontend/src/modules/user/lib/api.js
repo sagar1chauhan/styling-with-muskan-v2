@@ -28,11 +28,21 @@ async function request(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+  if (import.meta?.env?.DEV) {
+    try {
+      console.log("[API]", options.method || "GET", path, { status: res.status, ok: res.ok, data });
+    } catch {}
+  }
   if (!res.ok) {
     const err = data?.error || "Request failed";
     const e = new Error(err);
     e.status = res.status;
     e.data = data;
+    if (import.meta?.env?.DEV) {
+      try {
+        console.error("[API ERROR]", options.method || "GET", path, { status: res.status, data });
+      } catch {}
+    }
     if (res.status === 401) setToken("");
     throw e;
   }
@@ -102,10 +112,12 @@ export const api = {
     list: (page = 1, limit = 20) => request(`/bookings?page=${page}&limit=${limit}`),
     quote: (payload) => request("/bookings/quote", { method: "POST", body: payload }),
     create: (payload) => request("/bookings", { method: "POST", body: payload }),
+    track: (id) => request(`/bookings/${id}/track`),
     custom: {
       create: (payload) => request("/bookings/custom-enquiry", { method: "POST", body: payload }),
       list: () => request("/bookings/custom-enquiry"),
       userAccept: (id) => request(`/bookings/custom-enquiry/${id}/user-accept`, { method: "PATCH" }),
+      advancePaid: (id, amount) => request(`/bookings/custom-enquiry/${id}/advance-paid`, { method: "PATCH", body: { amount } }),
     },
   },
 
@@ -127,6 +139,7 @@ export const api = {
     bookings: (providerId) => request(`/provider/bookings/${providerId}`),
     updateBookingStatus: (id, status) => request(`/provider/bookings/${id}/status`, { method: "PATCH", body: { status } }),
     verifyBookingOtp: (id, otp) => request(`/provider/bookings/${id}/verify-otp`, { method: "POST", body: { otp } }),
+    updateBookingLocation: (id, lat, lng) => request(`/provider/bookings/${id}/location`, { method: "PATCH", body: { lat, lng } }),
     updateLocation: (lat, lng) => request("/provider/me/location", { method: "PATCH", body: { lat, lng } }),
     availability: {
       get: (date) => request(`/provider/availability/${date}`),
@@ -135,6 +148,11 @@ export const api = {
     leaves: {
       list: () => request("/provider/leaves"),
       create: (payload) => request("/provider/leaves", { method: "POST", body: payload }),
+    },
+    wallet: {
+      recharge: (amount) => request("/provider/wallet/recharge", { method: "POST", body: { amount } }),
+      expense: (amount, title) => request("/provider/wallet/expense", { method: "POST", body: { amount, title } }),
+      refund: (amount, title) => request("/provider/wallet/refund", { method: "POST", body: { amount, title } }),
     },
     uploadDocs: async (formData) => {
       const token = getToken();
@@ -147,8 +165,18 @@ export const api = {
         body: formData,
       });
       const data = await res.json().catch(() => ({}));
+      if (import.meta?.env?.DEV) {
+        try {
+          console.log("[API]", "POST", "/provider/upload-docs", { status: res.status, ok: res.ok, data });
+        } catch {}
+      }
       if (!res.ok) {
         const err = data?.error || "Request failed";
+        if (import.meta?.env?.DEV) {
+          try {
+            console.error("[API ERROR]", "POST", "/provider/upload-docs", { status: res.status, data });
+          } catch {}
+        }
         if (res.status === 401) setToken("");
         throw new Error(err);
       }
@@ -189,6 +217,7 @@ export const api = {
     addCoupon: (payload) => request("/admin/coupons", { method: "POST", body: payload }),
     deleteCoupon: (id) => request(`/admin/coupons/${id}`, { method: "DELETE" }),
     addBanner: (payload) => request("/admin/banners", { method: "POST", body: payload }),
+    bannersList: () => request("/admin/banners"),
     updateBanner: (id, gender, payload) => request(`/admin/banners/${id}/${gender}`, { method: "PUT", body: payload }),
     deleteBanner: (id, gender) => request(`/admin/banners/${id}/${gender}`, { method: "DELETE" }),
     getReferral: () => request("/admin/referral"),

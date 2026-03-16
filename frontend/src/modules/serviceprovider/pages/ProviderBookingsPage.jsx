@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Clock, MapPin, ChevronRight, Check, X, Zap, Calendar, Timer } from "lucide-react";
@@ -26,11 +26,12 @@ const CountdownTimer = ({ expiresAt }) => {
     );
 };
 
-const BookingCard = ({ booking, type, onAccept, onReject, onNavigate }) => {
+const BookingCard = forwardRef(({ booking, type, onAccept, onReject, onNavigate }, ref) => {
+    const bookingId = booking?.id || booking?._id;
     const isFirstTime = !booking.customerBookingCount || booking.customerBookingCount <= 1;
 
     return (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+        <motion.div ref={ref} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="bg-card rounded-2xl p-4 border border-border shadow-sm hover:border-purple-300 transition-all">
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
@@ -72,19 +73,19 @@ const BookingCard = ({ booking, type, onAccept, onReject, onNavigate }) => {
                 <p className="text-lg font-black text-gray-900">₹{(booking.totalAmount || 0).toLocaleString()}</p>
                 {(type === "incoming" || type === "pending") && (
                     <div className="flex gap-2">
-                        <Button onClick={() => onReject(booking.id)} variant="ghost" className="h-9 px-3.5 rounded-xl text-red-600 text-xs font-bold hover:bg-red-50">Reject</Button>
-                        <Button onClick={() => onAccept(booking.id)} className="h-9 px-5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-200">Accept</Button>
+                        <Button onClick={() => onReject(bookingId)} variant="ghost" className="h-9 px-3.5 rounded-xl text-red-600 text-xs font-bold hover:bg-red-50">Reject</Button>
+                        <Button onClick={() => onAccept(bookingId)} className="h-9 px-5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-200">Accept</Button>
                     </div>
                 )}
                 {(type === "active" || type === "completed" || type === "cancelled") && (
-                    <Button onClick={() => onNavigate(booking.id)} variant="outline" className="h-9 px-4 rounded-xl text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 group">
+                    <Button onClick={() => onNavigate(bookingId)} variant="outline" className="h-9 px-4 rounded-xl text-xs font-bold border-gray-200 text-gray-700 hover:bg-gray-50 group">
                         {type === "active" ? "Manage Job" : "View Details"} <ChevronRight className="w-3.5 h-3.5 ml-1.5 text-gray-400 group-hover:translate-x-0.5 transition-all" />
                     </Button>
                 )}
             </div>
         </motion.div>
     );
-};
+});
 
 const ProviderBookingsPage = () => {
     const navigate = useNavigate();
@@ -129,7 +130,7 @@ const ProviderBookingsPage = () => {
             <div className="space-y-3.5 px-2 md:px-0 pb-24 md:pb-0">
                 <AnimatePresence mode="popLayout">
                     {current.length > 0 ? current.map(b => (
-                        <BookingCard key={b.id} booking={b} type={activeTab} onAccept={acceptBooking} onReject={rejectBooking} onNavigate={(id) => navigate(`/provider/booking/${id}`)} />
+                        <BookingCard key={b.id || b._id} booking={b} type={activeTab} onAccept={acceptBooking} onReject={rejectBooking} onNavigate={(id) => navigate(`/provider/booking/${id}`)} />
                     )) : (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="py-24 text-center bg-white rounded-3xl border border-dashed border-gray-200">
                             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl opacity-50">📋</div>

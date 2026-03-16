@@ -18,5 +18,27 @@ const CommissionSettingsSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const BookingSettingsSchema = new mongoose.Schema(
+  {
+    minBookingAmount: { type: Number, default: 500 },
+    minLeadTimeMinutes: { type: Number, default: 60 },
+    providerBufferMinutes: { type: Number, default: 60 },
+    serviceStartTime: { type: String, default: "08:00" },
+    serviceEndTime: { type: String, default: "19:00" },
+    slotIntervalMinutes: { type: Number, default: 30 },
+    maxBookingDays: { type: Number, default: 6 },
+    maxServicesPerBooking: { type: Number, default: 10 },
+    providerSearchLimit: { type: Number, default: 5 },
+    bookingHoldMinutes: { type: Number, default: 10 },
+    maxServiceRadiusKm: { type: Number, default: 5 },
+    providerNotificationStartTime: { type: String, default: "07:00" },
+    providerNotificationEndTime: { type: String, default: "22:00" },
+    allowPayAfterService: { type: Boolean, default: true },
+    prebookingRequired: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
+
 export const ReferralSettings = mongoose.models.ReferralSettings || mongoose.model("ReferralSettings", ReferralSettingsSchema);
 export const CommissionSettings = mongoose.models.CommissionSettings || mongoose.model("CommissionSettings", CommissionSettingsSchema);
+export const BookingSettings = mongoose.models.BookingSettings || mongoose.model("BookingSettings", BookingSettingsSchema);
