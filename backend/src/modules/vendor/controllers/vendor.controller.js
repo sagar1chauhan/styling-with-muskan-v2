@@ -41,7 +41,15 @@ export async function register(req, res) {
     businessName: req.body.businessName || "",
     status: "approved",
   });
-  res.status(201).json({ vendor: v });
+  const token = issueRoleToken("vendor", v._id?.toString() || v.email);
+  const isProd = process.env.NODE_ENV === "production";
+  res.cookie("vendorToken", token, {
+    httpOnly: true,
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
+    maxAge: 30 * 24 * 3600 * 1000,
+  });
+  res.status(201).json({ vendor: v, vendorToken: token });
 }
 
 export async function login(req, res) {
@@ -57,7 +65,7 @@ export async function login(req, res) {
     secure: isProd,
     maxAge: 30 * 24 * 3600 * 1000,
   });
-  res.json({ vendor: v });
+  res.json({ vendor: v, vendorToken: token });
 }
 
 export async function logout(_req, res) {
@@ -99,7 +107,7 @@ export async function verifyOtp(req, res) {
     secure: isProd,
     maxAge: 30 * 24 * 3600 * 1000,
   });
-  res.json({ vendor: v });
+  res.json({ vendor: v, vendorToken: token });
 }
 
 export async function listProviders(req, res) {

@@ -49,7 +49,7 @@ router.post(
       secure: isProd,
       maxAge: 30 * 24 * 3600 * 1000,
     });
-    res.json({ admin });
+    res.json({ admin, adminToken: token });
   }
 );
 
