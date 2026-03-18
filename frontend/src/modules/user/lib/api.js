@@ -16,6 +16,22 @@ function getProviderToken() {
   }
 }
 
+function getAdminToken() {
+  try {
+    return localStorage.getItem("swm_admin_token") || "";
+  } catch {
+    return "";
+  }
+}
+
+function getVendorToken() {
+  try {
+    return localStorage.getItem("swm_vendor_token") || "";
+  } catch {
+    return "";
+  }
+}
+
 function setToken(token) {
   try {
     if (token) localStorage.setItem("swm_token", token);
@@ -26,8 +42,18 @@ function setToken(token) {
 async function request(path, options = {}) {
   const token = getToken();
   const providerToken = getProviderToken();
+  const adminToken = getAdminToken();
+  const vendorToken = getVendorToken();
+
   const isProviderPath = typeof path === "string" && path.startsWith("/provider");
-  const authToken = isProviderPath && providerToken ? providerToken : token;
+  const isAdminPath = typeof path === "string" && path.startsWith("/admin");
+  const isVendorPath = typeof path === "string" && path.startsWith("/vendor");
+
+  let authToken = token;
+  if (isAdminPath) authToken = adminToken;
+  else if (isVendorPath) authToken = vendorToken;
+  else if (isProviderPath) authToken = providerToken;
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method || "GET",
     headers: {

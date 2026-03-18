@@ -28,7 +28,10 @@ export const AdminAuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         try {
-            const { admin } = await api.admin.login(email, password);
+            const { admin, adminToken } = await api.admin.login(email, password);
+            if (adminToken) {
+                try { localStorage.setItem("swm_admin_token", adminToken); } catch {}
+            }
             setAdmin(admin);
             try { localStorage.setItem(ADMIN_KEY, JSON.stringify(admin)); } catch {}
             return { success: true };
@@ -40,7 +43,10 @@ export const AdminAuthProvider = ({ children }) => {
 
     const logout = () => {
         setAdmin(null);
-        try { localStorage.removeItem(ADMIN_KEY); } catch {}
+        try { 
+            localStorage.removeItem(ADMIN_KEY);
+            localStorage.removeItem("swm_admin_token");
+        } catch {}
         api.admin.logout();
     };
 

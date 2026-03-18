@@ -27,7 +27,10 @@ export const VenderAuthProvider = ({ children }) => {
     const isApproved = vendor?.status === "approved";
 
     const login = async (email, password) => {
-        const { vendor } = await api.vendor.login(email, password);
+        const { vendor, vendorToken } = await api.vendor.login(email, password);
+        if (vendorToken) {
+            try { localStorage.setItem("swm_vendor_token", vendorToken); } catch {}
+        }
         setVendor(vendor);
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(vendor)); } catch {}
         return { success: true };
@@ -35,14 +38,20 @@ export const VenderAuthProvider = ({ children }) => {
 
     const requestOtp = async (phone) => { await api.vendor.requestOtp(phone); return { success: true }; };
     const verifyOtp = async (phone, otp) => {
-        const { vendor } = await api.vendor.verifyOtp(phone, otp);
+        const { vendor, vendorToken } = await api.vendor.verifyOtp(phone, otp);
+        if (vendorToken) {
+            try { localStorage.setItem("swm_vendor_token", vendorToken); } catch {}
+        }
         setVendor(vendor);
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(vendor)); } catch {}
         return { success: true };
     };
 
     const register = async (data) => {
-        const { vendor } = await api.vendor.register(data);
+        const { vendor, vendorToken } = await api.vendor.register(data);
+        if (vendorToken) {
+            try { localStorage.setItem("swm_vendor_token", vendorToken); } catch {}
+        }
         setVendor(vendor);
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(vendor)); } catch {}
         return { success: true };
@@ -50,7 +59,10 @@ export const VenderAuthProvider = ({ children }) => {
 
     const logout = () => {
         setVendor(null);
-        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        try { 
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem("swm_vendor_token");
+        } catch {}
         api.vendor.logout();
     };
 
