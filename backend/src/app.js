@@ -28,6 +28,7 @@ const allowedOrigins = (ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).fil
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
+    if (allowedOrigins.includes("*")) return cb(null, true);
     if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return cb(null, true);
     if (origin.endsWith(".vercel.app")) return cb(null, true); // Automatically allow vercel previews
     console.warn(`[CORS] Rejected origin: ${origin}`);

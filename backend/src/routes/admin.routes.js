@@ -42,7 +42,13 @@ router.post(
     }
     const admin = { id: "ADMIN001", name: "Super Admin", email: confEmail, role: "admin" };
     const token = issueRoleToken("admin", admin.id);
-    res.cookie("adminToken", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 30 * 24 * 3600 * 1000 });
+    const isProd = process.env.NODE_ENV === "production";
+    res.cookie("adminToken", token, {
+      httpOnly: true,
+      sameSite: isProd ? "none" : "lax",
+      secure: isProd,
+      maxAge: 30 * 24 * 3600 * 1000,
+    });
     res.json({ admin });
   }
 );

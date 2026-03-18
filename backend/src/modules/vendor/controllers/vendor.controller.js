@@ -50,10 +50,11 @@ export async function login(req, res) {
   const v = await Vendor.findOne({ email: req.body.email }).lean();
   if (!v) return res.status(400).json({ error: "Vendor not found" });
   const token = issueRoleToken("vendor", v._id?.toString() || v.email);
+  const isProd = process.env.NODE_ENV === "production";
   res.cookie("vendorToken", token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
     maxAge: 30 * 24 * 3600 * 1000,
   });
   res.json({ vendor: v });
@@ -91,7 +92,13 @@ export async function verifyOtp(req, res) {
   const v = await Vendor.findOne({ phone }).lean();
   if (!v) return res.status(404).json({ error: "vendor with this mobile number not found" });
   const token = issueRoleToken("vendor", v._id?.toString() || v.email);
-  res.cookie("vendorToken", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 30 * 24 * 3600 * 1000 });
+  const isProd = process.env.NODE_ENV === "production";
+  res.cookie("vendorToken", token, {
+    httpOnly: true,
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
+    maxAge: 30 * 24 * 3600 * 1000,
+  });
   res.json({ vendor: v });
 }
 
