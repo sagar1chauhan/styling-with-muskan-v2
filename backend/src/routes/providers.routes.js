@@ -33,6 +33,82 @@ function parseHHMMToMinutes(v) {
   return h * 60 + mm;
 }
 
+function escapeRegex(s) {
+  return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function getProviderAvailability(provider, date, settings) {
+  const providerId = String(provider?._id || provider?.id || "").trim();
+  const dayStart = isoDateToLocalStart(date);
+  const dayEnd = isoDateToLocalEnd(date);
+  if (!providerId || !dayStart || !dayEnd) {
+    const slotMap = {};
+    DEFAULT_TIME_SLOTS.forEach((s) => { slotMap[s] = false; });
+    return { provider: providerCard(provider), date, slots: [], slotMap, reason: "invalid_date" };
+  }
+
+  const leave = await LeaveRequest.findOne({
+    providerId,
+    status: "approved",
+    $or: [
+      { endAt: { $ne: null, $gte: dayStart }, startAt: { $lte: dayEnd } },
+      { endAt: null, startAt: { $gte: dayStart, $lte: dayEnd } },
+    ],
+  }).lean();
+  if (leave) {
+    const slotMap = {};
+    DEFAULT_TIME_SLOTS.forEach((s) => { slotMap[s] = false; });
+    return { provider: providerCard(provider), date, slots: [], slotMap, reason: "on_leave" };
+  }
+
+  const availDoc = await ProviderDayAvailability.findOne({ providerId, date }).lean();
+  const baseMap = availDoc?.availableSlots?.length
+    ? (() => {
+      const m = {};
+      DEFAULT_TIME_SLOTS.forEach((s) => { m[s] = false; });
+      for (const s of (availDoc.availableSlots || [])) {
+        if (DEFAULT_TIME_SLOTS.includes(s)) m[s] = true;
+      }
+      return m;
+    })()
+    : defaultSlotsMap();
+
+  const bookedTimes = await Booking.find({
+    assignedProvider: providerId,
+    "slot.date": date,
+    status: { $ne: "cancelled" },
+  }).distinct("slot.time");
+  const bookedSet = new Set((bookedTimes || []).map((t) => String(t)));
+
+  const leadMs = Math.max(Number(settings?.minLeadTimeMinutes || 0), 0) * 60 * 1000;
+  const windowStartMin = parseHHMMToMinutes(settings?.serviceStartTime || "");
+  const windowEndMin = parseHHMMToMinutes(settings?.serviceEndTime || "");
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const isToday = date === todayKey;
+  const now = new Date();
+
+  const slotMap = {};
+  const slots = [];
+  for (const s of DEFAULT_TIME_SLOTS) {
+    let ok = baseMap[s] === true && !bookedSet.has(s);
+    if (ok && isToday && leadMs > 0) {
+      const slotStart = slotLabelToLocalDateTime(date, s);
+      if (slotStart && slotStart.getTime() < (now.getTime() + leadMs)) ok = false;
+    }
+    if (ok && windowStartMin !== null && windowEndMin !== null) {
+      const hm = parseSlotLabelToHM(s);
+      if (hm) {
+        const slotMin = hm.hour * 60 + hm.minute;
+        if (slotMin < windowStartMin || slotMin > windowEndMin) ok = false;
+      }
+    }
+    slotMap[s] = ok;
+    if (ok) slots.push(s);
+  }
+
+  return { provider: providerCard(provider), date, slots, slotMap };
+}
+
 router.get(
   "/:providerId/available-slots",
   requireAuth,
@@ -52,72 +128,48 @@ router.get(
       return res.status(404).json({ error: "Provider not available" });
     }
 
-    const dayStart = isoDateToLocalStart(date);
-    const dayEnd = isoDateToLocalEnd(date);
-    if (!dayStart || !dayEnd) return res.status(400).json({ error: "Invalid date" });
+    const settings = await BookingSettings.findOne().lean();
+    const result = await getProviderAvailability(provider, date, settings);
+    res.json(result);
+  }
+);
 
-    // If provider is on approved leave for this date, no slots.
-    const leave = await LeaveRequest.findOne({
-      providerId,
-      status: "approved",
-      $or: [
-        { endAt: { $ne: null, $gte: dayStart }, startAt: { $lte: dayEnd } },
-        { endAt: null, startAt: { $gte: dayStart, $lte: dayEnd } },
-      ],
-    }).lean();
-    if (leave) {
-      const slotMap = {};
-      DEFAULT_TIME_SLOTS.forEach((s) => { slotMap[s] = false; });
-      return res.json({ provider: providerCard(provider), date, slots: [], slotMap, reason: "on_leave" });
-    }
+router.get(
+  "/available-slots-by-date",
+  requireAuth,
+  query("date").isString().notEmpty(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ error: "Invalid input", details: errors.array() });
 
-    const availDoc = await ProviderDayAvailability.findOne({ providerId, date }).lean();
-    const baseMap = availDoc?.availableSlots?.length
-      ? (() => {
-        const m = {};
-        DEFAULT_TIME_SLOTS.forEach((s) => { m[s] = false; });
-        for (const s of (availDoc.availableSlots || [])) {
-          if (DEFAULT_TIME_SLOTS.includes(s)) m[s] = true;
-        }
-        return m;
-      })()
-      : defaultSlotsMap();
+    const date = String(req.query.date || "").trim();
+    if (!isIsoDate(date)) return res.status(400).json({ error: "Invalid date" });
 
-    const bookedTimes = await Booking.find({
-      assignedProvider: providerId,
-      "slot.date": date,
-      status: { $ne: "cancelled" },
-    }).distinct("slot.time");
-    const bookedSet = new Set((bookedTimes || []).map((t) => String(t)));
+    const addr0 = (req.user?.addresses || [])[0] || {};
+    const cityGuess = String(req.query.city || addr0.city || addr0.area || "").trim();
+    const baseQ = { approvalStatus: "approved", registrationComplete: true, isOnline: true };
+    const providers = cityGuess
+      ? await ProviderAccount.find({ ...baseQ, city: new RegExp(`^${escapeRegex(cityGuess)}$`, "i") }).lean()
+      : await ProviderAccount.find(baseQ).lean();
 
     const settings = await BookingSettings.findOne().lean();
-    const leadMs = Math.max(Number(settings?.minLeadTimeMinutes || 0), 0) * 60 * 1000;
-    const windowStartMin = parseHHMMToMinutes(settings?.serviceStartTime || "");
-    const windowEndMin = parseHHMMToMinutes(settings?.serviceEndTime || "");
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const isToday = date === todayKey;
-    const now = new Date();
-
     const slotMap = {};
-    const slots = [];
-    for (const s of DEFAULT_TIME_SLOTS) {
-      let ok = baseMap[s] === true && !bookedSet.has(s);
-      if (ok && isToday && leadMs > 0) {
-        const slotStart = slotLabelToLocalDateTime(date, s);
-        if (slotStart && slotStart.getTime() < (now.getTime() + leadMs)) ok = false;
+    const candidateProvidersBySlot = {};
+    DEFAULT_TIME_SLOTS.forEach((s) => {
+      slotMap[s] = false;
+      candidateProvidersBySlot[s] = [];
+    });
+
+    for (const provider of providers) {
+      const result = await getProviderAvailability(provider, date, settings);
+      for (const slot of result.slots || []) {
+        slotMap[slot] = true;
+        candidateProvidersBySlot[slot].push(String(provider._id));
       }
-      if (ok && windowStartMin !== null && windowEndMin !== null) {
-        const hm = parseSlotLabelToHM(s);
-        if (hm) {
-          const slotMin = hm.hour * 60 + hm.minute;
-          if (slotMin < windowStartMin || slotMin > windowEndMin) ok = false;
-        }
-      }
-      slotMap[s] = ok;
-      if (ok) slots.push(s);
     }
 
-    res.json({ provider: providerCard(provider), date, slots, slotMap });
+    const slots = DEFAULT_TIME_SLOTS.filter((s) => slotMap[s]);
+    res.json({ date, slots, slotMap, candidateProvidersBySlot, city: cityGuess });
   }
 );
 

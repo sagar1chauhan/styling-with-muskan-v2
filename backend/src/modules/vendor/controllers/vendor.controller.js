@@ -1,5 +1,6 @@
 import { validationResult } from "express-validator";
 import Vendor from "../../../models/Vendor.js";
+import mongoose from "mongoose";
 import ProviderAccount from "../../../models/ProviderAccount.js";
 import Booking from "../../../models/Booking.js";
 import SOSAlert from "../../../models/SOSAlert.js";
@@ -204,9 +205,17 @@ export async function listBookings(req, res) {
 }
 
 export async function assignBooking(req, res) {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes window for manual assignment too
   const b = await Booking.findByIdAndUpdate(
     req.params.id,
-    { assignedProvider: req.body.providerId, status: "pending" },
+    { 
+      assignedProvider: req.body.providerId, 
+      status: "pending",
+      lastAssignedAt: now,
+      expiresAt: expiresAt,
+      adminEscalated: false
+    },
     { new: true }
   );
   res.json({ booking: b });
@@ -279,11 +288,18 @@ export async function assignTeamCustomEnquiry(req, res) {
     .filter((m) => m && m.id && m.name);
   if (cleaned.length === 0) return res.status(400).json({ error: "Invalid teamMembers" });
 
-  enq.maintainerProvider = String(req.body.maintainerProvider || "").trim();
+  const maintainerRaw = String(req.body.maintainerProvider || "").trim();
+  let provider = null;
+  if (mongoose.isValidObjectId(maintainerRaw)) {
+    provider = await ProviderAccount.findById(maintainerRaw);
+  }
+  if (!provider && /^\d{10}$/.test(maintainerRaw)) {
+    provider = await ProviderAccount.findOne({ phone: maintainerRaw });
+  }
+  if (!provider) return res.status(404).json({ error: "Provider not found" });
+  enq.maintainerProvider = provider._id.toString();
   enq.assignedProvider = enq.maintainerProvider;
   enq.teamMembers = cleaned;
-  const provider = await ProviderAccount.findById(enq.maintainerProvider);
-  if (!provider) return res.status(404).json({ error: "Provider not found" });
 
   const commissionSettings = await CommissionSettings.findOne().lean();
   const rate = Number(commissionSettings?.rate || 20);
@@ -335,7 +351,9 @@ export async function assignTeamCustomEnquiry(req, res) {
       },
       slot: { date: enq.scheduledAt?.date || new Date().toISOString().slice(0, 10), time: enq.scheduledAt?.timeSlot || "10:00" },
       bookingType: "customized",
-      status: "accepted",
+      status: "pending",
+      lastAssignedAt: new Date(),
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 mins for custom team
       notificationStatus: (await withinNotificationWindow()) ? "immediate" : "queued",
       assignedProvider: enq.maintainerProvider,
       maintainProvider: enq.maintainerProvider,
@@ -347,7 +365,9 @@ export async function assignTeamCustomEnquiry(req, res) {
   } else {
     booking.assignedProvider = enq.maintainerProvider;
     booking.maintainProvider = enq.maintainerProvider;
-    booking.status = "accepted";
+    booking.status = "pending";
+    booking.lastAssignedAt = new Date();
+    booking.expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     booking.notificationStatus = (await withinNotificationWindow()) ? "immediate" : "queued";
     booking.teamMembers = Array.isArray(enq.teamMembers) ? enq.teamMembers : [];
     booking.commissionAmount = required;

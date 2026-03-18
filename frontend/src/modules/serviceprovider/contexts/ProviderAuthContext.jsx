@@ -10,6 +10,7 @@ export const useProviderAuth = () => {
 };
 
 const STORAGE_KEY = "swm_provider";
+const TOKEN_KEY = "swm_provider_token";
 
 export const ProviderAuthProvider = ({ children }) => {
     const [provider, setProviderState] = useState(null);
@@ -19,6 +20,12 @@ export const ProviderAuthProvider = ({ children }) => {
         try {
             if (p) localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
             else localStorage.removeItem(STORAGE_KEY);
+        } catch {}
+    };
+    const setProviderToken = (token) => {
+        try {
+            if (token) localStorage.setItem(TOKEN_KEY, token);
+            else localStorage.removeItem(TOKEN_KEY);
         } catch {}
     };
     useEffect(() => {
@@ -37,16 +44,20 @@ export const ProviderAuthProvider = ({ children }) => {
         (async () => {
             try {
                 const phone = provider?.phone || "";
-                if (phone && !provider?.profilePhoto) {
+                if (phone) {
                     const { provider: rec } = await api.provider.me(phone);
-                    if (!cancelled && rec?.profilePhoto) {
-                        setProvider({ ...(provider || {}), ...rec });
+                    if (!cancelled && rec) {
+                        // Check if status changed or data needs update
+                        const hasChanged = JSON.stringify(rec) !== JSON.stringify(provider);
+                        if (hasChanged) {
+                            setProvider(rec);
+                        }
                     }
                 }
             } catch {}
         })();
         return () => { cancelled = true; };
-    }, [provider?.phone]);
+    }, [provider?.phone, provider?.approvalStatus]);
 
     const isLoggedIn = !!provider;
     const isApproved = provider?.approvalStatus === "approved";
@@ -119,12 +130,13 @@ export const ProviderAuthProvider = ({ children }) => {
 
     const requestOtp = async (phone) => { await api.provider.requestOtp(phone); };
     const verifyOtp = async (phone, otp) => {
-        const { provider } = await api.provider.verifyOtp(phone, otp);
+        const { provider, providerToken } = await api.provider.verifyOtp(phone, otp);
         setProvider(provider);
+        if (providerToken) setProviderToken(providerToken);
         return { success: true, registered: provider.registrationComplete };
     };
 
-    const logout = () => { setProvider(null); api.provider.logout(); };
+    const logout = () => { setProvider(null); setProviderToken(""); api.provider.logout(); };
 
     const adminApprove = () => {
         setProvider(prev => ({ ...prev, approvalStatus: "approved" }));

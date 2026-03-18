@@ -19,7 +19,7 @@ const PaymentPage = () => {
     const location = useLocation();
     const passedState = location.state;
     const { gender } = useGenderTheme();
-    const { cartItems, totalPrice, totalSavings, selectedSlot, clearCart, clearGroup, getGroupedItems } = useCart();
+    const { cartItems, totalPrice, totalSavings, selectedSlot, clearCart, clearGroup, getGroupedItems, setCustomAdvance } = useCart();
     const { user } = useAuth();
     const { loadBookings } = useBookings();
     const { categories } = useUserModuleData();
@@ -31,6 +31,7 @@ const PaymentPage = () => {
 
     // Calculate final total (including state from summary)
     const finalTotal = passedState?.finalTotal || totalPrice;
+    const customAdvance = passedState?.customAdvance || null;
     const checkoutType = passedState?.checkoutType;
     const allGroups = getGroupedItems();
     const displayGroups = checkoutType && allGroups[checkoutType] ? { [checkoutType]: allGroups[checkoutType] } : allGroups;
@@ -64,18 +65,30 @@ const PaymentPage = () => {
                 (passedState?.advanceAmount && selectedMethod !== "cod" ? passedState.advanceAmount : finalTotal) * 100
             );
 
+            const finalizeSuccess = async () => {
+                if (customAdvance?.enquiryId) {
+                    try {
+                        await api.bookings.custom.advancePaid(customAdvance.enquiryId, Number(customAdvance.amount || 0));
+                    } catch (e) {
+                        setError(e?.message || "Failed to record advance payment");
+                    }
+                }
+                loadBookings();
+                setIsProcessing(false);
+                setIsSuccess(true);
+                setTimeout(() => {
+                    if (checkoutType) clearGroup(checkoutType);
+                    else clearCart();
+                    setCustomAdvance(null);
+                    navigate("/bookings");
+                }, 1500);
+            };
+
             if (!key) {
                 const res = await api.payments.createOrder({ amount: amountPaise, currency: "INR" });
                 if (!res?.order) {
                     await new Promise(r => setTimeout(r, 1200));
-                    loadBookings();
-                    setIsProcessing(false);
-                    setIsSuccess(true);
-                    setTimeout(() => {
-                        if (checkoutType) clearGroup(checkoutType);
-                        else clearCart();
-                        navigate("/bookings");
-                    }, 1500);
+                    await finalizeSuccess();
                     return;
                 }
             }
@@ -89,14 +102,7 @@ const PaymentPage = () => {
 
             if (!order || warning === "PAYMENT_DISABLED") {
                 await new Promise(r => setTimeout(r, 1200));
-                loadBookings();
-                setIsProcessing(false);
-                setIsSuccess(true);
-                setTimeout(() => {
-                    if (checkoutType) clearGroup(checkoutType);
-                    else clearCart();
-                    navigate("/bookings");
-                }, 1500);
+                await finalizeSuccess();
                 return;
             }
 
@@ -127,14 +133,7 @@ const PaymentPage = () => {
                             amount: order.amount,
                             ...(bookingId ? { bookingId } : {})
                         });
-                        loadBookings();
-                        setIsProcessing(false);
-                        setIsSuccess(true);
-                        setTimeout(() => {
-                            if (checkoutType) clearGroup(checkoutType);
-                            else clearCart();
-                            navigate("/bookings");
-                        }, 1000);
+                        await finalizeSuccess();
                     } catch (e) {
                         setError(e?.message || "Payment verification failed");
                         setIsProcessing(false);

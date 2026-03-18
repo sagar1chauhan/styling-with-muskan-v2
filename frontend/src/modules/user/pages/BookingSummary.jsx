@@ -28,7 +28,7 @@ const BookingSummary = () => {
   const checkoutType = searchParams.get('type');
 
   const { gender } = useGenderTheme();
-  const { cartItems, updateQuantity, clearCart, totalPrice, totalSavings, isCartOpen, setIsCartOpen, selectedSlot, getGroupedItems, bookingType } = useCart();
+  const { cartItems, updateQuantity, clearCart, totalPrice, totalSavings, isCartOpen, setIsCartOpen, selectedSlot, getGroupedItems, bookingType, customAdvance, setCustomAdvance } = useCart();
   const { user, setIsAddressModalOpen } = useAuth();
   const { addBooking } = useBookings();
 
@@ -109,6 +109,7 @@ const BookingSummary = () => {
   }
 
   const passedBookingData = location.state;
+  const customAdvanceData = passedBookingData?.customAdvance || customAdvance;
   const finalTotal = displayTotalPrice - discount - plusDiscount;
 
   // Calculate advance based on passed data or fallback
@@ -151,6 +152,26 @@ const BookingSummary = () => {
   };
 
   const handlePay = async () => {
+    if (customAdvanceData?.enquiryId) {
+      const amt = Number(customAdvanceData.amount || 0);
+      if (!(amt > 0)) {
+        toast.error("Advance amount not available.");
+        return;
+      }
+      navigate("/payment", {
+        state: {
+          discount: 0,
+          finalTotal: amt,
+          totalSavings: 0,
+          checkoutType: "custom",
+          advanceAmount: amt,
+          remainingAmount: 0,
+          isPartiallyPaid: false,
+          customAdvance: { enquiryId: customAdvanceData.enquiryId, amount: amt }
+        }
+      });
+      return;
+    }
     if (!user?.addresses || user.addresses.length === 0) {
       setIsAddressModalOpen(true);
       return;

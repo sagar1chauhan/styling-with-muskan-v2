@@ -47,6 +47,12 @@ export const BookingProvider = ({ children }) => {
     await loadBookings();
   };
 
+  const rejectCustomEnquiry = async (id) => {
+    await api.bookings.custom.userReject(id);
+    await loadEnquiries();
+    await loadBookings();
+  };
+
   const payAdvanceForCustomEnquiry = async (id, amount) => {
     await api.bookings.custom.advancePaid(id, amount);
     await loadEnquiries();
@@ -68,6 +74,7 @@ export const BookingProvider = ({ children }) => {
         loadBookings,
         loadEnquiries,
         acceptCustomEnquiry,
+        rejectCustomEnquiry,
         payAdvanceForCustomEnquiry,
       }}
     >

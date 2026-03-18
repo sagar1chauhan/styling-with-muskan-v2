@@ -629,6 +629,26 @@ export async function userMarkCustomAdvancePaid(req, res) {
   res.json({ enquiry: enq });
 }
 
+export async function userRejectCustomEnquiry(req, res) {
+  const { id } = req.params;
+  const enq = await CustomEnquiry.findOne({ _id: id, userId: req.user._id.toString() });
+  if (!enq) return res.status(404).json({ error: "Not found" });
+
+  const st = String(enq.status || "").toLowerCase();
+  if (["service_completed", "completed"].includes(st)) {
+    return res.status(409).json({ error: "Completed enquiries cannot be rejected." });
+  }
+
+  enq.status = "rejected";
+  enq.timeline = Array.isArray(enq.timeline) ? enq.timeline : [];
+  enq.timeline.push({
+    action: "rejected",
+    meta: { by: "customer", paymentStatus: enq.paymentStatus || "pending" },
+  });
+  await enq.save();
+  res.json({ enquiry: enq });
+}
+
 // Admin helpers
 export async function adminListCustomEnquiries(_req, res) {
   const items = await CustomEnquiry.find().sort({ createdAt: -1 }).lean();

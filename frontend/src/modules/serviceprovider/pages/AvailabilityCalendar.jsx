@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { format, addHours, isBefore, isWeekend } from "date-fns";
 import { api } from "@/modules/user/lib/api";
 import { useProviderAuth } from "@/modules/serviceprovider/contexts/ProviderAuthContext";
+import { useNavigate } from "react-router-dom";
 
 const timeSlots = [
     "07:00 AM", "08:00 AM", "09:00 AM", "10:00 AM",
@@ -52,7 +53,8 @@ export default function AvailabilityCalendar() {
     const [leaveEnd, setLeaveEnd] = useState("");
     const [leaveReason, setLeaveReason] = useState("");
     const [leaves, setLeaves] = useState([]);
-    const { isLoggedIn } = useProviderAuth();
+    const { isLoggedIn, logout } = useProviderAuth();
+    const navigate = useNavigate();
 
     useEffect(() => {
         let cancelled = false;
@@ -70,7 +72,13 @@ export default function AvailabilityCalendar() {
         api.provider.availability.get(selectedDate).then(({ slots }) => {
             if (cancelled) return;
             setDateSlots(prev => ({ ...prev, [selectedDate]: slots || {} }));
-        }).catch(() => {
+        }).catch((e) => {
+            if (e?.status === 401) {
+                toast.error("Session expired, please login again");
+                logout();
+                navigate("/provider/login", { replace: true });
+                return;
+            }
             // If API fails, keep the default UI behavior.
         }).finally(() => {
             if (!cancelled) setLoadingSlots(false);
@@ -151,6 +159,12 @@ export default function AvailabilityCalendar() {
             await api.provider.availability.set(date, slots);
             toast.success("Availability saved");
         } catch (e) {
+            if (e?.status === 401) {
+                toast.error("Session expired, please login again");
+                logout();
+                navigate("/provider/login", { replace: true });
+                return;
+            }
             toast.error(e?.message || "Failed to save availability");
         } finally {
             setSavingSlots(false);

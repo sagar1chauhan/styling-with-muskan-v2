@@ -66,7 +66,7 @@ router.post("/verify-otp", body("phone").matches(/^\d{10}$/), body("otp").isLeng
   } catch {}
   const token = issueRoleToken("provider", acc._id.toString());
   res.cookie("providerToken", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 30 * 24 * 3600 * 1000 });
-  res.json({ provider: acc });
+  res.json({ provider: acc, providerToken: token });
 });
 
 router.get("/availability/:date", requireRole("provider"), param("date").isString(), async (req, res) => {
@@ -759,16 +759,17 @@ router.post(
   param("id").isString(),
   upload.array("images", 10),
   async (req, res) => {
-    const b = await Booking.findById(req.params.id);
-    if (!b) return res.status(404).json({ error: "Not found" });
-    if ((b.assignedProvider || "") !== (req.auth?.sub || "")) return res.status(403).json({ error: "Forbidden" });
     const uploads = await Promise.all(
-      (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${b._id}/before`))
+      (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${req.params.id}/before`))
     );
     const urls = uploads.map((u) => u.secure_url);
-    b.beforeImages = [...(b.beforeImages || []), ...urls];
-    await b.save();
-    res.json({ booking: b });
+    const booking = await Booking.findOneAndUpdate(
+      { _id: req.params.id, assignedProvider: req.auth?.sub || "" },
+      { $push: { beforeImages: { $each: urls } } },
+      { new: true }
+    );
+    if (!booking) return res.status(404).json({ error: "Booking not found or not assigned to you" });
+    res.json({ booking });
   }
 );
 
@@ -778,16 +779,17 @@ router.post(
   param("id").isString(),
   upload.array("images", 10),
   async (req, res) => {
-    const b = await Booking.findById(req.params.id);
-    if (!b) return res.status(404).json({ error: "Not found" });
-    if ((b.assignedProvider || "") !== (req.auth?.sub || "")) return res.status(403).json({ error: "Forbidden" });
     const uploads = await Promise.all(
-      (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${b._id}/after`))
+      (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${req.params.id}/after`))
     );
     const urls = uploads.map((u) => u.secure_url);
-    b.afterImages = [...(b.afterImages || []), ...urls];
-    await b.save();
-    res.json({ booking: b });
+    const booking = await Booking.findOneAndUpdate(
+      { _id: req.params.id, assignedProvider: req.auth?.sub || "" },
+      { $push: { afterImages: { $each: urls } } },
+      { new: true }
+    );
+    if (!booking) return res.status(404).json({ error: "Booking not found or not assigned to you" });
+    res.json({ booking });
   }
 );
 
@@ -797,16 +799,17 @@ router.post(
   param("id").isString(),
   upload.array("images", 10),
   async (req, res) => {
-    const b = await Booking.findById(req.params.id);
-    if (!b) return res.status(404).json({ error: "Not found" });
-    if ((b.assignedProvider || "") !== (req.auth?.sub || "")) return res.status(403).json({ error: "Forbidden" });
     const uploads = await Promise.all(
-      (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${b._id}/products`))
+      (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${req.params.id}/products`))
     );
     const urls = uploads.map((u) => u.secure_url);
-    b.productImages = [...(b.productImages || []), ...urls];
-    await b.save();
-    res.json({ booking: b });
+    const booking = await Booking.findOneAndUpdate(
+      { _id: req.params.id, assignedProvider: req.auth?.sub || "" },
+      { $push: { productImages: { $each: urls } } },
+      { new: true }
+    );
+    if (!booking) return res.status(404).json({ error: "Booking not found or not assigned to you" });
+    res.json({ booking });
   }
 );
 
@@ -816,16 +819,17 @@ router.post(
   param("id").isString(),
   upload.array("images", 10),
   async (req, res) => {
-    const b = await Booking.findById(req.params.id);
-    if (!b) return res.status(404).json({ error: "Not found" });
-    if ((b.assignedProvider || "") !== (req.auth?.sub || "")) return res.status(403).json({ error: "Forbidden" });
     const uploads = await Promise.all(
-      (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${b._id}/provider`))
+      (req.files || []).map((f) => uploadBuffer(f.buffer, `bookings/${req.params.id}/provider`))
     );
     const urls = uploads.map((u) => u.secure_url);
-    b.providerImages = [...(b.providerImages || []), ...urls];
-    await b.save();
-    res.json({ booking: b });
+    const booking = await Booking.findOneAndUpdate(
+      { _id: req.params.id, assignedProvider: req.auth?.sub || "" },
+      { $push: { providerImages: { $each: urls } } },
+      { new: true }
+    );
+    if (!booking) return res.status(404).json({ error: "Booking not found or not assigned to you" });
+    res.json({ booking });
   }
 );
 

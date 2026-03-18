@@ -20,6 +20,7 @@ export const CartProvider = ({ children }) => {
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [bookingType, setBookingType] = useState("instant");
+    const [customAdvance, setCustomAdvance] = useState(null);
 
     // no localStorage persistence; keep in-memory for now
 
@@ -100,6 +101,7 @@ export const CartProvider = ({ children }) => {
 
     const clearCart = () => {
         setCartItems([]);
+        setCustomAdvance(null);
     };
 
     const [activeCheckoutType, setActiveCheckoutType] = useState(null);
@@ -148,11 +150,34 @@ export const CartProvider = ({ children }) => {
                 setSelectedSlot,
                 bookingType,
                 setBookingType,
+                customAdvance,
+                setCustomAdvance,
                 addToCart,
                 updateQuantity,
                 clearCart,
                 clearGroup,
                 getGroupedItems,
+                addCustomAdvanceToCart: (enquiry, amount) => {
+                    const enqId = enquiry?._id || enquiry?.id || `custom-${Date.now()}`;
+                    const price = Number(amount || 0);
+                    const name = `Advance for ${enquiry?.eventType || enquiry?.name || "Custom Booking"}`;
+                    const item = {
+                        id: `custom-advance-${enqId}`,
+                        name,
+                        price,
+                        quantity: 1,
+                        category: "custom",
+                        serviceType: "custom",
+                        isCustomAdvance: true,
+                        enquiryId: enqId
+                    };
+                    setCartItems([item]);
+                    setBookingType("customized");
+                    const date = enquiry?.scheduledAt?.date || enquiry?.date || null;
+                    const time = enquiry?.scheduledAt?.timeSlot || enquiry?.timeSlot || null;
+                    if (date && time) setSelectedSlot({ date, time });
+                    setCustomAdvance({ enquiryId: enqId, amount: price, label: name });
+                },
             }}
         >
             {children}

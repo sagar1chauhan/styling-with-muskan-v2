@@ -156,14 +156,10 @@ router.get("/me/coupons", requireAuth, async (req, res) => {
   res.json({ coupons: filtered });
 });
 
-// Provider suggestions for booking flow: show recent providers, else recommended by city + specialties.
+// Provider suggestions for booking flow: determine repeat-user vs new-user slot selection mode.
 router.get("/me/provider-suggestions", requireAuth, async (req, res) => {
   const customerId = req.user._id.toString();
   const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || "10"), 10) || 10, 20));
-  const serviceTypesRaw = String(req.query.serviceTypes || "").trim();
-  const serviceTypes = serviceTypesRaw
-    ? serviceTypesRaw.split(",").map((s) => s.trim()).filter(Boolean)
-    : [];
 
   const addr0 = (req.user.addresses || [])[0] || {};
   const cityGuess = String(req.query.city || addr0.city || addr0.area || "").trim();
@@ -196,53 +192,12 @@ router.get("/me/provider-suggestions", requireAuth, async (req, res) => {
   const recentProviders = recentIds.map((id) => byId.get(id)).filter(Boolean).map(providerCard);
 
   const isFirstBooking = recentIds.length === 0;
-
-  // Recommended providers:
-  // 1) Best matches in user's city (serviceTypes match)
-  // 2) If none found: all providers in user's city sorted by rating (fallback)
-  // 3) If still none: all providers sorted by rating (global fallback)
-  const baseQ = { approvalStatus: "approved", registrationComplete: true, isOnline: true };
-  const cityRe = cityGuess
-    ? new RegExp(`^${cityGuess.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}$`, "i")
-    : null;
-
-  const want = new Set(serviceTypes.map((s) => s.toLowerCase()));
-  const matchesServiceTypes = (p) => {
-    if (want.size === 0) return true;
-    const spec = Array.isArray(p?.documents?.specializations) ? p.documents.specializations : [];
-    if (spec.length === 0) return true;
-    return spec.some((s) => want.has(String(s || "").toLowerCase()));
-  };
-  const byRating = (a, b) => {
-    const r = Number(b.rating || 0) - Number(a.rating || 0);
-    if (r !== 0) return r;
-    return Number(b.totalJobs || 0) - Number(a.totalJobs || 0);
-  };
-  const sanitize = (arr) =>
-    (arr || [])
-      .filter((p) => !seen.has(p._id.toString()))
-      .sort(byRating)
-      .slice(0, limit)
-      .map(providerCard);
-
-  let recommendedProviders = [];
-  if (cityRe) {
-    const cityPool = await ProviderAccount.find({ ...baseQ, city: cityRe }).lean();
-    recommendedProviders = sanitize(cityPool.filter(matchesServiceTypes));
-    if (recommendedProviders.length === 0) {
-      // City fallback: ignore serviceTypes constraint, just show best in city.
-      recommendedProviders = sanitize(cityPool);
-    }
-  }
-  if (recommendedProviders.length === 0) {
-    const globalPool = await ProviderAccount.find(baseQ).lean();
-    recommendedProviders = sanitize(globalPool.filter(matchesServiceTypes));
-    if (recommendedProviders.length === 0) {
-      recommendedProviders = sanitize(globalPool);
-    }
-  }
-
-  res.json({ isFirstBooking, recentProviders, recommendedProviders, city: cityGuess });
+  res.json({
+    mode: isFirstBooking ? "new_user" : "repeat_user",
+    isFirstBooking,
+    recentProviders: isFirstBooking ? [] : recentProviders.slice(0, limit),
+    city: cityGuess,
+  });
 });
 
 router.get("/me/referral", requireAuth, async (_req, res) => {

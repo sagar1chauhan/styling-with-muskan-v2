@@ -18,8 +18,7 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
 
     const [providersLoading, setProvidersLoading] = useState(false);
     const [recentProviders, setRecentProviders] = useState([]);
-    const [recommendedProviders, setRecommendedProviders] = useState([]);
-    const [isFirstBooking, setIsFirstBooking] = useState(false);
+    const [bookingMode, setBookingMode] = useState(null);
     const [slotsLoading, setSlotsLoading] = useState(false);
     const [availableSlots, setAvailableSlots] = useState([]);
 
@@ -28,9 +27,8 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
     }, [cartItems]);
 
     const providerList = useMemo(() => {
-        if (recentProviders.length > 0) return recentProviders;
-        return recommendedProviders;
-    }, [recentProviders, recommendedProviders]);
+        return recentProviders;
+    }, [recentProviders]);
 
     useEffect(() => {
         let cancelled = false;
@@ -47,19 +45,23 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
             }).then((res) => {
                 if (cancelled) return;
                 const recent = Array.isArray(res?.recentProviders) ? res.recentProviders : [];
-                const rec = Array.isArray(res?.recommendedProviders) ? res.recommendedProviders : [];
-                setRecentProviders(recent);
-                setRecommendedProviders(rec);
-                setIsFirstBooking(!!res?.isFirstBooking);
-                const next = selectedSlot?.provider?.id
-                    ? (recent.concat(rec).find(p => p.id === selectedSlot.provider.id) || null)
-                    : (recent[0] || rec[0] || null);
-                setSelectedProvider(next);
+                const isFirst = !!res?.isFirstBooking;
+                const mode = res?.mode === "new_user" || isFirst ? "new_user" : "repeat_user";
+                setRecentProviders(mode === "repeat_user" ? recent : []);
+                setBookingMode(mode);
+                if (mode === "repeat_user") {
+                    const next = selectedSlot?.provider?.id
+                        ? (recent.find(p => p.id === selectedSlot.provider.id) || null)
+                        : (recent[0] || null);
+                    setSelectedProvider(next);
+                } else {
+                    setSelectedProvider(null);
+                }
             }).catch(() => {
                 if (cancelled) return;
                 setRecentProviders([]);
-                setRecommendedProviders([]);
                 setSelectedProvider(null);
+                setBookingMode("repeat_user");
             }).finally(() => {
                 if (!cancelled) setProvidersLoading(false);
             });
@@ -70,15 +72,25 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
     useEffect(() => {
         let cancelled = false;
         if (!isOpen) return;
-        if (!selectedProvider?.id || !tempDate) {
+        if (!tempDate || !bookingMode) {
+            setAvailableSlots([]);
+            return;
+        }
+        if (bookingMode === "repeat_user" && !selectedProvider?.id) {
             setAvailableSlots([]);
             return;
         }
         setSlotsLoading(true);
-        api.providers.availableSlots(selectedProvider.id, {
-            date: tempDate,
-            serviceTypes: serviceTypes.join(","),
-        }).then((res) => {
+        const req = bookingMode === "new_user"
+            ? api.providers.availableSlotsByDate({
+                date: tempDate,
+                serviceTypes: serviceTypes.join(","),
+            })
+            : api.providers.availableSlots(selectedProvider.id, {
+                date: tempDate,
+                serviceTypes: serviceTypes.join(","),
+            });
+        req.then((res) => {
             if (cancelled) return;
             const slots = Array.isArray(res?.slots) ? res.slots : [];
             setAvailableSlots(slots);
@@ -91,7 +103,7 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
             if (!cancelled) setSlotsLoading(false);
         });
         return () => { cancelled = true; };
-    }, [isOpen, selectedProvider?.id, tempDate, serviceTypes, tempSlot]);
+    }, [isOpen, bookingMode, selectedProvider?.id, tempDate, serviceTypes, tempSlot]);
 
     const dates = useMemo(() => {
         let maxDays = 7; // Default
@@ -134,11 +146,11 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
 
     const handleSave = () => {
         if (tempDate && tempSlot) {
-            setSelectedSlot({
-                date: tempDate,
-                time: tempSlot,
-                provider: selectedProvider
-            });
+            const next = { date: tempDate, time: tempSlot };
+            if (bookingMode === "repeat_user" && selectedProvider) {
+                next.provider = selectedProvider;
+            }
+            setSelectedSlot(next);
             onSave?.();
             onClose();
         }
@@ -179,68 +191,63 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
                     {/* Scrollable Content */}
                     <div className="overflow-y-auto hide-scrollbar p-6 space-y-6">
 
-                                                {/* Provider Selection */}
-                        <div>
-                            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <UserCheck className="w-4 h-4 text-primary" /> Service Professional
-                            </h3>
-                            <div className="space-y-3">
-                                {providersLoading && (
-                                    <div className="text-[10px] text-muted-foreground font-bold px-4 py-3 rounded-xl border border-border/40 glass">
-                                        Loading professionals...
-                                    </div>
-                                )}
-                                {!providersLoading && providerList.length === 0 && (
-                                    <div className="text-[10px] text-muted-foreground font-bold px-4 py-3 rounded-xl border border-border/40 glass">
-                                        No professionals available right now.
-                                    </div>
-                                )}
-                                {!providersLoading && providerList.map((provider) => (
-                                    <button
-                                        key={provider.id}
-                                        onClick={() => setSelectedProvider(provider)}
-                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${selectedProvider?.id === provider.id
-                                            ? "border-primary bg-primary/5 shadow-md"
-                                            : "border-border glass hover:border-primary/20"
-                                            }`}
-                                    >
-                                        <div className="relative">
-                                            <img src={provider.profilePhoto || provider.image} className="w-14 h-14 rounded-xl object-cover" alt={provider.name} />
-                                            {selectedProvider?.id === provider.id && (
-                                                <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center border-2 border-background">
-                                                    <Check className="w-3 h-3 text-white" />
-                                                </div>
-                                            )}
+                        {/* Provider Selection */}
+                        {bookingMode === "repeat_user" && (
+                            <div>
+                                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <UserCheck className="w-4 h-4 text-primary" /> Service Professional
+                                </h3>
+                                <div className="space-y-3">
+                                    {providersLoading && (
+                                        <div className="text-[10px] text-muted-foreground font-bold px-4 py-3 rounded-xl border border-border/40 glass">
+                                            Loading professionals...
                                         </div>
-                                        <div className="flex-1 text-left min-w-0">
-                                            <div className="flex items-center gap-2 mb-0.5">
-                                                <h4 className="font-bold text-sm truncate">{provider.name}</h4>
-                                                {recentProviders.length > 0 && (
+                                    )}
+                                    {!providersLoading && providerList.length === 0 && (
+                                        <div className="text-[10px] text-muted-foreground font-bold px-4 py-3 rounded-xl border border-border/40 glass">
+                                            No professionals available right now.
+                                        </div>
+                                    )}
+                                    {!providersLoading && providerList.map((provider) => (
+                                        <button
+                                            key={provider.id}
+                                            onClick={() => setSelectedProvider(provider)}
+                                            className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${selectedProvider?.id === provider.id
+                                                ? "border-primary bg-primary/5 shadow-md"
+                                                : "border-border glass hover:border-primary/20"
+                                                }`}
+                                        >
+                                            <div className="relative">
+                                                <img src={provider.profilePhoto || provider.image} className="w-14 h-14 rounded-xl object-cover" alt={provider.name} />
+                                                {selectedProvider?.id === provider.id && (
+                                                    <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center border-2 border-background">
+                                                        <Check className="w-3 h-3 text-white" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 text-left min-w-0">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <h4 className="font-bold text-sm truncate">{provider.name}</h4>
                                                     <span className="text-[8px] font-black uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20">
                                                         Previously booked
                                                     </span>
-                                                )}
-                                                {isFirstBooking && (
-                                                    <span className="text-[8px] font-black uppercase bg-emerald-500/10 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                                        Recommended
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
+                                                        <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> {provider.rating}
                                                     </span>
-                                                )}
+                                                    <span className="text-[10px] font-bold text-muted-foreground">• {provider.experience}</span>
+                                                    <span className="text-[10px] font-bold text-muted-foreground">• {provider.totalJobs} jobs</span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
-                                                    <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> {provider.rating}
-                                                </span>
-                                                <span className="text-[10px] font-bold text-muted-foreground">• {provider.experience}</span>
-                                                <span className="text-[10px] font-bold text-muted-foreground">• {provider.totalJobs} jobs</span>
+                                            <div className="flex-shrink-0">
+                                                <ShieldCheck className="w-6 h-6 text-green-500/40" />
                                             </div>
-                                        </div>
-                                        <div className="flex-shrink-0">
-                                            <ShieldCheck className="w-6 h-6 text-green-500/40" />
-                                        </div>
-                                    </button>
-                                ))}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Date Selection */}
                         <div>
@@ -301,7 +308,9 @@ const SlotSelectionModal = ({ isOpen, onClose, onSave }) => {
                                 )}
                                 {!slotsLoading && slots.length === 0 && (
                                     <div className="col-span-4 text-[10px] text-muted-foreground font-bold px-4 py-3 rounded-xl border border-border/40 glass">
-                                        No slots available for this date. Try another date or professional.
+                                        {bookingMode === "new_user"
+                                            ? "No online professionals right now. Please try later."
+                                            : "No slots available for this date. Try another date."}
                                     </div>
                                 )}
                                 {!slotsLoading && slots.map((slot) => (

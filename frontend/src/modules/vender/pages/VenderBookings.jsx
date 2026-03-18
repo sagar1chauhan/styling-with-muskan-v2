@@ -88,7 +88,7 @@ export default function VenderBookings() {
             }));
             setBookings([...normal, ...custom]);
             const sArr = Array.isArray(sps) ? sps : [];
-            setProviders(sArr.filter(sp => sp.approvalStatus === "approved").map((sp) => ({ ...sp, id: sp._id || sp.id || sp.phone })));
+            setProviders(sArr.filter(sp => sp.approvalStatus === "approved").map((sp) => ({ ...sp, id: sp._id?.toString?.() || sp.id || sp.phone })));
         } catch {}
     };
     useEffect(() => { load(); }, [hydrated, isLoggedIn]);

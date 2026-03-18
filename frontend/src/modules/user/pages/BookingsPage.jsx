@@ -16,11 +16,13 @@ import SlotSelectionModal from "@/modules/user/components/salon/SlotSelectionMod
 import FeedbackModal from "@/modules/user/components/salon/FeedbackModal";
 import ProviderProfileModal from "@/modules/user/components/salon/ProviderProfileModal";
 import { useUserModuleData } from "@/modules/user/contexts/UserModuleDataContext";
+import { useCart } from "@/modules/user/contexts/CartContext";
 
 const BookingsPage = () => {
     const navigate = useNavigate();
     const { gender } = useGenderTheme();
-    const { bookings, enquiries, acceptCustomEnquiry, payAdvanceForCustomEnquiry, loadingEnquiries } = useBookings();
+    const { bookings, enquiries, acceptCustomEnquiry, rejectCustomEnquiry, payAdvanceForCustomEnquiry, loadingEnquiries } = useBookings();
+    const { addCustomAdvanceToCart, setIsCartOpen } = useCart();
     useEffect(() => {
         try {
             bookings.forEach(b => {
@@ -532,10 +534,17 @@ const BookingsPage = () => {
                                                             return;
                                                         }
                                                         const amt = Number(enq.quote?.prebookAmount || 0);
-                                                        await payAdvanceForCustomEnquiry(enq._id || enq.id, amt);
-                                                        toast.success("Advance payment confirmed.");
+                                                        if (!(amt > 0)) {
+                                                            toast.error("Advance amount not available yet.");
+                                                            return;
+                                                        }
+                                                        addCustomAdvanceToCart(enq, amt);
+                                                        setIsCartOpen(false);
+                                                        navigate("/booking/summary?type=custom", {
+                                                            state: { customAdvance: { enquiryId: enq._id || enq.id, amount: amt } }
+                                                        });
                                                     } catch (e) {
-                                                        toast.error(e?.message || "Failed to record advance payment");
+                                                        toast.error(e?.message || "Failed to start advance payment");
                                                     }
                                                 }}
                                                 disabled={!(enq.quote?.prebookAmount > 0)}
@@ -552,9 +561,50 @@ const BookingsPage = () => {
                                             <span className="text-[10px] font-bold text-muted-foreground">Support Help</span>
                                         </div>
                                     ) : (
-                                        <div className="mt-5 pt-4 border-t border-border/30 flex items-center justify-between text-[10px] font-bold text-muted-foreground">
-                                            <span>Sent on {new Date(enq.createdAt || Date.now()).toLocaleDateString()}</span>
-                                            <span className="text-primary hover:underline cursor-pointer">Support Help</span>
+                                        <div className="mt-5 pt-4 border-t border-border/30 flex items-center justify-between gap-3">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-muted-foreground">
+                                                    Sent on {new Date(enq.createdAt || Date.now()).toLocaleDateString()}
+                                                </span>
+                                                <span className="text-primary hover:underline cursor-pointer mt-0.5 text-[10px] font-bold">Support Help</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={async () => {
+                                                        try {
+                                                            await rejectCustomEnquiry(enq._id || enq.id);
+                                                            toast.success("Request rejected.");
+                                                        } catch (e) {
+                                                            toast.error(e?.message || "Failed to reject request");
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-colors"
+                                                >
+                                                    Reject
+                                                </button>
+                                                <button 
+                                                    onClick={async () => {
+                                                        try {
+                                                            const expiryAt = enq.quote?.expiryAt ? new Date(enq.quote.expiryAt) : null;
+                                                            if (expiryAt && !Number.isNaN(expiryAt.getTime()) && expiryAt.getTime() < Date.now()) {
+                                                                toast.error("This quote has expired. Please request a new quote.");
+                                                                return;
+                                                            }
+                                                            if (!(enq.quote?.totalAmount > 0 || enq.quote?.prebookAmount > 0)) {
+                                                                toast.error("Quote not ready yet. Please wait for admin approval.");
+                                                                return;
+                                                            }
+                                                            await acceptCustomEnquiry(enq._id || enq.id);
+                                                            toast.success("Quote accepted. Please pay the advance.");
+                                                        } catch (e) {
+                                                            toast.error(e?.message || "Failed to accept request");
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-sm shadow-primary/20"
+                                                >
+                                                    Accept
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </motion.div>

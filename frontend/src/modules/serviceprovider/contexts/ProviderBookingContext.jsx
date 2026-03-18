@@ -41,7 +41,7 @@ export const ProviderBookingProvider = ({ children }) => {
     }, [providerId, provider?.phone]);
 
     // Only show bookings explicitly assigned to this provider
-    const myBookings = bookings.filter(b => b.assignedProvider === providerId);
+    const myBookings = bookings.filter(b => String(b.assignedProvider || "") === String(providerId || ""));
 
     const incomingBookings = myBookings.filter(b => b.status === "incoming" || b.status === "pending" || b.status === "Pending" || b.status === "final_approved");
     const pendingBookings = myBookings.filter(b => b.status === "pending" || b.status === "Pending" || b.status === "final_approved");

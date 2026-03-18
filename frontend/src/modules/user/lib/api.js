@@ -8,6 +8,14 @@ function getToken() {
   }
 }
 
+function getProviderToken() {
+  try {
+    return localStorage.getItem("swm_provider_token") || "";
+  } catch {
+    return "";
+  }
+}
+
 function setToken(token) {
   try {
     if (token) localStorage.setItem("swm_token", token);
@@ -17,12 +25,15 @@ function setToken(token) {
 
 async function request(path, options = {}) {
   const token = getToken();
+  const providerToken = getProviderToken();
+  const isProviderPath = typeof path === "string" && path.startsWith("/provider");
+  const authToken = isProviderPath && providerToken ? providerToken : token;
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method || "GET",
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     },
     credentials: "include",
     body: options.body ? JSON.stringify(options.body) : undefined,
@@ -88,6 +99,10 @@ export const api = {
       const q = new URLSearchParams(params).toString();
       return request(`/providers/${providerId}/available-slots${q ? `?${q}` : ""}`);
     },
+    availableSlotsByDate: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/providers/available-slots-by-date${q ? `?${q}` : ""}`);
+    },
   },
 
   // Public content
@@ -118,6 +133,7 @@ export const api = {
       list: () => request("/bookings/custom-enquiry"),
       userAccept: (id) => request(`/bookings/custom-enquiry/${id}/user-accept`, { method: "PATCH" }),
       advancePaid: (id, amount) => request(`/bookings/custom-enquiry/${id}/advance-paid`, { method: "PATCH", body: { amount } }),
+      userReject: (id) => request(`/bookings/custom-enquiry/${id}/user-reject`, { method: "PATCH" }),
     },
   },
 

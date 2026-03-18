@@ -66,6 +66,11 @@ router.patch(
   body("amount").optional().isNumeric(),
   BookingsController.userMarkCustomAdvancePaid
 );
+router.patch(
+  "/custom-enquiry/:id/user-reject",
+  requireAuth,
+  BookingsController.userRejectCustomEnquiry
+);
 
 router.get(
   "/:id/track",
